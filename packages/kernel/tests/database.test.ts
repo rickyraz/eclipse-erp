@@ -5,6 +5,7 @@ import {
   drizzleSql,
   makePostgresDatabase,
   UnsupportedPostgresVersion,
+  validatePostgresVersion,
 } from "../mod.ts"
 
 Deno.test("database service delegates the transaction boundary", async () => {
@@ -82,18 +83,34 @@ Deno.test("database service maps driver failures to a stable error", async () =>
 })
 
 Deno.test("database service rejects PostgreSQL versions below 19", async () => {
-  const database = makePostgresDatabase({
-    begin: (operation) =>
+  const client = {
+    begin: <A>(
+      operation: (transaction: {
+        unsafe: <Row extends Record<string, unknown>>() => Promise<readonly Row[]>
+      }) => Promise<A>,
+    ) =>
       operation({
         unsafe: <Row extends Record<string, unknown>>() =>
           Promise.resolve([{ server_version_num: "180000" }] as unknown as readonly Row[]),
       }),
-  })
+  }
+  const database = makePostgresDatabase(client)
 
   try {
-    await Effect.runPromise(database.validateVersion)
+    await Effect.runPromise(validatePostgresVersion(client))
     throw new Error("expected PostgreSQL version rejection")
   } catch (error) {
     if (!(error instanceof UnsupportedPostgresVersion)) throw error
+  }
+
+  try {
+    await Effect.runPromise(database.transaction(() => Promise.resolve()))
+    throw new Error("expected database transaction rejection")
+  } catch (error) {
+    if (
+      !(error instanceof DatabaseFailure) ||
+      error.operation !== "version-check" ||
+      !(error.cause instanceof UnsupportedPostgresVersion)
+    ) throw error
   }
 })

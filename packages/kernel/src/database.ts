@@ -35,22 +35,23 @@ export class UnsupportedPostgresVersion
 export interface DatabaseService {
   readonly transaction: <A>(
     operation: (transaction: PostgresTransaction) => Promise<A>,
-  ) => Effect.Effect<A, DatabaseFailure | UnsupportedPostgresVersion>
+  ) => Effect.Effect<A, DatabaseFailure>
   readonly execute: <Row extends Record<string, unknown>>(
     query: SQL<unknown>,
-  ) => Effect.Effect<readonly Row[], DatabaseFailure | UnsupportedPostgresVersion>
-  readonly validateVersion: Effect.Effect<void, DatabaseFailure | UnsupportedPostgresVersion>
+  ) => Effect.Effect<readonly Row[], DatabaseFailure>
 }
 
 const dialect = new PgDialect()
 
 export const Database = Context.Service<DatabaseService>("EclipseERP/Database")
 
-export const makePostgresDatabase = (client: PostgresClient): DatabaseService => {
+const makeVersionValidation = (
+  client: PostgresClient,
+): Effect.Effect<void, DatabaseFailure | UnsupportedPostgresVersion> => {
   let validated = false
   let validationPromise: Promise<void> | undefined
 
-  const validateVersion: DatabaseService["validateVersion"] = Effect.tryPromise({
+  return Effect.tryPromise({
     try: async () => {
       if (validated) return
       validationPromise ??= client.begin(async (connection) => {
@@ -71,10 +72,22 @@ export const makePostgresDatabase = (client: PostgresClient): DatabaseService =>
         ? cause
         : new DatabaseFailure({ operation: "version-check", cause }),
   })
+}
+
+export const validatePostgresVersion = (client: PostgresClient) => makeVersionValidation(client)
+
+export const makePostgresDatabase = (client: PostgresClient): DatabaseService => {
+  const validateVersion = makeVersionValidation(client)
 
   const transaction: DatabaseService["transaction"] = (operation) =>
     Effect.gen(function* () {
-      yield* validateVersion
+      yield* validateVersion.pipe(
+        Effect.mapError((cause) =>
+          cause instanceof DatabaseFailure
+            ? cause
+            : new DatabaseFailure({ operation: "version-check", cause })
+        ),
+      )
       return yield* Effect.tryPromise({
         try: () => client.begin(operation),
         catch: (cause) => new DatabaseFailure({ operation: "transaction", cause }),
@@ -83,7 +96,6 @@ export const makePostgresDatabase = (client: PostgresClient): DatabaseService =>
 
   return {
     transaction,
-    validateVersion,
     execute: (query) =>
       transaction((connection) => {
         const built = dialect.sqlToQuery(query)

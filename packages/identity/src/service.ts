@@ -3,12 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-import {
-  DatabaseFailure,
-  type DatabaseService,
-  drizzleSql,
-  UnsupportedPostgresVersion,
-} from "../../kernel/mod.ts"
+import { DatabaseFailure, type DatabaseService, drizzleSql } from "../../kernel/mod.ts"
 
 export const CreateIdentityInput = Schema.Struct({
   email: Schema.String,
@@ -29,10 +24,7 @@ export class IdentityAlreadyExists
 export interface IdentityService {
   readonly create: (
     input: unknown,
-  ) => Effect.Effect<
-    Identity,
-    IdentityAlreadyExists | DatabaseFailure | UnsupportedPostgresVersion | Schema.SchemaError
-  >
+  ) => Effect.Effect<Identity, IdentityAlreadyExists | DatabaseFailure | Schema.SchemaError>
 }
 
 export const IdentityService = Context.Service<IdentityService>("EclipseERP/IdentityService")
