@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "constraint-validation-strategy": {
+      "source": "rickyraz/skills",
+      "sourceType": "github",
+      "skillPath": "skills/constraint-validation-strategy/SKILL.md",
+      "computedHash": "d0474783fdc9e0e8cac9f09d2f9ea5dda9057e41e4bc8f049af8960707659b24"
+    },
+    "solidjs-2": {
+      "source": "rickyraz/skills",
+      "sourceType": "github",
+      "skillPath": "skills/solidjs-2/SKILL.md",
+      "computedHash": "801b911c5e26c69f1c17eb0a55a5cd4f4672d5244eaaa43abe3c327560ee474d"
+    }
+  }
+}

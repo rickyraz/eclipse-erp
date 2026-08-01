@@ -1,0 +1,74 @@
+# Durable Execution Architecture
+
+> **Status:** Canonical
+>
+> **Related documents**
+>
+> - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
+> - Active runtime: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
+> - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
+
+## Decision
+
+EclipseERP uses different primitives for different semantics:
+
+```text
+Direct PostgreSQL transaction
+-> synchronous business invariants
+
+PgQue
+-> durable event stream and fan-out
+
+Job table
+-> leased, scheduled, prioritized work
+
+pg_durable
+-> checkpointed multi-step workflow
+```
+
+Effect fibers are not durable.
+
+## Compatibility Gate
+
+`pg_durable` may become the workflow engine only after it:
+
+- supports PostgreSQL 19;
+- passes load and crash-recovery tests;
+- provides observable workflow state;
+- demonstrates safe migration and upgrade behavior.
+
+Until then, a compatibility job layer remains available.
+
+## Direct Transaction Examples
+
+- post an invoice;
+- reserve stock;
+- allocate a payment;
+- close a fiscal period;
+- assign a critical role.
+
+These operations must complete atomically before success is returned.
+
+## Durable Workflow Examples
+
+- tenant provisioning;
+- month-end closing;
+- bulk import;
+- payment settlement;
+- approval with timers;
+- multi-step external integration.
+
+## Workflow Requirements
+
+Each workflow must define:
+
+- idempotency key;
+- step boundaries;
+- retry policy;
+- timeout policy;
+- compensating action when applicable;
+- observable progress;
+- cancellation semantics;
+- audit correlation.
+
+A workflow must not replace a local transaction invariant.
