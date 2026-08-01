@@ -41,6 +41,26 @@ source of truth.
 - Do not treat Drizzle as the domain model.
 - Do not activate Zig without benchmark evidence and a safe fallback.
 
+## Effect v4 Reference
+
+All TypeScript implementations that use Effect v4 MUST consult the vendored
+source at the absolute path
+`/home/rickyraz/objectives/eclipse-erp/vendor/effect-smol` before writing or
+changing Effect code. Use it as the primary local reference for v4 APIs,
+module layout, examples, and migration behavior. Do not rely on Effect v3
+memory when the vendored reference can answer the question.
+
+The subtree is maintained from the `effect-smol` remote at
+`https://github.com/effect-TS/effect-smol.git`:
+
+```sh
+git subtree pull --prefix=vendor/effect-smol effect-smol main --squash
+```
+
+`effect-smol` is archived upstream. If its historical v4 source conflicts with
+current canonical Effect v4 behavior, verify the discrepancy against the
+canonical Effect repository before implementation and report it explicitly.
+
 ## Documentation Boundaries
 
 Before editing documentation, read `docs/documentation-boundaries.md`.
