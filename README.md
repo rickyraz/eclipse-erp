@@ -50,14 +50,16 @@ Run the primary validation workflow:
 
 ```sh
 deno task check
+deno task migrate
 deno task test
 deno task boundary:test
 deno task boundary:lint
 deno task test:contract
 ```
 
-The PostgreSQL integration test requires `DATABASE_URL`; it is skipped when the variable is
-unavailable. Boundary tasks also require the `ast-grep` CLI described in
+`deno task migrate` applies reviewed SQL migrations and requires `DATABASE_URL`. The PostgreSQL
+integration test requires the same variable and is skipped when it is unavailable. Boundary tasks
+also require the `ast-grep` CLI described in
 [`tooling/boundary-linter/README.md`](./tooling/boundary-linter/README.md).
 
 ## Documentation

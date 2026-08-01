@@ -2,6 +2,7 @@
 # This registry is consumed by boundary and migration checks.
 
 [schemas]
+system = "packages/kernel"
 identity = "packages/identity"
 sales = "packages/sales"
 procurement = "packages/procurement"

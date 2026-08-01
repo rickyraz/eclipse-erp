@@ -117,6 +117,10 @@ and the kernel executes the rendered query inside the Effect-managed PostgreSQL
 transaction. Domain packages consume the public database service instead of
 constructing or executing Drizzle queries directly.
 
+Reviewed SQL migrations use Drizzle's PostgreSQL migrator with the
+`system.schema_migrations` journal. Drizzle Kit may generate or check migration
+files, but reviewed SQL and the kernel migration runner remain authoritative.
+
 Financial ledger engine selection is an infrastructure decision owned by
 [ADR-0011](../decisions/0011-financial-ledger-engine.md), not by the orthogonal
 ledger domain primitives. PostgreSQL remains the initial authoritative ledger

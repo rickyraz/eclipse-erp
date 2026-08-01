@@ -3,6 +3,8 @@
 
 create schema if not exists identity;
 
+--> statement-breakpoint
+
 create table if not exists identity.identities (
   id uuid primary key,
   email text not null,
