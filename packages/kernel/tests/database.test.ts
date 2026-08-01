@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect.ts"
 
-import { DatabaseFailure, makePostgresDatabase } from "../mod.ts"
+import { DatabaseFailure, drizzleSql, makePostgresDatabase } from "../mod.ts"
 
 Deno.test("database service delegates the transaction boundary", async () => {
   let began = false
@@ -26,6 +26,31 @@ Deno.test("database service delegates the transaction boundary", async () => {
   )
 
   if (result !== 42 || !began || !committed) throw new Error("transaction did not commit")
+})
+
+Deno.test("database service renders Drizzle SQL before execution", async () => {
+  let query = ""
+  let parameters: readonly unknown[] = []
+
+  const database = makePostgresDatabase({
+    begin: (operation) =>
+      operation({
+        unsafe: <Row extends Record<string, unknown>>(
+          renderedQuery: string,
+          renderedParameters?: readonly unknown[],
+        ) => {
+          query = renderedQuery
+          parameters = renderedParameters ?? []
+          return Promise.resolve([] as readonly Row[])
+        },
+      }),
+  })
+
+  await Effect.runPromise(database.execute(drizzleSql`select ${42}`))
+
+  if (query !== "select $1" || parameters[0] !== 42) {
+    throw new Error("Drizzle SQL was not rendered for PostgreSQL")
+  }
 })
 
 Deno.test("database service maps driver failures to a stable error", async () => {

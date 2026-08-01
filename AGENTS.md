@@ -61,6 +61,40 @@ git subtree pull --prefix=vendor/effect-smol effect-smol main --squash
 current canonical Effect v4 behavior, verify the discrepancy against the
 canonical Effect repository before implementation and report it explicitly.
 
+## Drizzle v1 Reference and Effect Integration
+
+The Drizzle v1 reference is vendored at the absolute path
+`/home/rickyraz/objectives/eclipse-erp/vendor/drizzle-orm`, pinned to
+`v1.0.0-rc.4`. Use it as the local source reference for Drizzle v1 APIs and
+integration behavior.
+
+The subtree is maintained from the `drizzle-orm` remote:
+
+```sh
+git subtree pull --prefix=vendor/drizzle-orm drizzle-orm v1.0.0-rc.4 --squash
+```
+
+Integration rules:
+
+- Effect owns lifecycle, typed failures, dependency injection, and transaction
+  boundaries.
+- Drizzle owns SQL construction, dialect rendering, and typed persistence
+  schema; it is never the domain model.
+- Keep Drizzle and PostgreSQL implementation details inside `packages/kernel/`.
+  Domain packages use the public `DatabaseService` and domain contracts.
+- Build SQL with the pinned Drizzle v1 `sql` builder and render PostgreSQL
+  parameters through `PgDialect` before execution.
+- Execute every invariant-sensitive mutation through the kernel's PostgreSQL
+  transaction service. Do not call a Drizzle client directly from a domain.
+- Map constraint failures to tagged domain errors at the owning domain boundary;
+  never expose raw PostgreSQL or Drizzle errors to callers.
+- Do not copy integration examples verbatim. Adapt them to this repository's
+  `DatabaseLayer`, public module contracts, schema ownership, and test layers.
+- `drizzle-orm/effect-postgres` is a reference for the Effect adapter. The
+  current Deno runtime uses the compatible kernel adapter until that package's
+  npm/source distribution passes the repository's Deno validation without
+  optional-driver leakage.
+
 ## Documentation Boundaries
 
 Before editing documentation, read `docs/documentation-boundaries.md`.

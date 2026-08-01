@@ -105,6 +105,12 @@ transactions. It must not conceal PostgreSQL-specific behavior such as:
 
 Reviewed SQL is the escape hatch and remains a first-class artifact.
 
+The current Effect integration keeps this boundary in `packages/kernel/`:
+Drizzle v1 builds SQL fragments, `PgDialect` renders PostgreSQL placeholders,
+and the kernel executes the rendered query inside the Effect-managed PostgreSQL
+transaction. Domain packages consume the public database service instead of
+constructing or executing Drizzle queries directly.
+
 ## Transaction Contract
 
 A transaction context is explicit. Cross-domain operations that require atomic

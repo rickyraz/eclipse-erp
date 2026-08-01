@@ -2,12 +2,22 @@
   "version": "5",
   "specifiers": {
     "npm:@standard-schema/spec@1.1.0": "1.1.0",
+    "npm:drizzle-orm@1.0.0-rc.4": "1.0.0-rc.4_postgres@3.4.7",
     "npm:fast-check@4.9.0": "4.9.0",
     "npm:postgres@3.4.7": "3.4.7"
   },
   "npm": {
     "@standard-schema/spec@1.1.0": {
       "integrity": "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="
+    },
+    "drizzle-orm@1.0.0-rc.4_postgres@3.4.7": {
+      "integrity": "sha512-BT+pf+qoiYHqltoA88Jmf6ilGMXPlpfE0hEJKc2adRtMCAl25Swk/t5gXcWxZNAwdtf3F5gCd2FpeOyP/pT0Hw==",
+      "dependencies": [
+        "postgres"
+      ],
+      "optionalPeers": [
+        "postgres"
+      ]
     },
     "fast-check@4.9.0": {
       "integrity": "sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==",
@@ -25,6 +35,7 @@
   "workspace": {
     "dependencies": [
       "npm:@standard-schema/spec@1.1.0",
+      "npm:drizzle-orm@1.0.0-rc.4",
       "npm:fast-check@4.9.0"
     ],
     "links": {

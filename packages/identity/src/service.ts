@@ -3,11 +3,7 @@ import * as Effect from "effect/Effect.ts"
 import * as Layer from "effect/Layer.ts"
 import * as Schema from "effect/Schema.ts"
 
-import {
-  DatabaseFailure,
-  type DatabaseService,
-  type PostgresTransaction,
-} from "../../kernel/mod.ts"
+import { DatabaseFailure, type DatabaseService, drizzleSql } from "../../kernel/mod.ts"
 
 export const CreateIdentityInput = Schema.Struct({
   email: Schema.String,
@@ -35,41 +31,30 @@ export const IdentityService = Context.Service<IdentityService>("EclipseERP/Iden
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()
 
-const insertIdentity = async (
-  transaction: PostgresTransaction,
-  input: { readonly email: string },
-): Promise<Identity | IdentityAlreadyExists> => {
-  try {
-    const rows = await transaction.unsafe<Identity>(
-      "insert into identity.identities (id, email) values ($1, $2) returning id, email",
-      [crypto.randomUUID(), input.email],
-    )
-    const identity = rows[0]
-    if (!identity) throw new Error("identity insert returned no row")
-    return identity
-  } catch (cause) {
-    if (
-      typeof cause === "object" &&
-      cause !== null &&
-      "constraint" in cause &&
-      cause.constraint === "identities_email_key"
-    ) {
-      return new IdentityAlreadyExists({ email: input.email })
-    }
-    throw cause
-  }
+const isDuplicateEmail = (error: unknown) => {
+  if (!(error instanceof DatabaseFailure)) return false
+  const cause = error.cause
+  return typeof cause === "object" && cause !== null && "code" in cause && cause.code === "23505" &&
+    "constraint" in cause && cause.constraint === "identities_email_key"
 }
 
 export const makeIdentityService = (database: DatabaseService): IdentityService => ({
   create: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateIdentityInput)(input)
-      const normalized = { email: normalizeEmail(decoded.email) }
-      const result = yield* database.transaction((transaction) =>
-        insertIdentity(transaction, normalized)
+      const email = normalizeEmail(decoded.email)
+      const rows = yield* database.execute<Identity>(
+        drizzleSql`insert into identity.identities (id, email)
+            values (${crypto.randomUUID()}, ${email})
+            returning id, email`,
+      ).pipe(
+        Effect.catch((error) =>
+          isDuplicateEmail(error) ? Effect.succeed<readonly Identity[]>([]) : Effect.fail(error)
+        ),
       )
-      if (result instanceof IdentityAlreadyExists) return yield* Effect.fail(result)
-      return result
+      const identity = rows[0]
+      if (identity === undefined) return yield* Effect.fail(new IdentityAlreadyExists({ email }))
+      return identity
     }),
 })
 
