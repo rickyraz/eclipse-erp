@@ -1,0 +1,21 @@
+id: use-effect-vitest
+language: TypeScript
+severity: error
+message: TypeScript tests must use @effect/vitest and return Effects to the test runner.
+files:
+  - apps/**/*.test.ts
+  - apps/**/*.test.tsx
+  - packages/**/*.test.ts
+  - packages/**/*.test.tsx
+  - tests/**/*.test.ts
+  - tests/**/*.test.tsx
+ignores:
+  - vendor/**
+  - tooling/boundary-linter/rule-tests/**
+rule:
+  any:
+    - pattern: Deno.test($$$ARGS)
+    - pattern: import $IMPORT from "vitest"
+    - pattern: import "vitest"
+    - pattern: Effect.runPromise($$$ARGS)
+    - pattern: Effect.runSync($$$ARGS)

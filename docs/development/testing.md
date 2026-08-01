@@ -28,6 +28,15 @@ Every behavioral change should select the smallest useful combination of:
 - frontend component tests;
 - end-to-end workflow tests.
 
+## Test Framework
+
+All TypeScript tests use `@effect/vitest` and run through Deno tasks. Effect
+programs, including scoped resources, use `it.effect`; pure synchronous tests
+use regular `it`. Tests return Effects directly rather than invoking Effect
+runtime runners. Test discovery is limited to `apps/`, `packages/`, and
+`tests/`; vendored reference trees are excluded. Structural `ast-grep` YAML rule
+tests remain on the `ast-grep` runner.
+
 ## Public Contract Tests
 
 The first public contract implementation is `packages/identity/mod.ts`, with

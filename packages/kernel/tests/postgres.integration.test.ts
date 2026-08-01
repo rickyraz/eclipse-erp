@@ -1,28 +1,25 @@
-import postgres from "postgres"
-
+import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import postgres from "postgres"
 
 import { makePostgresDatabase, type PostgresClient } from "../mod.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 
-Deno.test({
-  name: "postgres transaction commits a real query",
-  ignore: databaseUrl === undefined,
-  permissions: { env: true, net: true },
-  fn: async () => {
-    const sql = postgres(databaseUrl!)
-    try {
-      const database = makePostgresDatabase(sql as unknown as PostgresClient)
-      const value = await Effect.runPromise(
-        database.transaction(async (transaction) => {
-          const rows = await transaction.unsafe<{ value: number }>("select 42 as value")
-          return rows[0]?.value
-        }),
+it.effect.skipIf(databaseUrl === undefined)(
+  "postgres transaction commits a real query",
+  () =>
+    Effect.gen(function* () {
+      const sql = yield* Effect.acquireRelease(
+        Effect.sync(() => postgres(databaseUrl!)),
+        (sql) => Effect.promise(() => sql.end()),
       )
-      if (value !== 42) throw new Error("PostgreSQL transaction returned the wrong value")
-    } finally {
-      await sql.end()
-    }
-  },
-})
+      const database = makePostgresDatabase(sql as unknown as PostgresClient)
+      const value = yield* database.transaction(async (transaction) => {
+        const rows = await transaction.unsafe<{ value: number }>("select 42 as value")
+        return rows[0]?.value
+      })
+
+      assert.strictEqual(value, 42)
+    }),
+)

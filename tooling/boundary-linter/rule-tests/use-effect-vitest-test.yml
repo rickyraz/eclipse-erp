@@ -1,0 +1,13 @@
+id: use-effect-vitest
+valid:
+  - |
+      import { assert, it } from "@effect/vitest"
+      it.effect("works", () => Effect.succeed(assert.strictEqual(1, 1)))
+  - |
+      import { it } from "@effect/vitest"
+      it("pure", () => {})
+invalid:
+  - Deno.test("legacy", () => {})
+  - import { it } from "vitest"
+  - Effect.runPromise(program)
+  - Effect.runSync(program)

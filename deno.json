@@ -5,11 +5,11 @@
   "nodeModulesDir": "auto",
   "tasks": {
     "dev": "deno run --watch --allow-env --allow-net apps/api/mod.ts",
-    "test": "deno test --allow-read --allow-env --allow-net apps packages tests",
-    "boundary:lint": "ast-grep scan && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
+    "test": "vitest run",
+    "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
-    "test:contract": "deno test --allow-read --allow-env --allow-net packages/identity/tests packages/kernel/tests tests/architecture",
-    "check": "deno check apps/api/mod.ts packages/kernel/mod.ts packages/identity/mod.ts packages/identity/tests/identity.test.ts tooling/boundary-linter/check-ownership.ts"
+    "test:contract": "vitest run packages/identity/tests packages/kernel/tests tests/architecture",
+    "check": "deno check apps/api/mod.ts packages/kernel/mod.ts packages/identity/mod.ts packages/identity/tests/identity.test.ts packages/kernel/tests/database.test.ts packages/kernel/tests/effect-drizzle.test.ts packages/kernel/tests/postgres.integration.test.ts tests/architecture/ownership.test.ts tooling/boundary-linter/check-ownership.ts vitest.config.ts"
   },
   "fmt": {
     "useTabs": false,

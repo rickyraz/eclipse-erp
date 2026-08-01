@@ -259,11 +259,42 @@ Update documentation when changing:
 Create a new ADR for significant decisions. Do not rewrite the history of an
 accepted ADR.
 
+## Testing Rules
+
+All TypeScript tests MUST use `@effect/vitest`:
+
+- Import `assert`, `describe`, `it`, and other test APIs only from
+  `@effect/vitest`. Do not import test APIs directly from `vitest`.
+- Do not use `Deno.test` in TypeScript test files. Structural `ast-grep` YAML
+  rule tests remain on the `ast-grep` runner.
+- Use `it.effect` for tests returning an Effect, including scoped resources;
+  use `it.live` only when live test services are intentional, and regular `it`
+  only for pure synchronous tests.
+- Do not call `Effect.runPromise` or `Effect.runSync` inside tests. Return the
+  Effect to `@effect/vitest` instead.
+- Use `assert` from `@effect/vitest`; do not use `expect` or manual
+  `throw new Error` assertions when an `assert` method expresses the check.
+- Capture typed failures with Effect operators such as `Effect.flip` or
+  `Effect.result`; do not use `try` / `catch` around Effect execution.
+- Acquire external resources with scoped Effect constructors and release them
+  through finalizers. Never rely on test-process exit for cleanup.
+- Keep `@effect/vitest` on the exact same v4 release as `effect`, and declare
+  both it and `vitest` in the root `package.json`.
+- Run TypeScript tests through `deno task test` or the narrower documented Deno
+  tasks. Do not introduce a second test command path.
+- Test discovery MUST be allowlisted to `apps/**`, `packages/**`, and `tests/**`.
+  Exclude `vendor/**` and `node_modules/**` from tests, coverage, watch mode,
+  formatting, linting, type checking, and boundary scans. Vendored subtrees are
+  reference material and keep their own upstream validation workflows.
+
+Add a boundary rule or repository scan when needed to prevent regression to
+`Deno.test`, direct `vitest` imports, or Effect runtime runners in tests.
+
 ## Validation
 
 ```sh
-deno fmt --check apps packages tooling tests db deno.json sgconfig.yml
-deno lint apps packages tooling tests
+deno fmt --check apps packages tooling tests db deno.json sgconfig.yml vitest.config.ts
+deno lint apps packages tooling tests vitest.config.ts
 deno task check
 deno task boundary:test
 deno task boundary:lint

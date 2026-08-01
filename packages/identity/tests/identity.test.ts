@@ -1,38 +1,47 @@
+import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
 import { IdentityAlreadyExists, IdentityService, makeIdentityTestLayer } from "../mod.ts"
 
-const layer = makeIdentityTestLayer()
+const withIdentity = <A, E>(program: Effect.Effect<A, E, IdentityService>) =>
+  Effect.provide(program, makeIdentityTestLayer())
 
-const run = <A>(program: Effect.Effect<A, unknown, IdentityService>) =>
-  Effect.runPromise(Effect.provide(program, layer))
+describe("identity contract", () => {
+  it.effect("creates a normalized identity", () =>
+    withIdentity(
+      Effect.gen(function* () {
+        const identity = yield* IdentityService.use((service) =>
+          service.create({ email: "  USER@Example.COM " })
+        )
 
-Deno.test("identity contract creates a normalized identity", async () => {
-  const identity = await run(
-    IdentityService.use((service) => service.create({ email: "  USER@Example.COM " })),
-  )
+        assert.strictEqual(identity.email, "user@example.com")
+        assert.strictEqual(identity.id, "1")
+      }),
+    ))
 
-  if (identity.email !== "user@example.com") throw new Error("email was not normalized")
-  if (identity.id !== "1") throw new Error("test layer did not return a stable id")
-})
+  it.effect("rejects duplicate email", () =>
+    withIdentity(
+      Effect.gen(function* () {
+        const create = IdentityService.use((service) =>
+          service.create({ email: "duplicate@example.com" })
+        )
+        yield* create
+        const error = yield* Effect.flip(create)
 
-Deno.test("identity contract rejects duplicate email", async () => {
-  const email = `duplicate-${crypto.randomUUID()}@example.com`
-  await run(IdentityService.use((service) => service.create({ email })))
+        assert.instanceOf(error, IdentityAlreadyExists)
+        assert.strictEqual(error.email, "duplicate@example.com")
+      }),
+    ))
 
-  try {
-    await run(IdentityService.use((service) => service.create({ email })))
-    throw new Error("expected duplicate identity failure")
-  } catch (error) {
-    if (!(error instanceof IdentityAlreadyExists)) throw error
-  }
-})
+  it.effect("rejects invalid input", () =>
+    withIdentity(
+      Effect.gen(function* () {
+        const error = yield* Effect.flip(
+          IdentityService.use((service) => service.create({ email: 42 })),
+        )
 
-Deno.test("identity contract rejects invalid input", async () => {
-  try {
-    await run(IdentityService.use((service) => service.create({ email: 42 })))
-    throw new Error("expected schema failure")
-  } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("email")) throw error
-  }
+        assert.instanceOf(error, Error)
+        assert.match(error.message, /email/)
+      }),
+    ))
 })
