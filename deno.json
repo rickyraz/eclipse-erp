@@ -2,6 +2,19 @@
   "compilerOptions": {
     "strict": true
   },
+  "nodeModulesDir": "auto",
+  "imports": {
+    "effect": "./vendor/effect-smol/packages/effect/src/index.ts",
+    "effect/": "./vendor/effect-smol/packages/effect/src/",
+    "fast-check": "npm:fast-check@4.9.0",
+    "@standard-schema/spec": "npm:@standard-schema/spec@1.1.0"
+  },
+  "tasks": {
+    "boundary:lint": "ast-grep scan && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
+    "boundary:test": "ast-grep test --skip-snapshot-tests",
+    "test:contract": "deno test --allow-read --allow-env --allow-net packages/identity/tests packages/kernel/tests tests/architecture",
+    "check": "deno check apps/api/mod.ts packages/kernel/mod.ts packages/identity/mod.ts packages/identity/tests/identity.test.ts tooling/boundary-linter/check-ownership.ts"
+  },
   "fmt": {
     "useTabs": false,
     "lineWidth": 100,

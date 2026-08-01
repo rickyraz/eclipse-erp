@@ -88,6 +88,12 @@ and allow imports such as:
 import { InventoryService } from "@eclipse/inventory"
 ```
 
+The current scaffold implements these checks with `ast-grep`:
+
+- project config: [`../../sgconfig.yml`](../../sgconfig.yml);
+- rules: [`../../tooling/boundary-linter/rules/`](../../tooling/boundary-linter/rules/);
+- rule tests: [`../../tooling/boundary-linter/rule-tests/`](../../tooling/boundary-linter/rule-tests/).
+
 ## Schema Ownership
 
 Each PostgreSQL schema has exactly one owning module.
@@ -121,13 +127,10 @@ integration = "packages/integrations"
 audit = "packages/audit"
 ```
 
-The registry is used by:
-
-- migration validation;
-- SQL ownership checks;
-- restricted database-role generation;
-- architecture tests;
-- code review tooling.
+The active registry is [`../../db/ownership.toml`](../../db/ownership.toml). It is
+validated by [`../../tooling/boundary-linter/check-ownership.ts`](../../tooling/boundary-linter/check-ownership.ts)
+and consumed by architecture tests. Future migration and privilege tooling must
+use the same registry instead of defining a second ownership map.
 
 ## SQL Ownership Checks
 

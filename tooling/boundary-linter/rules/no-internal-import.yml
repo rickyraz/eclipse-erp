@@ -1,0 +1,14 @@
+id: no-internal-import
+language: TypeScript
+severity: error
+message: Cross-domain imports must use public package contracts.
+ignores:
+  - vendor/**
+  - tooling/boundary-linter/rule-tests/**
+rule:
+  any:
+    - pattern: import $IMPORT from "$SOURCE"
+    - pattern: import "$SOURCE"
+constraints:
+  SOURCE:
+    regex: "(^|/)\\.\\.?/[^/]+/src/(internal|repositories|tables)(/|$)|^@eclipse/[^/]+/(internal|repositories|tables)(/|$)"

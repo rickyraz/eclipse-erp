@@ -186,18 +186,18 @@ accepted ADR.
 
 ## Validation
 
-Replace these placeholders after repository commands are finalized:
-
 ```sh
-<format-command>
-<lint-command>
-<typecheck-command>
-<test-command>
-<build-command>
+deno fmt --check apps packages tooling tests db deno.json sgconfig.yml
+deno lint apps packages tooling tests
+deno task check
+deno task boundary:test
+deno task boundary:lint
+deno task test:contract
 ```
 
-If a command cannot run, report the command, the reason, and what remains
-unverified.
+There is no build command yet because the application executables and frontend
+build are still being scaffolded. Report this as unverified until build targets
+exist.
 
 ## Completion Report
 

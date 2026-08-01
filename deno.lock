@@ -1,0 +1,112 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:@standard-schema/spec@1.1.0": "1.1.0",
+    "npm:fast-check@4.9.0": "4.9.0",
+    "npm:postgres@3.4.7": "3.4.7"
+  },
+  "npm": {
+    "@standard-schema/spec@1.1.0": {
+      "integrity": "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="
+    },
+    "fast-check@4.9.0": {
+      "integrity": "sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==",
+      "dependencies": [
+        "pure-rand"
+      ]
+    },
+    "postgres@3.4.7": {
+      "integrity": "sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw=="
+    },
+    "pure-rand@8.4.2": {
+      "integrity": "sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:@standard-schema/spec@1.1.0",
+      "npm:fast-check@4.9.0"
+    ],
+    "links": {
+      "npm:@effect/opentelemetry@4.0.0-beta.98": {
+        "peerDependencies": [
+          "npm:@opentelemetry/api-logs@>=0.203.0 <0.300.0",
+          "npm:@opentelemetry/api@^1.9.0",
+          "npm:@opentelemetry/resources@2",
+          "npm:@opentelemetry/sdk-logs@>=0.203.0 <0.300.0",
+          "npm:@opentelemetry/sdk-metrics@2",
+          "npm:@opentelemetry/sdk-trace-base@2",
+          "npm:@opentelemetry/sdk-trace-node@2",
+          "npm:@opentelemetry/sdk-trace-web@2",
+          "npm:@opentelemetry/semantic-conventions@^1.33.0"
+        ],
+        "peerDependenciesMeta": {
+          "@opentelemetry/api": {
+            "optional": true
+          },
+          "@opentelemetry/api-logs": {
+            "optional": true
+          },
+          "@opentelemetry/resources": {
+            "optional": true
+          },
+          "@opentelemetry/sdk-logs": {
+            "optional": true
+          },
+          "@opentelemetry/sdk-metrics": {
+            "optional": true
+          },
+          "@opentelemetry/sdk-trace-base": {
+            "optional": true
+          },
+          "@opentelemetry/sdk-trace-node": {
+            "optional": true
+          },
+          "@opentelemetry/sdk-trace-web": {
+            "optional": true
+          }
+        }
+      },
+      "npm:@effect/platform-browser@4.0.0-beta.98": {
+        "dependencies": [
+          "npm:multipasta@~0.2.8"
+        ]
+      },
+      "npm:@effect/platform-bun@4.0.0-beta.98": {},
+      "npm:@effect/platform-node-shared@4.0.0-beta.98": {
+        "dependencies": [
+          "npm:@types/ws@^8.18.1",
+          "npm:ws@^8.21.0"
+        ]
+      },
+      "npm:@effect/platform-node@4.0.0-beta.98": {
+        "dependencies": [
+          "npm:mime@^4.1.0",
+          "npm:undici@^8.7.0"
+        ],
+        "peerDependencies": [
+          "npm:ioredis@^5.7.0"
+        ]
+      },
+      "npm:@effect/vitest@4.0.0-beta.98": {
+        "peerDependencies": [
+          "npm:vitest@3 || 4"
+        ]
+      },
+      "npm:effect@4.0.0-beta.98": {
+        "dependencies": [
+          "npm:@standard-schema/spec@^1.1.0",
+          "npm:fast-check@^4.9.0",
+          "npm:find-my-way-ts@~0.1.6",
+          "npm:ini@7",
+          "npm:kubernetes-types@^1.30.0",
+          "npm:msgpackr@^2.0.4",
+          "npm:multipasta@~0.2.8",
+          "npm:toml@^4.1.2",
+          "npm:uuid@^14.0.1",
+          "npm:yaml@^2.9.0"
+        ]
+      }
+    }
+  }
+}

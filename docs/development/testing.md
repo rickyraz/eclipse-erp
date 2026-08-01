@@ -30,7 +30,9 @@ Every behavioral change should select the smallest useful combination of:
 
 ## Public Contract Tests
 
-Each exported domain contract must test:
+The first public contract implementation is `packages/identity/mod.ts`, with
+behavioral tests under `packages/identity/tests/`. Each exported domain contract
+must test:
 
 - successful behavior;
 - every public tagged business error;
@@ -117,7 +119,9 @@ Frontend visibility tests do not replace server authorization tests.
 
 ## Architecture Tests
 
-Architecture tests must verify:
+The current architecture tests validate schema ownership through
+`tests/architecture/ownership.test.ts` and validate TypeScript boundaries through
+`ast-grep` rule tests. Architecture tests must verify:
 
 - packages import only approved dependencies;
 - private internals are not imported cross-domain;

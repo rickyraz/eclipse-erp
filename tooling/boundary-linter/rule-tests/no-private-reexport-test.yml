@@ -1,0 +1,6 @@
+id: no-private-reexport
+valid:
+  - export { InventoryService } from "./service.ts"
+invalid:
+  - export { stockPosition } from "./internal/tables.ts"
+  - export * from "./repositories/index.ts"

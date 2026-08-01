@@ -1,0 +1,11 @@
+# One owner per PostgreSQL schema.
+# This registry is consumed by boundary and migration checks.
+
+[schemas]
+identity = "packages/identity"
+sales = "packages/sales"
+procurement = "packages/procurement"
+inventory = "packages/inventory"
+accounting = "packages/accounting"
+billing = "packages/billing"
+integration = "packages/integrations"

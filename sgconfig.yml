@@ -1,0 +1,4 @@
+ruleDirs:
+  - tooling/boundary-linter/rules
+testConfigs:
+  - testDir: tooling/boundary-linter/rule-tests

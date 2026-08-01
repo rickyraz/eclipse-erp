@@ -1,0 +1,16 @@
+id: no-private-reexport
+language: TypeScript
+severity: error
+message: Private implementation details must not be re-exported from a public package entry point.
+files:
+  - packages/*/mod.ts
+ignores:
+  - vendor/**
+  - tooling/boundary-linter/rule-tests/**
+rule:
+  any:
+    - pattern: export { $$$ITEMS } from "$SOURCE"
+    - pattern: export * from "$SOURCE"
+constraints:
+  SOURCE:
+    regex: "(^|/)(internal|repositories|tables)(/|$)"

@@ -1,0 +1,10 @@
+id: no-effect-v3-api
+valid:
+  - |
+      import { Context } from "effect"
+  - |
+      const service = Context.Service<{ readonly value: string }>("Service")
+invalid:
+  - const service = Context.Tag("Service")
+  - const result = Effect.catchAll(program, handler)
+  - const fiber = Effect.fork(program)

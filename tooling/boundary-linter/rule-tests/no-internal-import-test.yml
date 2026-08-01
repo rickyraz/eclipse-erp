@@ -1,0 +1,8 @@
+id: no-internal-import
+valid:
+  - import { InventoryService } from "@eclipse/inventory"
+  - import "./internal/helper.ts"
+  - import "./bootstrap.ts"
+invalid:
+  - import { stockPosition } from "../inventory/src/internal/tables.ts"
+  - import { repository } from "../inventory/src/repositories/repository.ts"

@@ -1,0 +1,17 @@
+id: no-frontend-backend-import
+language: TypeScript
+severity: error
+message: Frontend code must not import backend implementation or persistence code.
+ignores:
+  - vendor/**
+  - tooling/boundary-linter/rule-tests/**
+files:
+  - apps/web/**/*.ts
+  - apps/web/**/*.tsx
+rule:
+  any:
+    - pattern: import $IMPORT from "$SOURCE"
+    - pattern: import "$SOURCE"
+constraints:
+  SOURCE:
+    regex: "(^|/)(apps/(api|worker|event-relay|migrate)|db|drizzle-orm|postgres)(/|$)"

@@ -1,0 +1,21 @@
+id: no-effect-v3-api
+language: TypeScript
+severity: error
+message: Use the Effect v4 API from vendor/effect-smol; this is a v3 API shape.
+ignores:
+  - vendor/**
+  - tooling/boundary-linter/rule-tests/**
+rule:
+  any:
+    - pattern: Context.Tag($$$ARGS)
+    - pattern: Context.GenericTag($$$ARGS)
+    - pattern: Effect.Tag($$$ARGS)
+    - pattern: Effect.Service($$$ARGS)
+    - pattern: Effect.catchAll($$$ARGS)
+    - pattern: Effect.catchSome($$$ARGS)
+    - pattern: Effect.fork($$$ARGS)
+    - pattern: Runtime.runFork($$$ARGS)
+    - pattern: Scope.extend($$$ARGS)
+    - pattern: Schema.transform($$$ARGS)
+    - pattern: Either.$METHOD($$$ARGS)
+    - pattern: Mailbox.$METHOD($$$ARGS)
