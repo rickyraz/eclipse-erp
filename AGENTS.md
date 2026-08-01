@@ -134,6 +134,44 @@ A module must not mutate another module's tables directly. Cross-module work mus
 use a typed service contract, including when both modules participate in the
 same PostgreSQL transaction.
 
+### Failure Ownership and Translation
+
+Keep failure types at the layer that owns and can act on them:
+
+- Domain packages own business-policy errors, authorization errors, and their
+  input-validation failures.
+- Kernel services own stable capability-level technical failures such as
+  `DatabaseFailure`.
+- Application composition roots own startup, configuration, deployment, and
+  compatibility failures such as `UnsupportedPostgresVersion`.
+- A domain may propagate a stable error from a public service contract, but must
+  not import PostgreSQL, Drizzle, driver, migration, pool, version-check, or
+  other infrastructure-specific error types.
+- Map known constraint violations to tagged errors in the owning domain. Map all
+  other database implementation failures once at the kernel boundary.
+- Adding an infrastructure failure must not widen every domain failure union.
+  Translate it into the existing stable service failure or handle it at the
+  composition root.
+- Keep startup probes and lifecycle methods out of domain-facing service
+  interfaces. Expose them as kernel or application bootstrap operations.
+- Preserve underlying causes for internal diagnostics, but never expose raw SQL,
+  SQLSTATE, credentials, driver objects, or stack traces through public DTOs or
+  API responses.
+- Before adding an error to a domain contract, ask whether a domain caller can
+  take a meaningful business action for it. If not, it belongs below or above
+  the domain boundary.
+
+Example:
+
+```text
+IdentityAlreadyExists | DatabaseFailure | SchemaError       allowed
+IdentityAlreadyExists | UnsupportedPostgresVersion          forbidden
+IdentityAlreadyExists | PostgresError | DrizzleQueryError    forbidden
+```
+
+Add a contract or boundary regression test whenever a new error translation is
+introduced.
+
 ## Architecture Enforcement
 
 - Import other domains only through their public package entry points.
