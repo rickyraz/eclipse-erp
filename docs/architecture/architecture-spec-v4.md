@@ -31,7 +31,7 @@ principles.
 | Application model | Effect |
 | Runtime | Deno |
 | HTTP | `@effect/platform` with a Deno adapter |
-| Database | PostgreSQL |
+| Database | PostgreSQL 19+ |
 | Query layer | Drizzle ORM with `postgres.js` |
 | Migrations | Reviewed, versioned SQL |
 | Native compute | Optional Zig through `Deno.dlopen` |

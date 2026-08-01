@@ -14,7 +14,8 @@
 
 PostgreSQL 19 is the development floor and the transactional core. The project
 may track beta and release-candidate builds during development but must move to
-PostgreSQL 19 GA before production deployment.
+PostgreSQL 19 GA before production deployment. The kernel rejects connections
+whose `server_version_num` is below `190000` before running application work.
 
 ## Application Shape
 

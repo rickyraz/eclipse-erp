@@ -1,6 +1,11 @@
 import * as Effect from "effect/Effect"
 
-import { DatabaseFailure, drizzleSql, makePostgresDatabase } from "../mod.ts"
+import {
+  DatabaseFailure,
+  drizzleSql,
+  makePostgresDatabase,
+  UnsupportedPostgresVersion,
+} from "../mod.ts"
 
 Deno.test("database service delegates the transaction boundary", async () => {
   let began = false
@@ -10,8 +15,12 @@ Deno.test("database service delegates the transaction boundary", async () => {
     begin: async (operation) => {
       began = true
       const result = await operation({
-        unsafe: <Row extends Record<string, unknown>>() =>
-          Promise.resolve([{ value: 42 } as unknown as Row]),
+        unsafe: <Row extends Record<string, unknown>>(query: string) =>
+          Promise.resolve(
+            (query === "show server_version_num"
+              ? [{ server_version_num: "190000" }]
+              : [{ value: 42 }]) as unknown as readonly Row[],
+          ),
       })
       committed = true
       return result
@@ -39,9 +48,15 @@ Deno.test("database service renders Drizzle SQL before execution", async () => {
           renderedQuery: string,
           renderedParameters?: readonly unknown[],
         ) => {
-          query = renderedQuery
-          parameters = renderedParameters ?? []
-          return Promise.resolve([] as readonly Row[])
+          if (renderedQuery !== "show server_version_num") {
+            query = renderedQuery
+            parameters = renderedParameters ?? []
+          }
+          return Promise.resolve(
+            (renderedQuery === "show server_version_num"
+              ? [{ server_version_num: "190000" }]
+              : []) as unknown as readonly Row[],
+          )
         },
       }),
   })
@@ -62,6 +77,23 @@ Deno.test("database service maps driver failures to a stable error", async () =>
     await Effect.runPromise(database.transaction(() => Promise.resolve(1)))
     throw new Error("expected transaction failure")
   } catch (error) {
-    if (!(error instanceof DatabaseFailure) || error.operation !== "transaction") throw error
+    if (!(error instanceof DatabaseFailure) || error.operation !== "version-check") throw error
+  }
+})
+
+Deno.test("database service rejects PostgreSQL versions below 19", async () => {
+  const database = makePostgresDatabase({
+    begin: (operation) =>
+      operation({
+        unsafe: <Row extends Record<string, unknown>>() =>
+          Promise.resolve([{ server_version_num: "180000" }] as unknown as readonly Row[]),
+      }),
+  })
+
+  try {
+    await Effect.runPromise(database.validateVersion)
+    throw new Error("expected PostgreSQL version rejection")
+  } catch (error) {
+    if (!(error instanceof UnsupportedPostgresVersion)) throw error
   }
 })

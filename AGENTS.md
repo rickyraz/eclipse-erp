@@ -145,6 +145,8 @@ same PostgreSQL transaction.
 
 ## Database Rules
 
+- PostgreSQL 19+ is the minimum supported database version; the kernel must
+  reject `server_version_num` values below `190000`.
 - PostgreSQL is the transactional source of truth.
 - Critical invariants require transactions and database constraints.
 - Migrations are versioned, reviewed SQL.
