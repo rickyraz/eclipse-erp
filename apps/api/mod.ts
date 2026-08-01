@@ -17,6 +17,7 @@ import {
   PostgresDatabaseLive,
   validatePostgresVersion,
 } from "../../packages/kernel/mod.ts"
+import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
@@ -43,6 +44,13 @@ const serviceLayers = (client: Sql) => {
 
   const businessRequirements = Layer.merge(database, authorization)
 
+  const party = Layer.effect(
+    PartyService,
+    Effect.gen(function* () {
+      return makePartyService(yield* Database, yield* AuthorizationService)
+    }),
+  ).pipe(Layer.provide(businessRequirements))
+
   const sales = Layer.effect(
     SalesService,
     Effect.gen(function* () {
@@ -64,7 +72,7 @@ const serviceLayers = (client: Sql) => {
     }),
   ).pipe(Layer.provide(businessRequirements))
 
-  return Layer.mergeAll(identity, auth, authorization, sales, inventory, accounting)
+  return Layer.mergeAll(identity, auth, authorization, party, sales, inventory, accounting)
 }
 
 export const makeApiLayer = (client: Sql, port = 8000) => {

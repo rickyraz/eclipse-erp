@@ -4,6 +4,7 @@
 [schemas]
 system = "packages/kernel"
 identity = "packages/identity"
+party = "packages/party"
 auth = "packages/auth"
 authorization = "packages/authorization"
 sales = "packages/sales"

@@ -25,6 +25,7 @@ export default defineConfig({
   },
   schemaFilter: [
     "identity",
+    "party",
     "auth",
     "authorization",
     "sales",

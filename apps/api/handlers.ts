@@ -7,6 +7,7 @@ import { AuthService, InvalidSessionToken } from "../../packages/auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../packages/authorization/mod.ts"
 import { IdentityService } from "../../packages/identity/mod.ts"
 import { DatabaseFailure } from "../../packages/kernel/mod.ts"
+import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService } from "../../packages/inventory/mod.ts"
 import { AccountingService } from "../../packages/accounting/mod.ts"
@@ -122,6 +123,44 @@ export const IdentityHandlers = HttpApiBuilder.group(
             capability: "identity.write",
           })
           yield* IdentityService.use((service) => service.remove(params.id))
+        }))),
+)
+
+export const PartyHandlers = HttpApiBuilder.group(
+  EclipseApi,
+  "Parties",
+  (handlers) =>
+    handlers
+      .handle("create", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* PartyService.use((service) =>
+            service.create({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        })))
+      .handle("assignRole", ({ headers, params, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          yield* PartyService.use((service) =>
+            service.assignRole({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              partyId: params.id,
+              role: payload.role,
+            })
+          )
+        })))
+      .handle("attachIdentifier", ({ headers, params, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* PartyService.use((service) =>
+            service.attachIdentifier({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              partyId: params.id,
+              ...payload,
+            })
+          )
         }))),
 )
 
@@ -265,6 +304,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
 export const ApiHandlers = Layer.mergeAll(
   HealthHandlers,
   IdentityHandlers,
+  PartyHandlers,
   AuthorizationHandlers,
   SalesHandlers,
   InventoryHandlers,

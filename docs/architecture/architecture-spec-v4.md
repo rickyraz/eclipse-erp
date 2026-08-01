@@ -67,6 +67,7 @@ eclipse-erp/
 ├── packages/
 │   ├── kernel/
 │   ├── identity/
+│   ├── party/
 │   ├── auth/
 │   ├── authorization/
 │   ├── sales/

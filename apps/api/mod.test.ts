@@ -11,6 +11,8 @@ it.effect("derives routing and OpenAPI from the Effect HttpApi contract", () =>
     assert.strictEqual(specification.info.title, "EclipseERP API")
     assert.ok(specification.paths["/health"]?.get)
     assert.ok(specification.paths["/identities"]?.post)
+    assert.ok(specification.paths["/parties"]?.post)
+    assert.ok(specification.paths["/parties/{id}/identifiers"]?.post)
     assert.ok(specification.paths["/sales/orders"]?.post)
     assert.ok(specification.paths["/inventory/reservations"]?.post)
     assert.ok(specification.paths["/accounting/journals"]?.post)

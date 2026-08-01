@@ -7,7 +7,11 @@ it.effect("uses the pinned Drizzle migration graph", () =>
     const migrations = readMigrationFiles({ migrationsFolder: "db/migrations" })
     assert.deepStrictEqual(
       migrations.map((migration) => migration.name),
-      ["20260801133932_hardened_foundation", "20260801133933_accounting_invariants"],
+      [
+        "20260801133932_hardened_foundation",
+        "20260801133933_accounting_invariants",
+        "20260801141735_tan_slapstick",
+      ],
     )
     assert.ok(migrations.every((migration) => /^[a-f0-9]{64}$/.test(migration.hash)))
 
@@ -17,14 +21,19 @@ it.effect("uses the pinned Drizzle migration graph", () =>
     const second = yield* Effect.promise(() =>
       Deno.readTextFile("db/migrations/20260801133933_accounting_invariants/snapshot.json")
     )
+    const third = yield* Effect.promise(() =>
+      Deno.readTextFile("db/migrations/20260801141735_tan_slapstick/snapshot.json")
+    )
     const accountingSql = yield* Effect.promise(() =>
       Deno.readTextFile("db/migrations/20260801133933_accounting_invariants/migration.sql")
     )
     const firstSnapshot = JSON.parse(first) as { id: string; prevIds: readonly string[] }
     const secondSnapshot = JSON.parse(second) as { id: string; prevIds: readonly string[] }
+    const thirdSnapshot = JSON.parse(third) as { id: string; prevIds: readonly string[] }
 
     assert.deepStrictEqual(firstSnapshot.prevIds, ["00000000-0000-0000-0000-000000000000"])
     assert.deepStrictEqual(secondSnapshot.prevIds, [firstSnapshot.id])
+    assert.deepStrictEqual(thirdSnapshot.prevIds, [secondSnapshot.id])
     assert.include(accountingSql, "journal_entries_balanced_trigger")
     assert.include(accountingSql, "journal_lines_immutable_trigger")
   }))

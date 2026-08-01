@@ -45,7 +45,8 @@ export const isDatabaseConstraint = (
   const cause = unwrapCause(error.cause)
   return typeof cause === "object" && cause !== null &&
     "code" in cause && cause.code === code &&
-    "constraint" in cause && cause.constraint === constraint
+    (("constraint" in cause && cause.constraint === constraint) ||
+      ("constraint_name" in cause && cause.constraint_name === constraint))
 }
 
 export class UnsupportedPostgresVersion

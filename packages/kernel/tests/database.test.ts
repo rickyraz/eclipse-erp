@@ -49,7 +49,7 @@ describe("database service", () => {
 
   it.effect("unwraps Drizzle failures when mapping constraints", () =>
     Effect.sync(() => {
-      const driverError = { code: "23505", constraint: "identities_email_key" }
+      const driverError = { code: "23505", constraint_name: "identities_email_key" }
       const failure = new DatabaseFailure({
         operation: "identity.create",
         cause: new Error("query failed", { cause: driverError }),

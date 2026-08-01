@@ -11,6 +11,7 @@ import * as OpenApi from "effect/unstable/httpapi/OpenApi"
 import { Principal } from "../../packages/auth/mod.ts"
 import { Capability } from "../../packages/authorization/mod.ts"
 import { Identity } from "../../packages/identity/mod.ts"
+import { ExternalIdentifier, Party, PartyKind, PartyRole } from "../../packages/party/mod.ts"
 import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
 import { Item, StockBalance, StockReservation, Warehouse } from "../../packages/inventory/mod.ts"
 import { Account, JournalEntry, JournalLine } from "../../packages/accounting/mod.ts"
@@ -46,6 +47,8 @@ export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth, {
 const errors = [ApiUnauthorized, ApiForbidden, ApiNotFound, ApiConflict, ApiServiceUnavailable]
 const tenantHeaders = { "x-tenant-id": Schema.String }
 const CreatedIdentity = Identity.pipe(HttpApiSchema.status(201))
+const CreatedParty = Party.pipe(HttpApiSchema.status(201))
+const CreatedExternalIdentifier = ExternalIdentifier.pipe(HttpApiSchema.status(201))
 const CreatedCustomer = Customer.pipe(HttpApiSchema.status(201))
 const CreatedQuotation = Quotation.pipe(HttpApiSchema.status(201))
 const CreatedOrder = SalesOrder.pipe(HttpApiSchema.status(201))
@@ -88,6 +91,32 @@ const Identities = HttpApiGroup.make("Identities").add(
   HttpApiEndpoint.delete("remove", "/identities/:id", {
     params: { id: Schema.String },
     headers: tenantHeaders,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+const Parties = HttpApiGroup.make("Parties").add(
+  HttpApiEndpoint.post("create", "/parties", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ kind: PartyKind, name: Schema.String }),
+    success: CreatedParty,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("assignRole", "/parties/:id/roles", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    payload: Schema.Struct({ role: PartyRole }),
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("attachIdentifier", "/parties/:id/identifiers", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      scheme: Schema.String,
+      scope: Schema.String,
+      value: Schema.String,
+    }),
+    success: CreatedExternalIdentifier,
     error: errors,
   }).middleware(BearerAuth),
 )
@@ -180,7 +209,7 @@ const Accounting = HttpApiGroup.make("Accounting").add(
 )
 
 export const EclipseApi = HttpApi.make("EclipseERP")
-  .add(Health, Identities, Authorization, Sales, Inventory, Accounting)
+  .add(Health, Identities, Parties, Authorization, Sales, Inventory, Accounting)
   .annotate(OpenApi.Title, "EclipseERP API")
   .annotate(OpenApi.Version, "0.1.0")
   .annotate(OpenApi.Description, "Typed modular-monolith ERP API")
