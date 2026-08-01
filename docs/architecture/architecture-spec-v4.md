@@ -117,6 +117,11 @@ and the kernel executes the rendered query inside the Effect-managed PostgreSQL
 transaction. Domain packages consume the public database service instead of
 constructing or executing Drizzle queries directly.
 
+Financial ledger engine selection is an infrastructure decision owned by
+[ADR-0011](../decisions/0011-financial-ledger-engine.md), not by the orthogonal
+ledger domain primitives. PostgreSQL remains the initial authoritative ledger
+store.
+
 ## Transaction Contract
 
 A transaction context is explicit. Cross-domain operations that require atomic

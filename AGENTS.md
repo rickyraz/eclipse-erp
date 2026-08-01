@@ -39,6 +39,8 @@ source of truth.
 - Do not convert all failures into generic `Error` values.
 - Do not assume an Effect fiber is durable.
 - Do not treat Drizzle as the domain model.
+- Do not encode a financial storage engine such as TigerBeetle in orthogonal
+  domain primitives; engine selection belongs in ADR-0011.
 - Do not activate Zig without benchmark evidence and a safe fallback.
 
 ## Effect v4 Reference
@@ -133,6 +135,11 @@ must remain private.
 A module must not mutate another module's tables directly. Cross-module work must
 use a typed service contract, including when both modules participate in the
 same PostgreSQL transaction.
+
+- The financial ledger domain must depend on an engine-independent port. Keep
+  PostgreSQL and any future TigerBeetle adapter behind kernel/infrastructure
+  boundaries; do not import engine-specific account, transfer, or balance types
+  into domain modules.
 
 ### Failure Ownership and Translation
 
