@@ -32,7 +32,7 @@ through premature internal microservices.
 Core stack:
 
 - TypeScript in strict mode with Effect on Deno;
-- Drizzle ORM with PostgreSQL 19+;
+- Drizzle ORM and pinned Drizzle Kit with PostgreSQL 19+;
 - Vite and SolidJS 2.0 for the frontend SPA;
 - Effect Schema for validated contracts;
 - `@effect/vitest` for TypeScript tests;
@@ -50,6 +50,7 @@ Run the primary validation workflow:
 
 ```sh
 deno task check
+DATABASE_URL=postgres://... deno task db:check
 deno task migrate
 deno task test
 deno task boundary:test
@@ -57,8 +58,9 @@ deno task boundary:lint
 deno task test:contract
 ```
 
-`deno task migrate` applies reviewed SQL migrations and requires `DATABASE_URL`. The PostgreSQL
-integration test requires the same variable and is skipped when it is unavailable. Boundary tasks
+`deno task db:generate`, `db:check`, and `migrate` use the pinned Drizzle migration flow and
+require `DATABASE_URL` (directly or through `.env` / `.env.local`). The PostgreSQL integration test
+uses the same variable and is skipped when it is unavailable. Boundary tasks
 also require the `ast-grep` CLI described in
 [`tooling/boundary-linter/README.md`](./tooling/boundary-linter/README.md).
 

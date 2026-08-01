@@ -1,11 +1,17 @@
 export {
   Database,
   DatabaseFailure,
-  drizzleSql,
+  isDatabaseConstraint,
   makePostgresDatabase,
   PostgresDatabaseLive,
   UnsupportedPostgresVersion,
   validatePostgresVersion,
 } from "./database.ts"
 export { MigrationFailure, runMigrations } from "./migrations.ts"
-export type { DatabaseService, PostgresClient, PostgresTransaction } from "./database.ts"
+export type {
+  DatabaseService,
+  DrizzleDatabase,
+  DrizzleTransaction,
+  PostgresClient,
+  PostgresTransaction,
+} from "./database.ts"

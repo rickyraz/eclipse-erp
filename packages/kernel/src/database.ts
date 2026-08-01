@@ -1,9 +1,14 @@
-import { type SQL, sql } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import {
+  drizzle,
+  type PostgresJsDatabase,
+  type PostgresJsTransaction,
+} from "drizzle-orm/postgres-js"
+import type { AnyRelations, EmptyRelations } from "drizzle-orm/relations"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import type { Sql } from "postgres"
 
 export interface PostgresTransaction {
   readonly unsafe: <Row extends Record<string, unknown>>(
@@ -18,10 +23,30 @@ export interface PostgresClient {
   ) => Promise<A>
 }
 
+export type DrizzleDatabase = PostgresJsDatabase<EmptyRelations>
+export type DrizzleTransaction = PostgresJsTransaction<AnyRelations>
+
 export class DatabaseFailure extends Schema.TaggedErrorClass<DatabaseFailure>()("DatabaseFailure", {
   operation: Schema.String,
   cause: Schema.Unknown,
 }) {}
+
+const unwrapCause = (cause: unknown): unknown =>
+  typeof cause === "object" && cause !== null && "cause" in cause && cause.cause !== undefined
+    ? unwrapCause(cause.cause)
+    : cause
+
+export const isDatabaseConstraint = (
+  error: unknown,
+  constraint: string,
+  code = "23505",
+) => {
+  if (!(error instanceof DatabaseFailure)) return false
+  const cause = unwrapCause(error.cause)
+  return typeof cause === "object" && cause !== null &&
+    "code" in cause && cause.code === code &&
+    "constraint" in cause && cause.constraint === constraint
+}
 
 export class UnsupportedPostgresVersion
   extends Schema.TaggedErrorClass<UnsupportedPostgresVersion>()("UnsupportedPostgresVersion", {
@@ -33,15 +58,15 @@ export class UnsupportedPostgresVersion
 }
 
 export interface DatabaseService {
-  readonly transaction: <A>(
-    operation: (transaction: PostgresTransaction) => Promise<A>,
+  readonly query: <A>(
+    operation: (database: DrizzleDatabase) => Promise<A>,
+    operationName?: string,
   ) => Effect.Effect<A, DatabaseFailure>
-  readonly execute: <Row extends Record<string, unknown>>(
-    query: SQL<unknown>,
-  ) => Effect.Effect<readonly Row[], DatabaseFailure>
+  readonly transaction: <A>(
+    operation: (transaction: DrizzleTransaction) => Promise<A>,
+    operationName?: string,
+  ) => Effect.Effect<A, DatabaseFailure>
 }
-
-const dialect = new PgDialect()
 
 export const Database = Context.Service<DatabaseService>("EclipseERP/Database")
 
@@ -76,35 +101,37 @@ const makeVersionValidation = (
 
 export const validatePostgresVersion = (client: PostgresClient) => makeVersionValidation(client)
 
-export const makePostgresDatabase = (client: PostgresClient): DatabaseService => {
-  const validateVersion = makeVersionValidation(client)
+export const makePostgresDatabase = (client: Sql): DatabaseService => {
+  const validateVersion = makeVersionValidation(client as unknown as PostgresClient)
+  const database = drizzle({ client })
 
-  const transaction: DatabaseService["transaction"] = (operation) =>
-    Effect.gen(function* () {
-      yield* validateVersion.pipe(
-        Effect.mapError((cause) =>
-          cause instanceof DatabaseFailure
-            ? cause
-            : new DatabaseFailure({ operation: "version-check", cause })
-        ),
-      )
-      return yield* Effect.tryPromise({
-        try: () => client.begin(operation),
-        catch: (cause) => new DatabaseFailure({ operation: "transaction", cause }),
-      })
-    })
+  const validate = validateVersion.pipe(
+    Effect.mapError((cause) =>
+      cause instanceof DatabaseFailure
+        ? cause
+        : new DatabaseFailure({ operation: "version-check", cause })
+    ),
+  )
 
   return {
-    transaction,
-    execute: (query) =>
-      transaction((connection) => {
-        const built = dialect.sqlToQuery(query)
-        return connection.unsafe(built.sql, built.params)
-      }),
+    query: (operation, operationName = "query") =>
+      Effect.andThen(
+        validate,
+        Effect.tryPromise({
+          try: () => operation(database),
+          catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+        }),
+      ),
+    transaction: (operation, operationName = "transaction") =>
+      Effect.andThen(
+        validate,
+        Effect.tryPromise({
+          try: () => database.transaction(operation),
+          catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+        }),
+      ),
   }
 }
 
-export const PostgresDatabaseLive = (client: PostgresClient) =>
+export const PostgresDatabaseLive = (client: Sql) =>
   Layer.succeed(Database, makePostgresDatabase(client))
-
-export const drizzleSql = sql

@@ -1,0 +1,186 @@
+import * as Context from "effect/Context"
+import * as Schema from "effect/Schema"
+import * as HttpApi from "effect/unstable/httpapi/HttpApi"
+import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
+import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
+import * as HttpApiMiddleware from "effect/unstable/httpapi/HttpApiMiddleware"
+import * as HttpApiSchema from "effect/unstable/httpapi/HttpApiSchema"
+import * as HttpApiSecurity from "effect/unstable/httpapi/HttpApiSecurity"
+import * as OpenApi from "effect/unstable/httpapi/OpenApi"
+
+import { Principal } from "../../packages/auth/mod.ts"
+import { Capability } from "../../packages/authorization/mod.ts"
+import { Identity } from "../../packages/identity/mod.ts"
+import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
+import { Item, StockBalance, StockReservation, Warehouse } from "../../packages/inventory/mod.ts"
+import { Account, JournalEntry, JournalLine } from "../../packages/accounting/mod.ts"
+
+export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(
+  "EclipseERP/Http/CurrentPrincipal",
+) {}
+
+export class ApiUnauthorized extends Schema.TaggedErrorClass<ApiUnauthorized>()("ApiUnauthorized", {
+  code: Schema.Literal("unauthorized"),
+}, { httpApiStatus: 401 }) {}
+export class ApiForbidden extends Schema.TaggedErrorClass<ApiForbidden>()("ApiForbidden", {
+  code: Schema.Literal("forbidden"),
+}, { httpApiStatus: 403 }) {}
+export class ApiNotFound extends Schema.TaggedErrorClass<ApiNotFound>()("ApiNotFound", {
+  code: Schema.String,
+}, { httpApiStatus: 404 }) {}
+export class ApiConflict extends Schema.TaggedErrorClass<ApiConflict>()("ApiConflict", {
+  code: Schema.String,
+}, { httpApiStatus: 409 }) {}
+export class ApiServiceUnavailable
+  extends Schema.TaggedErrorClass<ApiServiceUnavailable>()("ApiServiceUnavailable", {
+    code: Schema.Literal("service_unavailable"),
+  }, { httpApiStatus: 503 }) {}
+
+export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth, {
+  provides: CurrentPrincipal
+}>()("EclipseERP/Http/BearerAuth", {
+  error: ApiUnauthorized,
+  security: { bearer: HttpApiSecurity.bearer },
+}) {}
+
+const errors = [ApiUnauthorized, ApiForbidden, ApiNotFound, ApiConflict, ApiServiceUnavailable]
+const tenantHeaders = { "x-tenant-id": Schema.String }
+const CreatedIdentity = Identity.pipe(HttpApiSchema.status(201))
+const CreatedCustomer = Customer.pipe(HttpApiSchema.status(201))
+const CreatedQuotation = Quotation.pipe(HttpApiSchema.status(201))
+const CreatedOrder = SalesOrder.pipe(HttpApiSchema.status(201))
+const CreatedWarehouse = Warehouse.pipe(HttpApiSchema.status(201))
+const CreatedItem = Item.pipe(HttpApiSchema.status(201))
+const CreatedReservation = StockReservation.pipe(HttpApiSchema.status(201))
+const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
+const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
+
+const Health = HttpApiGroup.make("Health").add(
+  HttpApiEndpoint.get("health", "/health", {
+    success: Schema.Struct({ status: Schema.Literal("ok") }),
+  }),
+)
+
+const Identities = HttpApiGroup.make("Identities").add(
+  HttpApiEndpoint.post("create", "/identities", {
+    payload: Schema.Struct({ email: Schema.String }),
+    success: CreatedIdentity,
+    error: errors,
+  }),
+  HttpApiEndpoint.get("list", "/identities", {
+    headers: tenantHeaders,
+    success: Schema.Array(Identity),
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.get("get", "/identities/:id", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    success: Identity,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.patch("update", "/identities/:id", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    payload: Schema.Struct({ email: Schema.String }),
+    success: Identity,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.delete("remove", "/identities/:id", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+const Authorization = HttpApiGroup.make("Authorization").add(
+  HttpApiEndpoint.post("grant", "/capabilities", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ identityId: Schema.String, capability: Capability }),
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+const Sales = HttpApiGroup.make("Sales").add(
+  HttpApiEndpoint.post("createCustomer", "/sales/customers", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ name: Schema.String, email: Schema.String }),
+    success: CreatedCustomer,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createQuotation", "/sales/quotations", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ customerId: Schema.String, total: Schema.String }),
+    success: CreatedQuotation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createOrder", "/sales/orders", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      customerId: Schema.String,
+      quotationId: Schema.optionalKey(Schema.String),
+      total: Schema.String,
+    }),
+    success: CreatedOrder,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+const Inventory = HttpApiGroup.make("Inventory").add(
+  HttpApiEndpoint.post("createWarehouse", "/inventory/warehouses", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ name: Schema.String }),
+    success: CreatedWarehouse,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createItem", "/inventory/items", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ sku: Schema.String, name: Schema.String }),
+    success: CreatedItem,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("receiveStock", "/inventory/receipts", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      warehouseId: Schema.String,
+      itemId: Schema.String,
+      quantity: Schema.String,
+    }),
+    success: StockBalance,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("reserveStock", "/inventory/reservations", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      warehouseId: Schema.String,
+      itemId: Schema.String,
+      quantity: Schema.String,
+    }),
+    success: CreatedReservation,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+const Accounting = HttpApiGroup.make("Accounting").add(
+  HttpApiEndpoint.post("createAccount", "/accounting/accounts", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      code: Schema.String,
+      name: Schema.String,
+      type: Account.fields.type,
+    }),
+    success: CreatedAccount,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("postJournal", "/accounting/journals", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ reference: Schema.String, lines: Schema.Array(JournalLine) }),
+    success: CreatedJournal,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
+export const EclipseApi = HttpApi.make("EclipseERP")
+  .add(Health, Identities, Authorization, Sales, Inventory, Accounting)
+  .annotate(OpenApi.Title, "EclipseERP API")
+  .annotate(OpenApi.Version, "0.1.0")
+  .annotate(OpenApi.Description, "Typed modular-monolith ERP API")

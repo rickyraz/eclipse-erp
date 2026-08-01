@@ -3,19 +3,25 @@ import { getTableConfig } from "drizzle-orm/pg-core"
 import * as Effect from "effect/Effect"
 
 import { identities } from "../../../db/schema/identity.ts"
+import { quotations } from "../../../db/schema/sales.ts"
 
-it.effect("declares the identity table in its owned PostgreSQL schema", () =>
+it.effect("applies the shared Drizzle schema primitives", () =>
   Effect.sync(() => {
-    const config = getTableConfig(identities)
+    const identity = getTableConfig(identities)
+    const quotation = getTableConfig(quotations)
 
-    assert.strictEqual(config.schema, "identity")
-    assert.strictEqual(config.name, "identities")
+    assert.strictEqual(identity.schema, "identity")
     assert.deepStrictEqual(
-      config.columns.map((column) => column.name),
-      ["id", "email", "created_at"],
+      identity.columns.map((column) => column.name),
+      ["id", "email", "created_at", "updated_at"],
+    )
+    assert.strictEqual(identity.columns[0]?.getSQLType(), "uuid")
+    assert.strictEqual(
+      quotation.columns.find((column) => column.name === "total")?.getSQLType(),
+      "numeric(14, 2)",
     )
     assert.deepStrictEqual(
-      config.uniqueConstraints.map((constraint) => constraint.name),
+      identity.uniqueConstraints.map((constraint) => constraint.name),
       ["identities_email_key"],
     )
   }))

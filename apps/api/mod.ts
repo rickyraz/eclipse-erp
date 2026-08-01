@@ -1,81 +1,96 @@
+import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as Schema from "effect/Schema"
-import postgres from "postgres"
+import * as HttpRouter from "effect/unstable/http/HttpRouter"
+import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
+import * as HttpApiScalar from "effect/unstable/httpapi/HttpApiScalar"
+import { createServer } from "node:http"
+import postgres, { type Sql } from "postgres"
 
+import { AuthService, makeAuthService } from "../../packages/auth/mod.ts"
+import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
+import { IdentityService, makeIdentityService } from "../../packages/identity/mod.ts"
 import {
   Database,
-  DatabaseFailure,
-  makePostgresDatabase,
   type PostgresClient,
   PostgresDatabaseLive,
   validatePostgresVersion,
 } from "../../packages/kernel/mod.ts"
-import {
-  IdentityAlreadyExists,
-  IdentityService,
-  makeIdentityService,
-} from "../../packages/identity/mod.ts"
+import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
+import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
+import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
+import { EclipseApi } from "./api.ts"
+import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 
-class InvalidJsonBody extends Schema.TaggedErrorClass<InvalidJsonBody>()("InvalidJsonBody", {}) {}
+const serviceLayers = (client: Sql) => {
+  const database = PostgresDatabaseLive(client)
 
-type ApiLayer = Layer.Layer<IdentityService>
+  const identity = Layer.effect(
+    IdentityService,
+    Database.use((service) => Effect.succeed(makeIdentityService(service))),
+  ).pipe(Layer.provide(database))
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" },
-  })
+  const auth = Layer.effect(
+    AuthService,
+    Database.use((service) => Effect.succeed(makeAuthService(service))),
+  ).pipe(Layer.provide(database))
 
-const errorResponse = (error: unknown) => {
-  if (error instanceof InvalidJsonBody) return json({ error: "invalid_json" }, 400)
-  if (error instanceof IdentityAlreadyExists) {
-    return json({ error: "identity_already_exists", email: error.email }, 409)
-  }
-  if (error instanceof Schema.SchemaError) return json({ error: "invalid_request" }, 400)
-  if (error instanceof DatabaseFailure) return json({ error: "database_unavailable" }, 503)
-  return json({ error: "internal_server_error" }, 500)
+  const authorization = Layer.effect(
+    AuthorizationService,
+    Database.use((service) => Effect.succeed(makeAuthorizationService(service))),
+  ).pipe(Layer.provide(database))
+
+  const businessRequirements = Layer.merge(database, authorization)
+
+  const sales = Layer.effect(
+    SalesService,
+    Effect.gen(function* () {
+      return makeSalesService(yield* Database, yield* AuthorizationService)
+    }),
+  ).pipe(Layer.provide(businessRequirements))
+
+  const inventory = Layer.effect(
+    InventoryService,
+    Effect.gen(function* () {
+      return makeInventoryService(yield* Database, yield* AuthorizationService)
+    }),
+  ).pipe(Layer.provide(businessRequirements))
+
+  const accounting = Layer.effect(
+    AccountingService,
+    Effect.gen(function* () {
+      return makeAccountingService(yield* Database, yield* AuthorizationService)
+    }),
+  ).pipe(Layer.provide(businessRequirements))
+
+  return Layer.mergeAll(identity, auth, authorization, sales, inventory, accounting)
 }
 
-const requestEffect = (request: Request) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url)
-    if (request.method === "GET" && url.pathname === "/health") return json({ status: "ok" })
-    if (request.method === "GET" && url.pathname === "/ready") return json({ status: "ready" })
+export const makeApiLayer = (client: Sql, port = 8000) => {
+  const services = serviceLayers(client)
+  const authMiddleware = BearerAuthLive.pipe(Layer.provide(services))
+  const handlers = ApiHandlers.pipe(
+    Layer.provide(authMiddleware),
+    Layer.provide(services),
+  )
 
-    if (request.method === "POST" && url.pathname === "/identities") {
-      const body = yield* Effect.tryPromise({
-        try: () => request.json(),
-        catch: () => new InvalidJsonBody({}),
-      })
-      const identity = yield* (yield* IdentityService).create(body)
-      return json(identity, 201)
-    }
-
-    return json({ error: "not_found" }, 404)
-  })
-
-export const makeApiHandler = (layer: ApiLayer) => (request: Request) =>
-  Effect.runPromise(requestEffect(request).pipe(Effect.provide(layer))).catch(errorResponse)
-
-export const makeApiDatabase = (url: string) =>
-  makePostgresDatabase(postgres(url) as unknown as PostgresClient)
+  return HttpApiBuilder.layer(EclipseApi).pipe(
+    Layer.provide(handlers),
+    Layer.provide(HttpApiScalar.layer(EclipseApi)),
+    HttpRouter.serve,
+    Layer.provide(NodeHttpServer.layer(createServer, { port })),
+    Layer.provide(services),
+  )
+}
 
 export const startApi = (url: string, port = 8000) =>
   Effect.scoped(
     Effect.gen(function* () {
       const client = postgres(url)
       yield* Effect.addFinalizer(() => Effect.promise(() => client.end()))
-
       yield* validatePostgresVersion(client as unknown as PostgresClient)
-
-      const databaseLayer = PostgresDatabaseLive(client as unknown as PostgresClient)
-      const identityLayer = Layer.effect(
-        IdentityService,
-        Effect.map(Database, makeIdentityService),
-      ).pipe(Layer.provide(databaseLayer))
-      const server = Deno.serve({ port }, makeApiHandler(identityLayer))
-      yield* Effect.promise(() => server.finished)
+      yield* Layer.launch(makeApiLayer(client, port))
     }),
   )
 
@@ -85,6 +100,6 @@ if (import.meta.main) {
     console.error("DATABASE_URL is required")
     Deno.exit(1)
   }
-
-  await Effect.runPromise(startApi(url, Number.parseInt(Deno.env.get("PORT") ?? "8000", 10)))
+  const port = Number.parseInt(Deno.env.get("PORT") ?? "8000", 10)
+  startApi(url, port).pipe(NodeRuntime.runMain)
 }

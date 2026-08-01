@@ -12,6 +12,7 @@ rule:
     - pattern: Effect.Tag($$$ARGS)
     - pattern: Effect.Service($$$ARGS)
     - pattern: Effect.catchAll($$$ARGS)
+    - pattern: Effect.catchAllCause($$$ARGS)
     - pattern: Effect.catchSome($$$ARGS)
     - pattern: Effect.fork($$$ARGS)
     - pattern: Runtime.runFork($$$ARGS)

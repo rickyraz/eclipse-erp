@@ -4,6 +4,8 @@
 [schemas]
 system = "packages/kernel"
 identity = "packages/identity"
+auth = "packages/auth"
+authorization = "packages/authorization"
 sales = "packages/sales"
 procurement = "packages/procurement"
 inventory = "packages/inventory"

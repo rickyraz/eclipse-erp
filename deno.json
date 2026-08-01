@@ -6,11 +6,13 @@
   "tasks": {
     "dev": "deno run --watch --allow-env --allow-net apps/api/mod.ts",
     "migrate": "deno run --allow-read --allow-env --allow-net apps/migrate/mod.ts",
+    "db:generate": "deno run -A npm:drizzle-kit@1.0.0-rc.4 generate --config=drizzle.config.ts",
+    "db:check": "deno run -A npm:drizzle-kit@1.0.0-rc.4 check --config=drizzle.config.ts",
     "test": "vitest run",
     "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
-    "test:contract": "vitest run packages/identity/tests packages/kernel/tests tests/architecture",
-    "check": "deno check apps/api/mod.ts apps/migrate/mod.ts db/schema/index.ts db/schema/identity.ts packages/kernel/mod.ts packages/identity/mod.ts packages/identity/tests/identity.test.ts packages/kernel/tests/database.test.ts packages/kernel/tests/drizzle-schema.test.ts packages/kernel/tests/effect-drizzle.test.ts packages/kernel/tests/migrations.test.ts packages/kernel/tests/postgres.integration.test.ts tests/architecture/ownership.test.ts tooling/boundary-linter/check-ownership.ts vitest.config.ts"
+    "test:contract": "vitest run packages/auth/tests packages/authorization/tests packages/identity/tests packages/sales/tests packages/inventory/tests packages/accounting/tests packages/kernel/tests tests/architecture",
+    "check": "deno check apps/api/api.ts apps/api/handlers.ts apps/api/mod.ts apps/api/mod.test.ts apps/migrate/mod.ts drizzle.config.ts db/schema/index.ts packages/accounting/mod.ts packages/auth/mod.ts packages/authorization/mod.ts packages/billing/mod.ts packages/identity/mod.ts packages/integrations/mod.ts packages/inventory/mod.ts packages/kernel/mod.ts packages/procurement/mod.ts packages/sales/mod.ts packages/accounting/src/service.ts packages/auth/src/service.ts packages/authorization/src/service.ts packages/identity/src/service.ts packages/inventory/src/service.ts packages/kernel/src/database.ts packages/kernel/src/migrations.ts packages/sales/src/service.ts packages/accounting/tests/accounting.test.ts packages/auth/tests/auth.test.ts packages/authorization/tests/authorization.test.ts packages/identity/tests/identity.test.ts packages/inventory/tests/inventory.test.ts packages/sales/tests/sales.test.ts packages/kernel/tests/database.test.ts packages/kernel/tests/drizzle-schema.test.ts packages/kernel/tests/effect-drizzle.test.ts packages/kernel/tests/migrations.test.ts packages/kernel/tests/postgres.integration.test.ts tests/architecture/http.test.ts tests/architecture/ownership.test.ts tooling/boundary-linter/check-ownership.ts vitest.config.ts"
   },
   "fmt": {
     "useTabs": false,

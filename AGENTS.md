@@ -82,12 +82,16 @@ Integration rules:
   boundaries.
 - Drizzle owns SQL construction, dialect rendering, and typed persistence
   schema; it is never the domain model.
-- Keep Drizzle and PostgreSQL implementation details inside `packages/kernel/`.
-  Domain packages use the public `DatabaseService` and domain contracts.
-- Build SQL with the pinned Drizzle v1 `sql` builder and render PostgreSQL
-  parameters through `PgDialect` before execution.
-- Execute every invariant-sensitive mutation through the kernel's PostgreSQL
-  transaction service. Do not call a Drizzle client directly from a domain.
+- Keep the PostgreSQL driver, Drizzle client lifecycle, transaction boundary,
+  and infrastructure-error mapping inside `packages/kernel/`.
+- `db/schema/index.ts` is the Drizzle Kit entry point. A domain implementation
+  may import only its owned tables; public package entry points must not
+  re-export persistence tables or Drizzle query types.
+- Use Drizzle query builders for application reads and writes. Raw SQL in a
+  domain implementation is forbidden; unsupported PostgreSQL DDL belongs in a
+  reviewed Drizzle custom migration.
+- Execute every invariant-sensitive mutation through the kernel's typed Drizzle
+  transaction service. Do not construct a driver client inside a domain.
 - Map constraint failures to tagged domain errors at the owning domain boundary;
   never expose raw PostgreSQL or Drizzle errors to callers.
 - Do not copy integration examples verbatim. Adapt them to this repository's
@@ -97,12 +101,28 @@ Integration rules:
 - `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are
   covered by the kernel import smoke test. Keep those peer dependencies in the
   root manifest rather than adding Deno import-map aliases.
+- Generate every migration with pinned Drizzle Kit `1.0.0-rc.4`. Custom SQL must
+  start from `drizzle-kit generate --custom`; every migration directory must
+  contain `migration.sql` and `snapshot.json`.
 
 ## Documentation Boundaries
 
 Before editing documentation, read `docs/documentation-boundaries.md`.
 Do not duplicate canonical rules across several documents. Link to the owning
 document and summarize only what is necessary for navigation or context.
+
+## HTTP Rules
+
+- HTTP contracts, routing, request decoding, error encoding, and OpenAPI use
+  Effect v4 `HttpApi`, `HttpApiGroup`, `HttpApiEndpoint`, `HttpApiBuilder`, and
+  `HttpRouter`.
+- Use `@effect/platform-node` as the server adapter on Deno. `node:http` may only
+  create the adapter server; it must not contain application routing.
+- Never use `Deno.serve`, Hono, Express, Fastify, or NestJS for application HTTP.
+- Use Effect HttpApi security middleware for bearer, cookie, or API-key
+  authentication boundaries.
+- Use v4 `Effect.catch`, `Effect.catchCause`, and `Effect.mapError`; never use
+  v3 `catchAll` or `catchAllCause` names.
 
 ## Frontend Rules
 
@@ -194,11 +214,13 @@ introduced.
   reject `server_version_num` values below `190000`.
 - PostgreSQL is the transactional source of truth.
 - Critical invariants require transactions and database constraints.
-- Migrations are versioned, reviewed SQL.
-- Drizzle Kit may generate or check migrations but is not authoritative.
-- Use reviewed SQL for RLS, locking, deferred constraints, partitioning,
-  `ltree`, SQL/PGQ, and unsupported PostgreSQL features.
-- Never rewrite an applied migration. Add a new migration.
+- The pinned Drizzle Kit snapshot graph is authoritative for migration order and
+  schema history; generated SQL remains review-required.
+- Use `drizzle-kit generate --custom` for RLS, locking, deferred constraints,
+  partitioning, `ltree`, SQL/PGQ, triggers, and unsupported PostgreSQL features.
+- Every migration requires owner, review-date, generator headers, and a sibling
+  `snapshot.json`.
+- Never rewrite an applied migration. Add a new Drizzle migration.
 
 ## Asynchronous Rules
 

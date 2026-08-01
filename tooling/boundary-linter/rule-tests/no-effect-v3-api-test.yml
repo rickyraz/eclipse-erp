@@ -7,4 +7,5 @@ valid:
 invalid:
   - const service = Context.Tag("Service")
   - const result = Effect.catchAll(program, handler)
+  - const cause = Effect.catchAllCause(program, handler)
   - const fiber = Effect.fork(program)

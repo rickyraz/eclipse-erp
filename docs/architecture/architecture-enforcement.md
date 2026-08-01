@@ -145,12 +145,14 @@ Approved exceptions must be narrow, documented, and reviewed.
 
 ## No Cross-Domain Table Imports
 
-Drizzle table definitions remain private to the owning module.
+Drizzle table definitions live under `db/schema/` for Drizzle Kit discovery but
+remain private persistence infrastructure. A domain implementation may import
+only tables owned by that domain according to `db/ownership.toml`.
 
 The linter must detect:
 
 - direct imports of another module's table definitions;
-- re-exporting private table definitions through a public contract;
+- re-exporting persistence tables through a public contract;
 - shared generic repository abstractions that expose arbitrary table access;
 - frontend imports of database types or table definitions.
 
@@ -201,6 +203,8 @@ package-boundary validation
 forbidden-import detection
 dependency-cycle detection
 schema-ownership validation
+Drizzle migration-graph validation
+Effect-native HTTP validation
 architecture tests
 relative-link validation for documentation
 ```

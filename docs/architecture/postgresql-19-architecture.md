@@ -37,6 +37,7 @@ Each domain owns a PostgreSQL schema:
 ```text
 identity.*
 auth.*
+authorization.*
 crm.*
 sales.*
 procurement.*

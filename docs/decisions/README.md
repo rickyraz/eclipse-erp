@@ -32,6 +32,7 @@ documents describe the current system; ADRs preserve decision history.
 | [`0009`](./0009-use-solidjs-2.md) | Use SolidJS 2.0 for the frontend | Accepted |
 | [`0010`](./0010-use-vite-solidjs-spa.md) | Use a Vite-based SolidJS SPA | Accepted |
 | [`0011`](./0011-financial-ledger-engine.md) | Financial ledger execution engine | Accepted |
+| [`0012`](./0012-use-drizzle-schema-flow-and-effect-http.md) | Use the Drizzle schema flow and Effect-native HTTP | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use
 `Supersedes`.

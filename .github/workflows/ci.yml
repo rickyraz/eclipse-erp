@@ -26,13 +26,18 @@ jobs:
         run: deno install --frozen
 
       - name: Format
-        run: deno fmt --check apps packages tooling tests db deno.json sgconfig.yml vitest.config.ts
+        run: deno fmt --check apps packages tooling tests db deno.json sgconfig.yml drizzle.config.ts vitest.config.ts
 
       - name: Lint
-        run: deno lint apps packages tooling tests vitest.config.ts
+        run: deno lint apps packages tooling tests drizzle.config.ts vitest.config.ts
 
       - name: Type check
         run: deno task check
+
+      - name: Drizzle migration graph
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/eclipse
+        run: deno task db:check
 
       - name: Boundary tests
         run: deno task boundary:test

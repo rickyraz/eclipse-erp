@@ -1,7 +1,12 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
-import { IdentityAlreadyExists, IdentityService, makeIdentityTestLayer } from "../mod.ts"
+import {
+  IdentityAlreadyExists,
+  IdentityNotFound,
+  IdentityService,
+  makeIdentityTestLayer,
+} from "../mod.ts"
 
 const withIdentity = <A, E>(program: Effect.Effect<A, E, IdentityService>) =>
   Effect.provide(program, makeIdentityTestLayer())
@@ -30,6 +35,22 @@ describe("identity contract", () => {
 
         assert.instanceOf(error, IdentityAlreadyExists)
         assert.strictEqual(error.email, "duplicate@example.com")
+      }),
+    ))
+
+  it.effect("lists, updates, and removes identities", () =>
+    withIdentity(
+      Effect.gen(function* () {
+        const service = yield* IdentityService
+        const created = yield* service.create({ email: "before@example.com" })
+        assert.strictEqual((yield* service.getById(created.id)).id, created.id)
+        assert.strictEqual((yield* service.list()).length, 1)
+        assert.strictEqual(
+          (yield* service.update({ id: created.id, email: "after@example.com" })).email,
+          "after@example.com",
+        )
+        yield* service.remove(created.id)
+        assert.instanceOf(yield* Effect.flip(service.getById(created.id)), IdentityNotFound)
       }),
     ))
 
