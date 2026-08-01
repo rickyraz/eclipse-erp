@@ -1,6 +1,6 @@
-import postgres from "npm:postgres@3.4.7"
+import postgres from "postgres"
 
-import * as Effect from "effect/Effect.ts"
+import * as Effect from "effect/Effect"
 
 import { makePostgresDatabase, type PostgresClient } from "../mod.ts"
 

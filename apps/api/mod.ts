@@ -1,4 +1,4 @@
-import postgres from "npm:postgres@3.4.7"
+import postgres from "postgres"
 
 import { makePostgresDatabase, type PostgresClient } from "../../packages/kernel/mod.ts"
 

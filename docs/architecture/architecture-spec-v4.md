@@ -42,6 +42,11 @@ Effect owns typed failures, lifecycle, concurrency, retry, telemetry, and
 dependency injection. Drizzle owns typed schema and query construction.
 PostgreSQL owns constraints and transactions.
 
+Deno remains the runtime and primary toolchain. npm ecosystem dependencies are
+canonical in the root `package.json`; Deno uses `nodeModulesDir: "auto"` so
+package peers resolve through the conventional local `node_modules` topology.
+Vendored Effect and Drizzle trees are references, not application dependencies.
+
 ## Repository Shape
 
 ```text
@@ -68,6 +73,7 @@ eclipse-erp/
 │   ├── policies/
 │   └── seeds/
 ├── deno.json
+├── package.json
 └── drizzle.config.ts
 ```
 

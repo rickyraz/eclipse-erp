@@ -1,0 +1,11 @@
+{
+  "name": "eclipse-erp",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@effect/sql-pg": "4.0.0-beta.83",
+    "drizzle-orm": "1.0.0-rc.4",
+    "effect": "4.0.0-beta.98",
+    "postgres": "3.4.7"
+  }
+}

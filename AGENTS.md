@@ -90,10 +90,11 @@ Integration rules:
   never expose raw PostgreSQL or Drizzle errors to callers.
 - Do not copy integration examples verbatim. Adapt them to this repository's
   `DatabaseLayer`, public module contracts, schema ownership, and test layers.
-- `drizzle-orm/effect-postgres` is a reference for the Effect adapter. The
-  current Deno runtime uses the compatible kernel adapter until that package's
-  npm/source distribution passes the repository's Deno validation without
-  optional-driver leakage.
+- Application imports resolve from the root `package.json`; the Drizzle subtree
+  is reference-only and must not be used as the runtime dependency.
+- `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are
+  covered by the kernel import smoke test. Keep those peer dependencies in the
+  root manifest rather than adding Deno import-map aliases.
 
 ## Documentation Boundaries
 

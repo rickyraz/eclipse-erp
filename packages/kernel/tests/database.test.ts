@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect.ts"
+import * as Effect from "effect/Effect"
 
 import { DatabaseFailure, drizzleSql, makePostgresDatabase } from "../mod.ts"
 

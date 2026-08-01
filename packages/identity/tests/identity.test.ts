@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect.ts"
+import * as Effect from "effect/Effect"
 
 import { IdentityAlreadyExists, IdentityService, makeIdentityTestLayer } from "../mod.ts"
 

@@ -1,7 +1,7 @@
-import * as Context from "effect/Context.ts"
-import * as Effect from "effect/Effect.ts"
-import * as Layer from "effect/Layer.ts"
-import * as Schema from "effect/Schema.ts"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
 import { DatabaseFailure, type DatabaseService, drizzleSql } from "../../kernel/mod.ts"
 

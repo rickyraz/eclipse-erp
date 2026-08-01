@@ -1,9 +1,9 @@
 import { type SQL, sql } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
-import * as Context from "effect/Context.ts"
-import * as Effect from "effect/Effect.ts"
-import * as Layer from "effect/Layer.ts"
-import * as Schema from "effect/Schema.ts"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
 export interface PostgresTransaction {
   readonly unsafe: <Row extends Record<string, unknown>>(
