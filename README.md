@@ -1,44 +1,75 @@
 # EclipseERP
 
-EclipseERP is a modular-monolith ERP architecture centered on PostgreSQL as the
-transactional source of truth and TypeScript with Effect on Deno as the
-application runtime.
+**Orthogonal open-source ERP for dependable operations and predictable change.**
 
-> **Related documents**
->
-> - Repository rules: [`./AGENTS.md`](./AGENTS.md)
-> - Documentation index: [`./docs/README.md`](./docs/README.md)
-> - Architecture overview: [`./docs/architecture/overview.md`](./docs/architecture/overview.md)
-> - Active architecture specification: [`./docs/architecture/architecture-spec-v4.md`](./docs/architecture/architecture-spec-v4.md)
-> - Architecture decisions: [`./docs/decisions/README.md`](./docs/decisions/README.md)
-> - Documentation ownership: [`./docs/documentation-boundaries.md`](./docs/documentation-boundaries.md)
+EclipseERP is an early-stage ERP platform built as a modular monolith with explicitly owned domain
+modules. It aims to keep business change local, testable, and free from hidden side effects without
+sacrificing transactional integrity, accounting correctness, auditability, extensibility, or
+multi-tenant security.
 
-## Status
+> [!IMPORTANT]
+> EclipseERP is in the architecture and early implementation phase. It is not production-ready.
+> Canonical documents define the intended system while the application executables and frontend are
+> still being built.
 
-The project is in the architecture and early implementation phase. Documents
-marked **canonical** define the current design. Reference documents explain
-alternatives and reasoning but do not automatically define implementation.
+## Why EclipseERP
 
-## Active Stack
+- **Local change:** domains interact through typed contracts instead of a global mutable model
+  graph.
+- **Dependable operations:** critical business invariants remain protected by explicit transactions
+  and database constraints.
+- **Predictable failures:** validation, business failures, and infrastructure failures remain typed
+  and owned by the correct boundary.
+- **Deliberate growth:** modules, projections, plugins, workflows, and native code are introduced
+  only when their requirements justify the complexity.
 
-- TypeScript in strict mode
-- Effect
-- Deno
-- `@effect/platform`
-- Drizzle ORM and `postgres.js`
-- PostgreSQL 19 as the development floor
-- Vite with SolidJS 2.0 for the frontend SPA
-- TanStack Solid Query, Table, Virtual, and Form
-- Effect Schema for shared contracts and Kobalte for accessible UI primitives
-- Optional Zig through `Deno.dlopen`, enabled only after benchmarking
+## Architecture at a Glance
 
-## Core Principles
+EclipseERP uses orthogonal domain modules inside one application family. The API, workers, event
+relay, and migrator share domain packages and transaction boundaries rather than communicating
+through premature internal microservices.
 
-- Start with a modular monolith.
-- Keep domain ownership explicit.
-- Preserve core invariants inside PostgreSQL transactions.
-- Use typed contracts between modules.
-- Represent business failures as tagged errors.
-- Choose asynchronous primitives by semantics.
-- Require evidence before adding projections, distribution, or native code.
-- Record significant architecture decisions as ADRs.
+Core stack:
+
+- TypeScript in strict mode with Effect on Deno;
+- Drizzle ORM with PostgreSQL 19+;
+- Vite and SolidJS 2.0 for the frontend SPA;
+- Effect Schema for validated contracts;
+- `@effect/vitest` for TypeScript tests;
+- optional Zig kernels only after benchmark evidence.
+
+## Developer Setup
+
+Install npm dependencies through Deno:
+
+```sh
+deno install
+```
+
+Run the primary validation workflow:
+
+```sh
+deno task check
+deno task test
+deno task boundary:test
+deno task boundary:lint
+deno task test:contract
+```
+
+The PostgreSQL integration test requires `DATABASE_URL`; it is skipped when the variable is
+unavailable. Boundary tasks also require the `ast-grep` CLI described in
+[`tooling/boundary-linter/README.md`](./tooling/boundary-linter/README.md).
+
+## Documentation
+
+- [Documentation index](./docs/README.md)
+- [Product vision](./docs/product/vision.md)
+- [Architecture overview](./docs/architecture/overview.md)
+- [Active architecture specification](./docs/architecture/architecture-spec-v4.md)
+- [Architecture decisions](./docs/decisions/README.md)
+- [Contributing](./CONTRIBUTING.md)
+- [Repository rules](./AGENTS.md)
+
+## License
+
+Licensed under the [Apache License 2.0](./LICENSE).
