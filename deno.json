@@ -3,6 +3,10 @@
     "strict": true
   },
   "nodeModulesDir": "auto",
+  "exclude": [
+    "node_modules/",
+    "vendor/"
+  ],
   "tasks": {
     "dev": "deno run --watch --allow-env --allow-net apps/api/mod.ts",
     "migrate": "deno run --allow-read --allow-env --allow-net apps/migrate/mod.ts",
@@ -11,10 +15,20 @@
     "test": "vitest run",
     "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
-    "test:contract": "vitest run packages/auth/tests packages/authorization/tests packages/identity/tests packages/party/tests packages/sales/tests packages/inventory/tests packages/accounting/tests packages/kernel/tests tests/architecture",
-    "check": "deno check apps/api/api.ts apps/api/handlers.ts apps/api/mod.ts apps/api/mod.test.ts apps/migrate/mod.ts drizzle.config.ts db/schema/index.ts packages/accounting/mod.ts packages/auth/mod.ts packages/authorization/mod.ts packages/billing/mod.ts packages/identity/mod.ts packages/integrations/mod.ts packages/inventory/mod.ts packages/kernel/mod.ts packages/procurement/mod.ts packages/party/mod.ts packages/sales/mod.ts packages/accounting/src/service.ts packages/auth/src/service.ts packages/authorization/src/service.ts packages/identity/src/service.ts packages/inventory/src/service.ts packages/kernel/src/database.ts packages/kernel/src/migrations.ts packages/party/src/service.ts packages/sales/src/service.ts packages/accounting/tests/accounting.test.ts packages/accounting/tests/accounting.postgres.test.ts packages/auth/tests/auth.test.ts packages/authorization/tests/authorization.test.ts packages/identity/tests/identity.test.ts packages/inventory/tests/inventory.test.ts packages/party/tests/party.test.ts packages/party/tests/party.postgres.test.ts packages/sales/tests/sales.test.ts packages/kernel/tests/database.test.ts packages/kernel/tests/drizzle-schema.test.ts packages/kernel/tests/effect-drizzle.test.ts packages/kernel/tests/migrations.test.ts packages/kernel/tests/migrations.postgres.test.ts packages/kernel/tests/postgres.integration.test.ts tests/architecture/http.test.ts tests/architecture/ownership.test.ts tests/support/postgres-database.ts tooling/boundary-linter/check-ownership.ts vitest.config.ts"
+    "test:contract": "vitest run --config vitest.contract.config.ts",
+    "check": "deno check ."
   },
   "fmt": {
+    "include": [
+      "apps/",
+      "packages/",
+      "tooling/",
+      "tests/",
+      "db/",
+      "*.config.ts",
+      "deno.json",
+      "sgconfig.yml"
+    ],
     "useTabs": false,
     "lineWidth": 100,
     "semiColons": false,

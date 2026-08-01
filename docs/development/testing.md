@@ -34,8 +34,10 @@ All TypeScript tests use `@effect/vitest` and run through Deno tasks. Effect
 programs, including scoped resources, use `it.effect`; pure synchronous tests
 use regular `it`. Tests return Effects directly rather than invoking Effect
 runtime runners. Test discovery is limited to `apps/`, `packages/`, and
-`tests/`; vendored reference trees are excluded. Structural `ast-grep` YAML rule
-tests remain on the `ast-grep` runner.
+`tests/`; vendored reference trees are excluded. The contract-test configuration
+discovers every `packages/**/tests/**/*.test.*` test plus architecture tests, so
+adding a domain package does not require registering it in `deno.json`.
+Structural `ast-grep` YAML rule tests remain on the `ast-grep` runner.
 
 ## Public Contract Tests
 
