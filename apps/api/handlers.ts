@@ -269,6 +269,39 @@ export const InventoryHandlers = HttpApiBuilder.group(
               ...payload,
             })
           )
+        })))
+      .handle("createTransfer", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* InventoryService.use((service) =>
+            service.createTransfer({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("confirmTransfer", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* InventoryService.use((service) =>
+            service.confirmTransfer({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              transferId: params.id,
+            })
+          )
+        })))
+      .handle("completeTransfer", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* InventoryService.use((service) =>
+            service.completeTransfer({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              transferId: params.id,
+            })
+          )
         }))),
 )
 

@@ -13,7 +13,14 @@ import { Capability } from "../../packages/authorization/mod.ts"
 import { Identity } from "../../packages/identity/mod.ts"
 import { ExternalIdentifier, Party, PartyKind, PartyRole } from "../../packages/party/mod.ts"
 import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
-import { Item, StockBalance, StockReservation, Warehouse } from "../../packages/inventory/mod.ts"
+import {
+  Item,
+  StockBalance,
+  StockReservation,
+  StockTransfer,
+  StockTransferLine,
+  Warehouse,
+} from "../../packages/inventory/mod.ts"
 import { Account, JournalEntry, JournalLine } from "../../packages/accounting/mod.ts"
 
 export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(
@@ -55,6 +62,7 @@ const CreatedOrder = SalesOrder.pipe(HttpApiSchema.status(201))
 const CreatedWarehouse = Warehouse.pipe(HttpApiSchema.status(201))
 const CreatedItem = Item.pipe(HttpApiSchema.status(201))
 const CreatedReservation = StockReservation.pipe(HttpApiSchema.status(201))
+const CreatedTransfer = StockTransfer.pipe(HttpApiSchema.status(201))
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
 
@@ -185,6 +193,28 @@ const Inventory = HttpApiGroup.make("Inventory").add(
       quantity: Schema.String,
     }),
     success: CreatedReservation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createTransfer", "/inventory/transfers", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      sourceWarehouseId: Schema.String,
+      destinationWarehouseId: Schema.String,
+      lines: Schema.Array(StockTransferLine).check(Schema.isMinLength(1)),
+    }),
+    success: CreatedTransfer,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("confirmTransfer", "/inventory/transfers/:id/confirm", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    success: StockTransfer,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("completeTransfer", "/inventory/transfers/:id/complete", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    success: StockTransfer,
     error: errors,
   }).middleware(BearerAuth),
 )
