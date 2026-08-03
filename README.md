@@ -50,6 +50,7 @@ Run the primary validation workflow:
 
 ```sh
 deno task check
+deno task skills:check
 DATABASE_URL=postgres://... deno task db:check
 deno task migrate
 deno task test

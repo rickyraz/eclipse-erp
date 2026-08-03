@@ -39,6 +39,9 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/eclipse
         run: deno task db:check
 
+      - name: Agent skills
+        run: deno task skills:check
+
       - name: Boundary tests
         run: deno task boundary:test
 
@@ -47,3 +50,6 @@ jobs:
 
       - name: Tests
         run: deno task test
+
+      - name: Public contract tests
+        run: deno task test:contract

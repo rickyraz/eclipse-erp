@@ -88,11 +88,13 @@ and allow imports such as:
 import { InventoryService } from "@eclipse/inventory"
 ```
 
-The current scaffold implements these checks with `ast-grep`:
+The current scaffold enforces these checks with:
 
-- project config: [`../../sgconfig.yml`](../../sgconfig.yml);
-- rules: [`../../tooling/boundary-linter/rules/`](../../tooling/boundary-linter/rules/);
-- rule tests: [`../../tooling/boundary-linter/rule-tests/`](../../tooling/boundary-linter/rule-tests/).
+- `ast-grep` project config: [`../../sgconfig.yml`](../../sgconfig.yml);
+- structural rules: [`../../tooling/boundary-linter/rules/`](../../tooling/boundary-linter/rules/);
+- rule tests: [`../../tooling/boundary-linter/rule-tests/`](../../tooling/boundary-linter/rule-tests/);
+- package-entrypoint and cycle validation:
+  [`../../tooling/dependency-graph/check.ts`](../../tooling/dependency-graph/check.ts).
 
 ## Schema Ownership
 
@@ -179,7 +181,9 @@ sales
 ```
 
 A typical correction is to extract a stable contract or invert one dependency
-through an Effect service interface.
+through an Effect service interface. The active checker is
+[`../../tooling/dependency-graph/check.ts`](../../tooling/dependency-graph/check.ts)
+and runs through `deno task boundary:lint` locally and in CI.
 
 ## Architecture Exceptions
 

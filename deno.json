@@ -15,11 +15,11 @@
     "db:check": "deno run -A npm:drizzle-kit@1.0.0-rc.4 check --config=drizzle.config.ts",
     "test": "vitest run",
     "test:contract": "vitest run --config vitest.contract.config.ts",
-    "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
+    "skills:check": "deno run --allow-read tooling/check-agent-skills.ts",
+    "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts && deno run --allow-read tooling/dependency-graph/check.ts",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
     "check": "deno check ."
   },
-
   "fmt": {
     "include": [
       "apps/",
@@ -36,12 +36,14 @@
     "semiColons": false,
     "singleQuote": false
   },
-
   "lint": {
     "rules": {
       "tags": [
         "recommended"
       ]
     }
-  }
+  },
+  "allowScripts": [
+    "npm:msgpackr-extract"
+  ]
 }

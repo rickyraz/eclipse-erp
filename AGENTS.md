@@ -5,6 +5,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > **Related documents**
 >
 > - Project overview: [`./README.md`](./README.md)
+> - Architecture entrypoint: [`./ARCHITECTURE.md`](./ARCHITECTURE.md)
 > - Documentation index: [`./docs/README.md`](./docs/README.md)
 > - Canonical architecture: [`./docs/architecture/architecture-spec-v4.md`](./docs/architecture/architecture-spec-v4.md)
 > - Architecture decisions: [`./docs/decisions/README.md`](./docs/decisions/README.md)
@@ -25,6 +26,9 @@ When documents conflict, use this order:
 3. Other canonical architecture documents.
 4. Reference and exploration documents.
 
+`ARCHITECTURE.md` is an architectural entrypoint and summary. It does not
+supersede the canonical specification or accepted ADRs.
+
 Do not silently resolve contradictions. Report them and update the relevant
 source of truth.
 
@@ -43,18 +47,95 @@ source of truth.
   domain primitives; engine selection belongs in ADR-0011.
 - Do not activate Zig without benchmark evidence and a safe fallback.
 
+## Repository-Native Skills
+
+Before implementing a matching workflow, read the relevant `SKILL.md` under
+`.agents/skills/`. Match ordinary developer intent to the descriptions below;
+do not require the user to name a skill. Compose skills when a change crosses
+several workflows.
+
+| Developer intent | Skill |
+|---|---|
+| Add a new domain or schema owner | [`create-domain-module`](./.agents/skills/create-domain-module/SKILL.md) |
+| Change tables, constraints, triggers, RLS, or migrations | [`change-owned-schema`](./.agents/skills/change-owned-schema/SKILL.md) |
+| Add or change a package's public service, DTO, or tagged errors | [`expose-public-contract`](./.agents/skills/expose-public-contract/SKILL.md) |
+| Let one domain consume another domain's behavior or facts | [`introduce-cross-domain-integration`](./.agents/skills/introduce-cross-domain-integration/SKILL.md) |
+| Expose domain behavior through the Effect HTTP API | [`add-api-endpoint`](./.agents/skills/add-api-endpoint/SKILL.md) |
+| Add a protected business action or permission | [`add-authorization-capability`](./.agents/skills/add-authorization-capability/SKILL.md) |
+| Implement stock, balance, journal, idempotent, or multi-write invariants | [`implement-transactional-workflow`](./.agents/skills/implement-transactional-workflow/SKILL.md) |
+
+Installed generic skills supplement these workflows; they do not replace
+repository ownership, tooling, or validation rules.
+
+### Agent Authority Model
+
+- **Reasoning authority:** agents may inspect broadly, identify owners, choose a
+  documented workflow, and make bounded implementation decisions.
+- **Execution authority:** use repository tasks and generators for deterministic
+  mechanics; do not hand-simulate their output.
+- **Validation authority:** scripts, linters, type checking, tests, and CI decide
+  whether mechanical invariants hold.
+- **Deployment authority:** destructive migrations, production changes, secrets,
+  and break-glass operations remain subject to existing human review and runtime
+  permissions.
+
+## Dependency Ownership
+
+Dependency and Deno configuration ownership is intentionally split:
+
+```text
+             Dependency ownership
+
+             ┌─────────────────────┐
+             │    package.json     │
+             │                     │
+             │ npm dependencies    │
+             │ JSR dependencies    │
+             │ dev dependencies    │
+             └──────────┬──────────┘
+                        │
+                        ▼
+                  deno install
+                        │
+              ┌─────────┴─────────┐
+              ▼                   ▼
+         node_modules         deno.lock
+
+
+             ┌─────────────────────┐
+             │      deno.json      │
+             │                     │
+             │ runtime             │
+             │ permissions         │
+             │ compiler            │
+             │ fmt / lint          │
+             │ tasks               │
+             └─────────────────────┘
+```
+
+Rules:
+
+- Add npm, JSR, and development dependencies to the root `package.json`.
+- Keep dependency versions in one manifest; do not repeat versions in
+  `deno.json`, source imports, task commands, CI configuration, or Dockerfiles
+  unless a tool contract requires an explicit version.
+- Commit `deno.lock` so dependency resolution remains reproducible.
+- Keep `nodeModulesDir: "auto"` and `preferPackageJson: true` in `deno.json`.
+- Use `deno install` after dependency-manifest changes.
+- Treat `vendor/` as reference material, not as the application dependency
+  source.
+
 ## Effect v4 Reference
 
 All TypeScript implementations that use Effect v4 MUST consult the vendored
-canonical source at the absolute path
-`/home/rickyraz/objectives/eclipse-erp/vendor/effect-smol` before writing or
-changing Effect code. The legacy directory name is retained so the existing
+canonical source at `./vendor/effect-smol` before writing or changing Effect
+code. The legacy directory name is retained so the existing
 subtree history remains pullable. Use it as the primary local reference for v4
 APIs, module layout, examples, and migration behavior. Do not rely on Effect v3
 memory when the vendored reference can answer the question.
 
 The subtree is maintained from the `effect` remote at
-`https://github.com/Effect-TS/effect.git`:
+`https://github.com/Effect-TS/effect/tree/main`:
 
 ```sh
 git subtree pull --prefix=vendor/effect-smol effect main --squash
@@ -62,8 +143,7 @@ git subtree pull --prefix=vendor/effect-smol effect main --squash
 
 ## Drizzle v1 Reference and Effect Integration
 
-The Drizzle v1 reference is vendored at the absolute path
-`/home/rickyraz/objectives/eclipse-erp/vendor/drizzle-orm`, pinned to
+The Drizzle v1 reference is vendored at `./vendor/drizzle-orm`, pinned to
 `v1.0.0-rc.4`. Use it as the local source reference for Drizzle v1 APIs and
 integration behavior.
 
@@ -93,12 +173,19 @@ Integration rules:
   never expose raw PostgreSQL or Drizzle errors to callers.
 - Do not copy integration examples verbatim. Adapt them to this repository's
   `DatabaseLayer`, public module contracts, schema ownership, and test layers.
-- Application imports resolve from the root `package.json`; the Drizzle subtree
-  is reference-only and must not be used as the runtime dependency.
+- Application dependencies resolve from the root `package.json`; vendored
+  subtrees are reference-only and must not be used as runtime dependencies.
+- The root `package.json` is the canonical dependency manifest for npm, JSR, and
+  development dependencies. `deno.lock` owns the resolved dependency graph.
+- `deno.json` owns Deno runtime and toolchain behavior such as compiler options,
+  permissions, tasks, formatting, linting, and `nodeModulesDir`; do not duplicate
+  package-version ownership there.
+- Do not introduce raw GitHub, `raw.githubusercontent.com`, or other HTTPS source
+  imports as package substitutes unless an accepted ADR explicitly requires the
+  exception.
 - `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are
-  covered by the kernel import smoke test. Keep those npm peer dependencies in
-  the root manifest. Until published, resolve the canonical Deno adapter through
-  commit-pinned Deno import-map URLs matching the vendored subtree revision.
+  covered by the kernel import smoke test. Keep required peer dependencies in
+  the root `package.json`.
 - Generate every migration with pinned Drizzle Kit `1.0.0-rc.4`. Custom SQL must
   start from `drizzle-kit generate --custom`; every migration directory must
   contain `migration.sql` and `snapshot.json`.
@@ -325,6 +412,7 @@ Add a boundary rule or repository scan when needed to prevent regression to
 deno fmt --check apps packages tooling tests db deno.json sgconfig.yml vitest.config.ts
 deno lint apps packages tooling tests vitest.config.ts
 deno task check
+deno task skills:check
 deno task boundary:test
 deno task boundary:lint
 deno task test:contract
