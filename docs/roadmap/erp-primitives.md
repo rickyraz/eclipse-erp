@@ -1,0 +1,192 @@
+# ERP Primitive Decision Roadmap
+
+> **Status:** Canonical roadmap subdocument
+>
+> **Owns:** readiness and decision sequencing for reusable ERP primitives.
+>
+> **Detailed rules belong to:** the owning domain architecture, schema, ADR, or
+> public contract. This document records what must be decided before those
+> primitives can safely support Process Studio actions.
+
+> **Related documents**
+>
+> - Roadmap index: [`./README.md`](./README.md)
+> - Architecture enforcement: [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
+> - PostgreSQL architecture: [`../architecture/postgresql-19-architecture.md`](../architecture/postgresql-19-architecture.md)
+> - Authorization architecture: [`../architecture/authorization.md`](../architecture/authorization.md)
+> - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
+> - Orthogonal ERP areas: [`../architecture/reference/orthogonal-erp-areas.md`](../architecture/reference/orthogonal-erp-areas.md)
+> - Semantic owner ADR: [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
+
+## Rule
+
+An ERP primitive is ready for Process Studio composition only when its semantic
+meaning is stable across domain contracts, persistence, authorization, events,
+and correction behavior.
+
+A primitive does not automatically require its own package. Package boundaries
+follow invariant ownership and public capability, not a roadmap checklist. The
+orthogonal areas are a semantic map; they do not become packages by enumeration.
+
+## Decision States
+
+```text
+KNOWN
+  repository already establishes the semantic rule
+
+PARTIAL
+  a useful implementation exists but the cross-domain contract is incomplete
+
+UNKNOWN
+  a material business decision cannot be recovered from the repository
+
+DECIDED
+  an ADR or canonical domain document has selected the rule
+
+READY
+  the selected rule has public contracts, executable proof, and operational behavior
+```
+
+`UNKNOWN` is not permission to guess. It is a gate that blocks dependent runtime
+work until resolved.
+
+## Primitive Backlog
+
+| Primitive family | Current repository evidence | Current state | Decision before Process Studio |
+|---|---|---|---|
+| Scope and organization | Tenant-scoped contracts and composite tenant keys exist | `PARTIAL` | Decide tenant, legal entity, company, branch, warehouse, fiscal, currency, and timezone scope without collapsing them into one identifier |
+| Party and relationships | `party`, `identity`, sales customers, auth principals | `PARTIAL` | Decide customer, supplier, employee, contact, and role ownership; define relationship validity and external identifiers |
+| Product/service and UOM | Inventory items and SKUs exist | `PARTIAL` | Decide product/service identity, UOM, conversion, category, and whether quantity semantics are integer-only or extensible |
+| Location and resource | Inventory warehouses exist | `PARTIAL` | Decide warehouse hierarchy, bins/locations, branch ownership, and resource identity before adding routing or manufacturing |
+| Document and lifecycle | Orders, quotations, journals, reservations, and transfers use local states | `PARTIAL` | Decide cross-document references, correction/reversal, immutable facts, lifecycle compatibility, and versioning |
+| Quantity and movement | Inventory balances, reservations, movements, and transfers exist | `PARTIAL` | Decide negative-stock policy, traceability, lot/serial scope, reservation semantics, movement correction, and valuation boundary |
+| Money and obligation | Accounting journals exist; billing is a scaffold | `PARTIAL` | Decide currency, precision, tax scope, payable, receivable, invoice, payment, settlement, and rounding ownership |
+| Fiscal period and close | Accounting domain exists; period-close behavior is not implemented | `UNKNOWN` | Decide open/closed period rules, posting eligibility, close/reopen policy, concurrency with posting, and audit requirements |
+| Policy and authorization | Capability-based authorization exists | `READY` for current actions | Define capability naming, scopes, approval/override semantics, and separation of duties for new irreversible actions |
+| Audit and correlation | Architecture requires audit and event correlation | `PARTIAL` | Decide authoritative audit ownership, retention, actor, tenant, command, state change, correlation, and causation fields |
+| Typed actions and events | Process Studio architecture defines catalogs; domain registries do not yet exist | `UNKNOWN` | Decide registration, versioning, compatibility, contributor ownership, catalog discovery, and public-contract verification |
+| Compensation and recovery | Process Studio architecture defines explicit compensation/manual recovery | `DECIDED`, not implemented | Each committed action must declare a domain compensation command or explicit manual recovery |
+
+## Decision Order
+
+### P0 — Scope and Identity
+
+Resolve before adding cross-domain business flows:
+
+```text
+tenant
+legal entity/company
+branch
+warehouse/location
+party/customer/supplier
+internal vs external identifiers
+currency and timezone scope
+```
+
+Exit criteria:
+
+- ownership is assigned for each scope fact;
+- composite references cannot cross tenant or organization boundaries;
+- public contracts use stable internal identifiers;
+- external identifiers are attached through the owning domain;
+- an ADR exists for any difficult-to-reverse identity or organization choice.
+
+### P1 — Product, Quantity, and Location
+
+Resolve before adding procurement, manufacturing, or advanced inventory actions:
+
+```text
+product vs service
+SKU and classification
+unit of measure and conversion
+warehouse and location hierarchy
+reservation and availability
+lot/serial traceability
+negative stock and correction policy
+```
+
+Exit criteria:
+
+- quantity inputs and outputs have typed units;
+- inventory movement facts are append-oriented or compensated;
+- reservation and availability are concurrency-safe;
+- location and ownership constraints are database-enforced where applicable.
+
+### P2 — Documents and Financial Semantics
+
+Resolve before cataloging purchase, sales, billing, payment, or close actions:
+
+```text
+document identity and references
+header/line semantics
+currency and monetary precision
+tax ownership
+payable and receivable ownership
+invoice/payment/settlement lifecycle
+fiscal period and close
+```
+
+Exit criteria:
+
+- document transitions have preconditions, effects, authorization, and retry behavior;
+- accounting facts cannot be rewritten to hide correction;
+- financial actions declare reversal or manual recovery;
+- period rules are enforced transactionally.
+
+### P3 — Audit, Events, and Integration
+
+Resolve before durable process execution:
+
+```text
+audit event ownership
+correlation and causation
+Typed Event Catalog
+external adapter identity and version
+outbox and delivery semantics
+redaction and retention
+```
+
+Exit criteria:
+
+- committed facts publish typed versioned events atomically where required;
+- consumers and process waits are idempotent;
+- audit records preserve actor, tenant, command, state, and correlation;
+- external standards remain behind versioned integration adapters.
+
+## What Must Not Be Added Yet
+
+Do not add these merely because they are common in other ERP products:
+
+```text
+lot/serial tracking
+multiple currencies
+tax localization
+valuation layers
+manufacturing
+HR/payroll
+asset management
+advanced approvals
+AI/RPA
+full BPMN/DMN semantics
+```
+
+They become roadmap work only when the primitive decision is relevant to a
+requested capability and its evidence, ownership, contract, and proof strategy
+are defined.
+
+## Primitive Readiness Test
+
+A primitive is `READY` only if all answers are explicit:
+
+```text
+Who owns the invariant?
+What are the public inputs and outputs?
+What tenant/organization scope applies?
+What constraints protect the final state?
+What commands change it?
+What events expose committed facts?
+What authorization is required?
+What happens under retry and concurrency?
+How is a committed effect corrected?
+What is the smallest executable proof?
+```

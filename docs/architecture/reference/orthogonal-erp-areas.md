@@ -6,6 +6,7 @@
 >
 > - Orthogonal design: [`./orthogonal-erp-design.md`](./orthogonal-erp-design.md)
 > - Graph models: [`./graph-models.md`](./graph-models.md)
+> - Process Studio architecture: [`../process-studio.md`](../process-studio.md)
 > - Canonical architecture: [`../architecture-spec-v4.md`](../architecture-spec-v4.md)
 
 Traditional ERP modules are useful for navigation but are not always the best
@@ -61,9 +62,21 @@ Payments, allocations, credit, write-off, and reconciliation.
 Immutable accounting facts, journal entries, balances, and reporting
 projections.
 
-### Policy and Workflow
+### Policy and Local Workflow
 
-Typed decision rules and allowed state transitions.
+Typed decision rules and domain-local allowed state transitions. This area
+belongs to the owning domain and is not automatically the Process Studio.
+
+For example, a Sales domain may own:
+
+```text
+SalesOrder: Draft -> Confirmed -> Fulfilled -> Cancelled
+```
+
+The Process Studio is a separate coordination layer for cross-domain
+orchestration. It composes public commands and events but does not own the
+lifecycle, invariants, or tables of Procurement, Inventory, Accounting, or any
+other domain. See [`../process-studio.md`](../process-studio.md).
 
 ### Evidence
 

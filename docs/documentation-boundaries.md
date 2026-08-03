@@ -31,6 +31,7 @@ create a second independent definition.
 | ADR | Context, alternatives, decision, and consequences | Complete current-state specification |
 | Reference document | Analysis and conceptual background | Binding implementation rules |
 | Development workflow | How documentation and implementation are maintained | Domain architecture |
+| Roadmap index and subroadmaps | Sequencing, dependencies, readiness, and exit gates | Detailed architecture rules or historical rationale |
 
 ## Canonical Topic Owners
 
@@ -49,6 +50,7 @@ create a second independent definition.
 | Architecture enforcement | [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md) |
 | Testing strategy | [`./development/testing.md`](./development/testing.md) |
 | Database roles and privileges | [`./operations/database-roles.md`](./operations/database-roles.md) |
+| Roadmap sequencing and release gates | [`./roadmap/README.md`](./roadmap/README.md) |
 
 ## Duplication Rules
 

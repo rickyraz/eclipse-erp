@@ -38,6 +38,13 @@
 - [`./architecture/reference/sql-pgq-use-cases.md`](./architecture/reference/sql-pgq-use-cases.md)
 - [`./architecture/reference/ltree-notes.md`](./architecture/reference/ltree-notes.md)
 
+## Roadmaps
+
+- [`./roadmap/README.md`](./roadmap/README.md)
+- [`./roadmap/erp-primitives.md`](./roadmap/erp-primitives.md)
+- [`./roadmap/domain-maturity.md`](./roadmap/domain-maturity.md)
+- [`./roadmap/process-studio.md`](./roadmap/process-studio.md)
+
 ## Documentation Governance
 
 - [`./documentation-boundaries.md`](./documentation-boundaries.md)

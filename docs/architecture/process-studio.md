@@ -20,6 +20,7 @@
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Process Studio decision:
 >   [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
+> - Roadmap and readiness gates: [`../roadmap/process-studio.md`](../roadmap/process-studio.md)
 
 ## Purpose
 
@@ -59,6 +60,46 @@ Runtime design time
 ```
 
 Process Studio never replaces domain ownership or turns a process definition into a super-domain.
+
+## Local Domain Workflow vs Process Orchestration
+
+A domain-local lifecycle is owned by the domain that protects its invariant:
+
+```text
+SalesOrder: Draft -> Confirmed -> Fulfilled -> Cancelled
+```
+
+It may use typed policy rules and local transitions without involving Process
+Studio. Process Studio is reserved for coordination across domain contracts:
+
+```text
+PurchaseOrder.Approved
+        |
+        v
+Inventory.ReserveStock
+        |
+        v
+Inventory.CreateReceipt
+        |
+        v
+Accounting.RecognizeLiability
+        |
+        v
+Settlement.SchedulePayment
+```
+
+The example names are conceptual until the corresponding public contracts exist.
+Process Studio may invoke them only after their owning packages publish typed,
+authorized, idempotent commands and events. It cannot implement their business
+logic, duplicate their invariants, or mutate their tables.
+
+```text
+Domain-local workflow
+-> owns one domain's lifecycle and invariant
+
+Process Studio
+-> coordinates public capabilities across domains
+```
 
 ## Architectural Position
 
@@ -811,7 +852,9 @@ implementation must prove the applicable contracts, including:
 ## Delivery Roadmap
 
 The visual designer arrives after catalog and runtime semantics are proven. Version labels describe
-architectural milestones, not permission to ship unvalidated behavior.
+architectural milestones, not permission to ship unvalidated behavior. Primitive and domain
+preconditions are tracked in [`../roadmap/README.md`](../roadmap/README.md) and the Process Studio
+readiness gates in [`../roadmap/process-studio.md`](../roadmap/process-studio.md).
 
 ### 0.8 — Capability Metadata
 

@@ -324,8 +324,8 @@ introduced.
 
 Before implementing process catalogs, Process IR, workflow definitions,
 compensation, static validation, designer, monitor, or inbox behavior, read
-[`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
-and ADR-0018.
+[`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md),
+[`docs/roadmap/README.md`](./docs/roadmap/README.md), and ADR-0018.
 
 - Build Typed Action and Event Catalogs before the visual designer.
 - Invoke only authorized public domain contracts; never expose arbitrary SQL,
