@@ -24,6 +24,7 @@
 > - Capability release and runtime governance:
 >   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 > - Roadmap and readiness gates: [`../roadmap/process-studio.md`](../roadmap/process-studio.md)
+> - Blueprint review method: [orthogonal-blueprint](https://github.com/rickyraz/skills/tree/main/skills/orthogonal-blueprint)
 
 ## Purpose
 
@@ -1049,6 +1050,208 @@ implementation must prove the applicable contracts, including:
 - tenant and organization isolation;
 - monitor redaction and operator permissions;
 - accessible designer and inbox interaction.
+
+## Orthogonal Blueprint Conformance
+
+> **Status:** Architecture conformance record, not a second source of truth.
+>
+> **Reviewed:** 2026-08-03
+>
+> **Result:** Aligned. The remaining gates are implementation evidence, not a
+> reason to redesign the ownership model.
+
+This review applies the repository's Process Studio architecture against the
+[orthogonal-blueprint method](https://github.com/rickyraz/skills/tree/main/skills/orthogonal-blueprint).
+The binding rules remain in this document, the canonical architecture, accepted
+ADRs, and the owning domain contracts.
+
+### Problem (Reframed)
+
+```text
+Surface request:
+  build a visual workflow designer
+
+Assumed solution:
+  build a generic low-code workflow/integration platform
+
+Underlying need:
+  coordinate approved cross-domain business capabilities safely,
+  durably, observably, and without transferring semantic ownership
+```
+
+### Boring Solution Considered
+
+The boring solution is domain-local state transitions plus explicit application
+services, jobs, and transactional events. That remains the default for local
+work. Process Studio is justified only for durable cross-domain coordination,
+where repeated composition, human tasks, waits, recovery, and business
+observability provide value that local services alone do not provide.
+
+### Rejected Assumptions
+
+- the visual designer must come before domain contracts and a headless runtime;
+- BPMN or DMN should be executable runtime truth from the beginning;
+- a process definition grants the capabilities it names;
+- one universal ERP entity model is safer than owned domain facts;
+- external protocols belong in domain contracts or Process Studio semantics;
+- an Effect fiber is a durable workflow;
+- a connector timeout proves that no external side effect occurred.
+
+### Axes Explored
+
+| Axis | Process Studio conclusion |
+|---|---|
+| Inversion | Remove the designer first; retain domain-local workflows and add Process Studio only where cross-domain coordination is proven necessary. |
+| Abstraction | Keep invariants and authorization in domains, orchestration in Process Studio, and protocols/secrets in connectors. |
+| Constraint | Treat semantic ownership, tenant scope, typed contracts, no private imports, and no arbitrary code as real safety constraints; do not remove them for convenience. |
+| Temporal | Require version pinning, durable checkpoints, compatibility ranges, and explicit promotion so the system survives scale, upgrades, and capability retirement. |
+| Adversarial | Assume compromised authors, forged context, duplicate delivery, lost responses, malicious connectors, unauthorized approvals, and unsafe retries. |
+| Cross-domain | Reuse proven control-plane/data-plane, checkpoint, event-correlation, and adapter-boundary patterns without importing their ownership model into ERP domains. |
+
+### Proposed Modules and Orthogonality
+
+| Module | Single responsibility | Composition boundary | Result |
+|---|---|---|---|
+| Owning domain | Facts, invariants, transactions, authorization, audit | Public typed commands/events | Pass |
+| Capability catalog | Discoverable process-safe metadata | Versioned contributor contract | Pass |
+| Process definition/IR | Coordination graph and mappings | Catalog entries and typed edges | Pass |
+| Static validator | Reject unsafe definitions before release | Schemas, scopes, policies, compatibility | Pass |
+| Runtime | Durable progression, retry, wait, task, recovery | Public domain/connector contracts | Pass |
+| Connector layer | Transport, provider protocol, secrets, external outcomes | Normalized external actions/events | Pass |
+| Designer/monitor | Human-facing projection and operations | Validated IR and authorized queries | Pass |
+
+A module fails this review if it needs another module's tables, silently owns
+its invariants, hides side effects behind a generic interface, or requires
+unrelated modules to change for local implementation work.
+
+### Composition Plan
+
+```text
+Capability declaration
+        |
+        v
+Typed Action/Event Catalog
+        |
+        v
+Process IR + Static Validator
+        |
+        v
+Released definition -> environment deployment
+        |
+        v
+Durable Runtime
+   |              |
+   v              v
+Domain contract  Connector contract
+   |              |
+   v              v
+Owning invariant  External provider
+```
+
+Commands and events cross boundaries only through typed public contracts. Each
+owning domain keeps its local transaction and authorization; connectors keep
+transport and provider semantics; Process Studio keeps coordination state,
+correlation, and recovery metadata.
+
+### Reversibility Map
+
+**Type 1 — irreversible or expensive to change; full review required**
+
+- semantic ownership and package boundaries;
+- public action/event identities and schemas;
+- tenant, organization, authorization, delegation, and audit semantics;
+- Process IR meaning and durable instance version pinning;
+- release/deployment lifecycle and compatibility rules;
+- external integration profile and normalized connector boundary;
+- compensation and manual-recovery semantics.
+
+**Type 2 — reversible with contained cost**
+
+- visual layout and editor interaction model;
+- monitor projections and reporting views;
+- generated catalog/API/SDK artifacts;
+- internal scheduler implementation;
+- selected durable engine adapter while its contract remains stable.
+
+When uncertain, treat a decision as Type 1. The roadmap therefore blocks the
+visual designer until the Type 1 contracts have evidence.
+
+### Myopia Audit
+
+- **Symptom patching:** more retries or workers cannot repair missing idempotency,
+  ownership, or durable outcome reconciliation.
+- **Local optimization:** a fast designer does not compensate for immature domain
+  contracts or an unsafe runtime.
+- **Now-centric design:** release pinning, retirement, promotion, and compatibility
+  cover future capability versions and environment drift.
+- **Inherited assumptions:** BPMN execution, microservices, generic brokers,
+  unrestricted plugins, and AI/RPA are not accepted merely because they are common.
+- **Solution-first design:** the roadmap starts from primitive decisions and domain
+  maturity, not from canvas features.
+
+### Pre-Mortem Scenarios and Falsification Condition
+
+Assume Process Studio failed two years after becoming operational. The top
+internal failure modes are:
+
+1. **It became a super-domain.** Detect cross-domain table imports, duplicated
+   invariants, or hand-maintained capability metadata. Stop release and restore
+   public-contract ownership.
+2. **Recovery duplicated or lost business effects.** Detect failed checkpoint,
+   duplicate-effect, or unknown-outcome tests in the 0.85/0.9 validation portfolio.
+   Keep the runtime headless and block visual expansion until reconciliation and
+   manual recovery work.
+3. **Governance drift made production unsafe or unusable.** Detect unapproved
+   deployments, incompatible capability versions, unexplained SoD overrides, or
+   operator actions without business trace context. Block promotion and repair the
+   release/audit path before adding features.
+
+Core assumptions are falsified at the existing roadmap gates:
+
+| Assumption | Falsifying observation | Measure and deadline |
+|---|---|---|
+| Public contracts can support safe cross-domain composition | Fewer than two domains expose stable, versioned, authorized commands/events, or catalog entries leak implementation types | 0.8 gate |
+| Durable Process IR can recover without duplicate effects | Restart, duplicate delivery, or lost-response tests produce duplicate or unknown business effects without reconciliation | 0.85 gate |
+| Governance can keep releases safe across environments | Any production deployment bypasses approval, compatibility, tenant, SoD, or audit checks | Before first PROD deployment |
+
+Until these observations are disproven, Process Studio remains a staged
+coordination layer rather than a platform-wide programming model.
+
+### Known Risks (Non-Myopic)
+
+- Version pinning creates catalog and migration burden; retirement policies and
+  compatibility ranges must prevent unbounded version accumulation.
+- Business observability increases sensitive-data exposure and storage cost;
+  scoped queries, redaction, retention, and trace separation are required.
+- Release governance can slow legitimate domain delivery; generated metadata,
+  compatibility checks, and trusted contributor contracts should reduce manual work
+  without bypassing approval.
+- Process composition can hide policy in graphs; domain authorization and pure
+  validation remain authoritative at execution time.
+- Connector normalization can erase provider-specific meaning; typed failures,
+  explicit unknown outcomes, and manual recovery must preserve the distinction.
+
+### What We Deliberately Chose NOT to Build
+
+- generic low-code or arbitrary-script execution;
+- BPMN/DMN as initial runtime truth;
+- workflow-owned inventory, accounting, procurement, sales, or party facts;
+- unrestricted HTTP actions or a connector marketplace;
+- full RPA and autonomous agents controlling core invariants;
+- microservices or a graph database without measured need.
+
+### Sign-Off
+
+- [x] Boring solution considered before expanding Process Studio.
+- [x] Problem reframed around safe cross-domain coordination.
+- [x] All six axes reviewed.
+- [x] Modules pass the orthogonality test.
+- [x] Type 1 and Type 2 decisions are listed.
+- [x] Myopia traps and second-order risks are recorded.
+- [x] Pre-mortem contains three internal failure modes.
+- [x] Falsification conditions have measures and phase deadlines.
+- [x] Rejected assumptions and explicit non-goals are documented.
+- [ ] Runtime evidence gates are complete; implementation remains roadmap work.
 
 ## Delivery Roadmap
 
