@@ -217,12 +217,17 @@ domain owns, such as durable progress, retry, or compensation status.
 EclipseERP's planned Process Studio composes versioned, typed domain actions and events through a
 small deterministic Process IR. It does not expose arbitrary SQL, scripts, private repositories, or
 cross-domain table mutation. Actions execute through authorized public domain contracts; decisions
-are pure; published definitions are immutable and running instances remain version-pinned.
+are pure; released definitions are immutable, deployments are explicit, and running instances remain
+version-pinned.
+
+Capability stability, execution principals, delegation, SoD, business observability, retry,
+unknown-outcome handling, and environment promotion are governed by
+[`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md).
 
 Committed effects are not treated as if a later SQL rollback could erase them. Domains may publish
 explicit compensating commands, and process definitions select compensation or manual-recovery
 policy. Static validation checks catalog versions, schemas, mappings, capabilities, tenant scope,
-transition ordering, idempotency, waits, parallel effects, and compensation before publication.
+transition ordering, idempotency, waits, parallel effects, and compensation before release.
 
 The detailed target architecture and staged 0.8–1.0 delivery gates are owned by
 [`./process-studio.md`](./process-studio.md).

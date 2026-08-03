@@ -96,6 +96,7 @@ The package additionally proves:
 The package additionally publishes:
 
 - versioned Typed Action Catalog entries;
+- capability stability and release state;
 - versioned Typed Event Catalog entries;
 - precondition/effect metadata with a bounded vocabulary;
 - process-visible failures;

@@ -172,7 +172,7 @@ Checkpointed workflows must test:
 
 The Process Studio must test the smallest applicable combination of:
 
-- Typed Action and Event Catalog identity, ownership, versioning, schemas, and
+- Typed Action and Event Catalog identity, ownership, stability, versioning, schemas, and
   contributor authorization;
 - catalog compatibility with public domain contracts;
 - deterministic Process IR serialization, checksums, and version compatibility;
@@ -180,15 +180,18 @@ The Process Studio must test the smallest applicable combination of:
   scope, transition ordering, idempotency, event filters, parallel effects, and
   compensation coverage;
 - pure decision determinism and rejection of hidden I/O or mutable state;
-- immutable published definitions and exact instance version pinning;
-- lost-response recovery without duplicate domain effects;
+- immutable released definitions, explicit environment deployment, and exact instance version
+  pinning;
+- capability release compatibility and deprecated/retired action behavior;
+- lost-response and unknown-outcome recovery without duplicate domain effects;
 - duplicate event delivery and durable event-wait registration;
-- human-task authorization and duplicate completion;
+- execution principal, delegated authority, Separation of Duties, human-task authorization, and
+  duplicate completion;
 - timer, cancellation, retry, crash-recovery, and operator recovery behavior;
 - compensation ordering, idempotency, authorization, retry, and audit;
 - explicit manual recovery when a committed action has no compensation;
 - tenant and organization isolation throughout design and runtime state;
-- monitor redaction and operational-control authorization;
+- business/technical correlation, monitor redaction, and operational-control authorization;
 - equivalence of visual, keyboard, and structured editing output;
 - BPMN import/export translation through Process IR with unsupported semantics
   rejected explicitly.

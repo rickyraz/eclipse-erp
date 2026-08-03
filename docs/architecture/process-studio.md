@@ -21,6 +21,8 @@
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Process Studio decision:
 >   [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
+> - Capability release and runtime governance:
+>   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 > - Roadmap and readiness gates: [`../roadmap/process-studio.md`](../roadmap/process-studio.md)
 
 ## Purpose
@@ -124,7 +126,7 @@ Process Studio
         +-----+-----+
               |
               v
-          PUBLISHED
+       RELEASED / DEPLOYED
               |
               v
         Workflow Runtime
@@ -161,14 +163,14 @@ Design time owns:
 - human-task assignment policy;
 - timers, waits, retries, timeouts, and compensation policy;
 - static validation;
-- review, approval, publication, and version history;
+- review, approval, release, deployment, and version history;
 - documentation and simulation.
 
 ### Runtime
 
 Runtime owns:
 
-- process instances pinned to published definition versions;
+- process instances pinned to released and deployed definition versions;
 - deterministic step progression;
 - durable timers and event subscriptions;
 - human-task state;
@@ -253,22 +255,66 @@ DomainAction
 
   reversible
   compensation
+  compatibilityRange
 ```
 
 ### Identity and Versioning
 
 - `id` is stable and namespaced by the semantic owner.
 - `version` changes when the process-visible contract changes incompatibly.
-- Published process definitions bind to an exact compatible action version.
-- A domain may deprecate an action version, but it must not silently change the meaning of running
-  process instances.
+- `kind` preserves `Domain`, `Plugin`, or `External` provenance.
+- `stability` follows `PRIVATE -> EXPERIMENTAL -> PUBLIC -> DEPRECATED -> RETIRED`.
+- Only compatible `PUBLIC` capabilities may enter a released production process.
+- Deprecated capability versions remain available only for compatible pinned instances until their
+  retirement policy is reached.
+- A domain, plugin, or connector must not silently change the meaning of a running process instance.
 - Action catalog metadata is not the domain implementation and must not expose Drizzle tables,
   repositories, or infrastructure errors.
+
+### Capability Release Contract
+
+Process-visible capabilities have an explicit stability lifecycle:
+
+```text
+PRIVATE
+  |
+  v
+EXPERIMENTAL
+  |
+  v
+PUBLIC
+  |
+  v
+DEPRECATED
+  |
+  v
+RETIRED
+```
+
+Only compatible `PUBLIC` capabilities may enter a released production process.
+Private and experimental capabilities may be used by local tests or explicitly
+non-production environments. Deprecated versions remain available for compatible
+pinned instances until their retirement policy. Retired versions cannot start
+new instances.
+
+The catalog metadata must preserve provenance:
+
+```text
+kind: Domain | Plugin | External
+owner
+stability
+compatibilityRange
+```
+
+A capability declaration is the source used to derive or verify catalog metadata,
+API/OpenAPI descriptions, SDK types, Process Studio palette entries,
+authorization metadata, tracing metadata, test fixtures, and documentation.
+Hand-maintained duplicate manifests must not become a second source of truth.
 
 ### Schemas and Failures
 
 Inputs, outputs, mappings, and public failures use Effect Schema-compatible public contracts. The
-static validator rejects incompatible edges and mappings before publication.
+static validator rejects incompatible edges and mappings before release.
 
 Possible failures describe stable process-visible outcomes. Raw PostgreSQL, driver, stack-trace, or
 repository failures never become catalog contracts.
@@ -390,7 +436,7 @@ Compensation execution must be:
 - idempotent;
 - observable;
 - separately authorized;
-- ordered according to the published compensation plan;
+- ordered according to the released compensation plan;
 - resumable after failure;
 - auditable independently from the forward action.
 
@@ -567,7 +613,7 @@ The validator checks at least:
 - known Process IR version and supported node kinds;
 - exact action and event catalog references;
 - input, output, variable, filter, and mapping compatibility;
-- required capabilities and publisher authority;
+- required capabilities and release/deployment authority;
 - tenant and organization scope compatibility;
 - transition ordering against declared preconditions and effects;
 - retry and idempotency compatibility;
@@ -605,13 +651,13 @@ The final action may execute after its accounting period is closed.
 
 Static validation is conservative. It may reject only what catalog metadata and process data prove
 invalid. It must not invent domain rules. Runtime domain validation remains authoritative because
-process inputs, concurrent state, and external facts can change after publication.
+process inputs, concurrent state, and external facts can change after release.
 
 Warnings and errors are distinct:
 
 ```text
 error
--> process cannot be published safely
+-> process cannot be released safely
 
 warning
 -> process is valid but has an operational risk requiring review
@@ -619,7 +665,7 @@ warning
 
 ## Process Definition Governance
 
-Definitions use an explicit lifecycle:
+Definitions use an environment-aware lifecycle:
 
 ```text
 DRAFT
@@ -631,7 +677,10 @@ VALIDATED
 APPROVED
   |
   v
-PUBLISHED
+RELEASED
+  |
+  v
+DEPLOYED
   |
   v
 RETIRED
@@ -640,13 +689,21 @@ RETIRED
 - Drafts are editable and cannot start production instances.
 - Validation records the exact Process IR and catalog versions checked.
 - Approval is a governed action separate from editing.
-- Publication creates an immutable definition version and checksum.
+- Release creates an immutable process artifact and checksum.
+- Deployment binds a released artifact to an environment such as TEST or PROD.
 - Retirement prevents new instances but does not erase history or terminate running instances
   automatically.
-- Changes after publication create a new version.
+- Changes after release create a new version.
 - Running instances stay pinned to the definition and catalog versions with which they started.
 - Instance migration is never implicit. A migration policy and compatibility proof are required
   before moving an active instance.
+
+The UI may simplify this to `Draft -> Test -> Publish`, but the backend preserves release,
+deployment, approval, and environment state separately. Promotion follows:
+
+```text
+DEV -> TEST -> PROD
+```
 
 Governance records:
 
@@ -656,11 +713,11 @@ Governance records:
 - version comment and change summary;
 - validation result;
 - referenced action, event, and decision versions;
-- publication and retirement timestamps;
+- release and deployment environment/timestamps;
 - definition checksum.
 
-Editing, approving, publishing, retiring, starting, cancelling, retrying, and compensating processes
-require distinct capabilities where risk warrants it.
+Editing, approving, releasing, deploying, retiring, starting, cancelling, retrying, and
+compensating processes require distinct capabilities where risk warrants it.
 
 ## Runtime Semantics
 
@@ -670,15 +727,21 @@ A runtime instance contains at least:
 instance_id
 process_definition_id
 process_definition_version
+environment
 tenant_id
 organization_scope
 status
 input
 output
 current_progress
+initiator
+current_actor
+execution_principal
+delegated_authority
+business_object_ids
 correlation_id
 causation_id
-started_by
+trace_id
 started_at
 completed_at
 ```
@@ -693,9 +756,12 @@ status
 idempotency_key
 input
 output_or_failure
+command_or_event_id
+business_object_ids
 started_at
 completed_at
 correlation_and_causation
+trace_id
 compensation_status
 ```
 
@@ -716,6 +782,50 @@ The runtime does not hold one database transaction across multiple durable steps
 command owns its local atomic transaction. Cross-step consistency uses explicit state, idempotency,
 events, and compensation.
 
+### Execution Context and Authority
+
+Every process invocation carries explicit context:
+
+```text
+ProcessInstanceId
+TenantId
+OrganizationScope
+Initiator
+CurrentActor
+ExecutionPrincipal
+DelegatedAuthority
+BusinessObjectId(s)
+CommandId / EventId
+CorrelationId
+CausationId
+TraceId
+```
+
+Principal kinds remain distinct:
+
+```text
+HumanPrincipal
+ServicePrincipal
+ProcessPrincipal
+DelegatedPrincipal
+```
+
+A `ProcessPrincipal` represents runtime execution; it does not grant every
+capability. The owning domain authorizes every action using the principal, scope,
+delegation, and applicable policy. Process definitions cannot grant themselves
+business permissions.
+
+Segregation of Duties is an organization policy in addition to domain invariants:
+
+```text
+Domain invariant:
+  journal balances
+
+Organization policy:
+  creator != approver
+  amount > threshold requires designated approver
+```
+
 ### Retry and Idempotency
 
 A retry reuses the stable logical step identity and idempotency key. The runtime must distinguish:
@@ -725,7 +835,26 @@ command never committed
 command committed and response was lost
 command failed with a typed business error
 command failed with a retryable technical error
+unknown external outcome
+compensation failed
 ```
+
+Each durable step persists its execution state:
+
+```text
+CommandRequested
+CommandStarted
+CommandSucceeded
+CommandFailed
+RetryScheduled
+CompensationStarted
+CompensationSucceeded
+ManualRecoveryRequired
+```
+
+Unknown external outcomes enter provider-status reconciliation or manual recovery
+according to the connector contract. They are not automatically retried as if no
+external side effect occurred.
 
 Business failures do not become infinite technical retries. Retry policies are bounded and visible.
 
@@ -767,6 +896,42 @@ A failed instance exposes:
 - required operator action;
 - audit correlation.
 
+### Business Observability
+
+Process Studio exposes business trace context in addition to technical tracing:
+
+```text
+technical:
+  TraceId
+
+business:
+  ProcessInstanceId
+  BusinessObjectId
+  CommandId
+  EventId
+  CorrelationId
+  CausationId
+```
+
+Operators can inspect business progress, for example:
+
+```text
+Order-to-Cash #OTC-92831
+
+✓ Sales order confirmed
+✓ Credit approved
+✓ Inventory reserved
+✗ Shipment creation
+
+Reason: connector unavailable
+Retry: 3/5
+Business object: SO-2026-18381
+```
+
+Operator views expose safe typed failures, step state, retry eligibility,
+compensation progress, and required actions according to capability scope. Raw
+credentials, SQL, stack traces, and private provider payloads remain internal.
+
 ## Process Designer
 
 The Process Designer is a SolidJS feature in `apps/web/` and follows [`frontend.md`](./frontend.md).
@@ -781,7 +946,7 @@ The designer provides:
 - human-task assignment configuration;
 - timers, retries, timeouts, and compensation policy;
 - immediate static errors and warnings;
-- lifecycle review and publication controls;
+- lifecycle review and release/deployment controls;
 - accessible keyboard alternatives to pointer-based drag-and-drop;
 - process documentation and version comparison;
 - simulation using explicit test inputs.
@@ -873,7 +1038,7 @@ implementation must prove the applicable contracts, including:
 - Process IR deterministic serialization and compatibility;
 - static validation errors and warnings;
 - pure decision determinism;
-- immutable published versions and instance version pinning;
+- immutable released versions and instance version pinning;
 - command idempotency and lost-response recovery;
 - event wait registration and duplicate delivery;
 - timer recovery;
@@ -987,7 +1152,7 @@ BPMN import/export compatibility boundary
 Exit criteria:
 
 - definition governance and action execution capabilities are independently enforced;
-- published versions are immutable and active instances are stable across new publications;
+- released versions are immutable and active instances are stable across new deployments;
 - runtime, inbox, monitor, and designer satisfy tenant, audit, accessibility, recovery, and
   authorization requirements;
 - BPMN interoperability translates through Process IR rather than becoming runtime truth.
@@ -1019,7 +1184,7 @@ the core runtime or security model.
 - arbitrary tenant code, SQL, or unrestricted HTTP actions;
 - replacing domain services with workflow definitions;
 - one transaction spanning durable checkpoints;
-- automatic compensation without an explicit published policy;
+- automatic compensation without an explicit released policy;
 - rewriting immutable accounting or inventory facts;
 - general-purpose RPA;
 - autonomous nondeterministic agents controlling core invariants;
@@ -1033,7 +1198,7 @@ The target architecture is correctly implemented when:
 - Process IR is deterministic and is the only executable definition source of truth;
 - decisions are pure;
 - static validation rejects provably unsafe definitions;
-- published versions are immutable and instances remain version-pinned;
+- released versions are immutable and instances remain version-pinned;
 - all commands execute through authorized public domain contracts;
 - committed effects use explicit compensation or manual recovery rather than fictional rollback;
 - timers, waits, tasks, retries, cancellation, and compensation are durable and observable;

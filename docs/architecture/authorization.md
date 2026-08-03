@@ -7,6 +7,8 @@
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Authorization ADR: [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
 > - Plugin trust model: [`./plugin-architecture.md`](./plugin-architecture.md)
+> - Process Studio: [`./process-studio.md`](./process-studio.md)
+> - Process governance ADR: [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 
 ## Goals
 
@@ -90,6 +92,52 @@ PostgreSQL constraints
 PostgreSQL RLS
 -> tenant isolation and defense in depth
 ```
+
+## Process Execution Authority and Separation of Duties
+
+A workflow runtime does not become an authorization superuser. Every process
+command is authorized by the owning domain using explicit execution context:
+
+```text
+ProcessInstanceId
+TenantId
+OrganizationScope
+Initiator
+CurrentActor
+ExecutionPrincipal
+DelegatedAuthority
+BusinessObjectId(s)
+CorrelationId
+CausationId
+```
+
+Principal kinds remain distinct:
+
+```text
+HumanPrincipal
+ServicePrincipal
+ProcessPrincipal
+DelegatedPrincipal
+```
+
+A `ProcessPrincipal` identifies durable runtime execution; it does not grant
+capabilities by itself. A process definition cannot grant, widen, or substitute
+a business capability.
+
+Separation of Duties is a policy layer in addition to domain invariants:
+
+```text
+Domain invariant:
+  journal must balance
+
+Organization policy:
+  creator != approver
+  amount > threshold requires designated approver
+```
+
+High-risk workflows must preserve actor, initiator, delegation, capability,
+scope, and approval history. Approval completion must be conditional or
+otherwise protected against duplicate or unauthorized completion.
 
 ## Audit
 

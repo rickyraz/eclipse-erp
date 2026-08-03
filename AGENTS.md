@@ -356,8 +356,14 @@ compensation, static validation, designer, monitor, or inbox behavior, read
 - Keep decisions pure and Process IR small, typed, deterministic, and versioned.
 - Keep BPMN and DMN at interoperability boundaries unless a later ADR expands
   their role.
-- Published definitions are immutable and running instances remain pinned to
-  exact definition and catalog versions.
+- Capability release states distinguish private, experimental, public,
+  deprecated, and retired contracts.
+- Released definitions are immutable; deployment is separate from release, and
+  running instances remain pinned to exact definition and catalog versions.
+- A ProcessPrincipal never bypasses domain authorization; preserve initiator,
+  actor, delegation, scope, SoD, correlation, and causation context.
+- Persist retry, unknown-outcome, compensation, manual-recovery, and business
+  observability state.
 - Do not activate `pg_durable` before the existing compatibility and production
   gates pass.
 

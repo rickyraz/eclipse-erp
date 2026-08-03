@@ -196,6 +196,8 @@ External actions declare:
 connector_id
 operation_id
 version
+stability
+compatibility_range
 input_schema
 output_schema
 failure_schema
@@ -237,6 +239,7 @@ CloudEvents is an envelope. The event catalog owns the business interpretation:
 ExternalEvent
   id
   version
+  stability
   connector_id
   source
   payload_schema

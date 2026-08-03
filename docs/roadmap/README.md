@@ -172,9 +172,12 @@ Before Process Studio becomes a broad runtime, verify:
 [ ] product, service, UOM, location, document, quantity, and money semantics are stable
 [ ] procurement and billing are either implemented or explicitly out of scope
 [ ] public domain contracts expose process-safe actions/events
+[ ] capability stability/release states and compatibility ranges are explicit
+[ ] process release is separate from environment deployment
+[ ] execution principal, delegation, SoD, and business observability are explicit
 [ ] committed effects declare compensation or manual recovery
 [ ] catalog versions and Process IR versions are deterministic
-[ ] runtime recovery and idempotency are proven
+[ ] runtime recovery, idempotency, and unknown-outcome handling are proven
 [ ] authorization and audit are enforced outside the browser
 [ ] visual design is a projection over validated runtime semantics
 ```

@@ -36,7 +36,7 @@ business users compose those capabilities into governed workflows. The Process
 Studio is intended to be domain-aware rather than a generic diagram editor: it
 uses versioned Action and Event Catalogs, deterministic Process IR, pure
 decisions, static business validation, durable execution, explicit
-compensation, task inboxes, monitoring, and immutable publication.
+compensation, task inboxes, monitoring, and immutable release/deployment.
 
 The visual designer follows catalog and headless-runtime maturity; it does not
 precede them. The canonical target and staged 0.8–1.0 roadmap are owned by

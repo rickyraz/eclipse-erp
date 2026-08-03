@@ -15,6 +15,8 @@
 > - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
 > - External integration surface: [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
 > - Process Studio ADR: [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
+> - Capability release and runtime governance:
+>   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 > - Durable execution: [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Messaging: [`../architecture/pgque-messaging.md`](../architecture/pgque-messaging.md)
 
@@ -56,6 +58,9 @@ Before Process Studio 0.8 work starts, resolve:
 [ ] durable engine compatibility gates remain enforced
 [ ] external action/event profile is defined separately from domain actions/events
 [ ] connector authentication, idempotency, delivery, and compensation rules are explicit
+[ ] capability release states and compatibility ranges are defined
+[ ] process promotion separates release from deployment across environments
+[ ] execution principal, delegation, SoD, and business observability are explicit
 ```
 
 If any item is material `UNKNOWN`, remain in the primitive/domain roadmap. External
@@ -72,10 +77,12 @@ readiness work is:
 domain capability metadata
 Typed Domain Action/Event Catalog
 Typed External Action/Event Catalog boundary
+capability stability and release contract
 idempotency contracts
 correlation and causation contracts
 compensation metadata
 bounded precondition/effect vocabulary
+one typed source of truth for catalog/API/SDK/process metadata
 ```
 
 Exit gate:
@@ -98,6 +105,9 @@ pure decisions
 timers
 wait for typed events
 human tasks
+explicit execution context
+persisted step state
+business and technical correlation
 ```
 
 Exit gate:
@@ -110,11 +120,13 @@ Exit gate:
 ## 0.9 — Operational Maturity
 
 ```text
-versioning
+capability deprecation and retirement
+process definition release/deployment promotion
 bounded retry
 recovery
 cancellation
-audit correlation
+execution context and SoD policy
+audit and business correlation
 compensation execution
 monitoring APIs
 operator controls
@@ -122,8 +134,8 @@ operator controls
 
 Exit gate:
 
-- operators can distinguish business failure, technical retry, compensation,
-  and manual recovery;
+- operators can distinguish business failure, technical retry, unknown external outcome,
+  compensation, and manual recovery;
 - compensation is independently authorized and idempotent;
 - no runtime path bypasses a domain public contract;
 - load, crash recovery, migration, and upgrade tests pass;
@@ -153,9 +165,13 @@ Exit gate:
 
 ## 1.0 — Governed Process Studio
 
+The user experience may remain simple (`Draft -> Test -> Publish`), but the
+backend preserves DEV/TEST/PROD promotion, release immutability, deployment
+bindings, capability compatibility, approval authority, and audit history.
+
 ```text
 review and approval
-immutable publication
+immutable release and deployment
 retirement
 Task Inbox
 Process Monitor
@@ -168,7 +184,7 @@ BPMN import/export through Process IR
 Exit gate:
 
 - definition governance and action execution authorization are separate;
-- running instances remain pinned to their published versions;
+- running instances remain pinned to their released and deployed versions;
 - operators can recover committed non-reversible effects safely;
 - tenant, audit, accessibility, and redaction requirements pass;
 - BPMN interoperability rejects unsupported executable semantics.
