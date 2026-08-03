@@ -12,6 +12,7 @@ it.effect("keeps HTTP routing Effect-native", () =>
     for (
       const forbidden of [
         "Deno.serve",
+        'from "node:http"',
         'from "hono"',
         'from "express"',
         'from "fastify"',
@@ -22,5 +23,6 @@ it.effect("keeps HTTP routing Effect-native", () =>
     }
     assert.include(source, "effect/unstable/http/HttpRouter")
     assert.include(source, "effect/unstable/httpapi/HttpApiEndpoint")
-    assert.include(source, "@effect/platform-node/NodeHttpServer")
+    assert.include(source, "@effect/platform-deno/DenoHttpServer")
+    assert.include(source, "@effect/platform-deno/DenoRuntime")
   }))

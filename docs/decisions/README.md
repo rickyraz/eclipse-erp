@@ -39,5 +39,6 @@ current system; ADRs preserve decision history.
 | [`0014`](./0014-separate-internal-and-external-identifiers.md) | Separate internal identity from external identifiers | Accepted |
 | [`0015`](./0015-one-semantic-owner-per-invariant.md)           | Assign one semantic owner per invariant              | Accepted |
 | [`0016`](./0016-isolate-jurisdiction-localization.md)          | Isolate localization from primitive cores            | Accepted |
+| [`0017`](./0017-use-effect-platform-deno.md)                   | Use the canonical Effect Deno adapter                | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

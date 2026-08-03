@@ -1,7 +1,7 @@
 id: no-effect-v3-api
 language: TypeScript
 severity: error
-message: Use the Effect v4 API from vendor/effect-smol; this is a v3 API shape.
+message: Use the Effect v4 API from the canonical Effect subtree at vendor/effect-smol; this is a v3 API shape.
 ignores:
   - vendor/**
   - tooling/boundary-linter/rule-tests/**

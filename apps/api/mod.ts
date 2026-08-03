@@ -1,11 +1,10 @@
-import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as DenoHttpServer from "@effect/platform-deno/DenoHttpServer"
+import * as DenoRuntime from "@effect/platform-deno/DenoRuntime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 import * as HttpApiScalar from "effect/unstable/httpapi/HttpApiScalar"
-import { createServer } from "node:http"
 import postgres, { type Sql } from "postgres"
 
 import { AuthService, makeAuthService } from "../../packages/auth/mod.ts"
@@ -87,7 +86,7 @@ export const makeApiLayer = (client: Sql, port = 8000) => {
     Layer.provide(handlers),
     Layer.provide(HttpApiScalar.layer(EclipseApi)),
     HttpRouter.serve,
-    Layer.provide(NodeHttpServer.layer(createServer, { port })),
+    Layer.provide(DenoHttpServer.layer({ port })),
     Layer.provide(services),
   )
 }
@@ -109,5 +108,5 @@ if (import.meta.main) {
     Deno.exit(1)
   }
   const port = Number.parseInt(Deno.env.get("PORT") ?? "8000", 10)
-  startApi(url, port).pipe(NodeRuntime.runMain)
+  startApi(url, port).pipe(DenoRuntime.runMain)
 }

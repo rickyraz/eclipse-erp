@@ -26,6 +26,8 @@
 >   [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
 > - Jurisdiction localization:
 >   [`../decisions/0016-isolate-jurisdiction-localization.md`](../decisions/0016-isolate-jurisdiction-localization.md)
+> - Native Deno Effect adapter:
+>   [`../decisions/0017-use-effect-platform-deno.md`](../decisions/0017-use-effect-platform-deno.md)
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
 
 ## Decision
@@ -38,7 +40,7 @@ domain, ledger, audit, or transactional-integrity principles.
 | Language          | TypeScript strict                                                       |
 | Application model | Effect                                                                  |
 | Runtime           | Deno                                                                    |
-| HTTP              | Effect v4 `HttpApi` / `HttpRouter` with `@effect/platform-node` adapter |
+| HTTP              | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno`   |
 | Database          | PostgreSQL 19+                                                          |
 | Query layer       | Drizzle ORM with `postgres.js`                                          |
 | Migrations        | Pinned Drizzle Kit graph with reviewed SQL                              |
@@ -51,8 +53,50 @@ Drizzle owns typed schema and query construction. PostgreSQL owns constraints an
 
 Deno remains the runtime and primary toolchain. npm ecosystem dependencies are canonical in the root
 `package.json`; Deno uses `nodeModulesDir: "auto"` so package peers resolve through the conventional
-local `node_modules` topology. Vendored Effect and Drizzle trees are references, not application
-dependencies.
+local `node_modules` topology. The Effect packages are aligned on `4.0.0-beta.102`. The canonical
+`@effect/platform-deno` package is not yet published, so its server and runtime entrypoints resolve
+through commit-pinned Deno import-map URLs matching the canonical Effect subtree revision. Vendored
+Effect source and the Drizzle subtree otherwise remain reference-only.
+
+### Dependency Ownership
+
+```text
+             Dependency ownership
+
+             ┌─────────────────────┐
+             │    package.json     │
+             │                     │
+             │ npm dependencies    │
+             │ JSR dependencies    │
+             │ dev dependencies    │
+             └──────────┬──────────┘
+                        │
+                        ▼
+                  deno install
+                        │
+              ┌─────────┴─────────┐
+              ▼                   ▼
+         node_modules         deno.lock
+
+
+             ┌─────────────────────┐
+             │      deno.json      │
+             │                     │
+             │ runtime             │
+             │ permissions         │
+             │ compiler            │
+             │ fmt / lint          │
+             │ tasks               │
+             └─────────────────────┘
+```
+
+`package.json` is the canonical dependency manifest for npm, JSR, and development
+dependencies. `deno.lock` records the resolved dependency graph, while `node_modules`
+provides the conventional local package topology required by npm ecosystem dependencies.
+
+`deno.json` owns Deno runtime and toolchain behavior rather than package-version ownership.
+It defines compiler behavior, runtime permissions, tasks, formatting, linting, and related
+Deno-specific configuration.
 
 ## Repository Shape
 
@@ -183,9 +227,9 @@ pg_durable
 ## HTTP Contract
 
 HTTP routing is Effect-native. `HttpApi` owns endpoint schemas, errors, and OpenAPI metadata;
-`HttpApiBuilder` and `HttpRouter` own server routing. `node:http` is used only through the
-`@effect/platform-node` server adapter. `Deno.serve` and third-party routing frameworks are
-forbidden.
+`HttpApiBuilder` and `HttpRouter` own server routing. The canonical `@effect/platform-deno` adapter
+owns native `Deno.serve` integration and `DenoRuntime` owns process execution. Application code must
+not import `node:http`, call `Deno.serve` directly, or use third-party routing frameworks.
 
 ## Frontend Contract
 

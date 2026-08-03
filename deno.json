@@ -2,6 +2,7 @@
   "compilerOptions": {
     "strict": true
   },
+  "preferPackageJson": true,
   "nodeModulesDir": "auto",
   "exclude": [
     "node_modules/",
@@ -13,11 +14,12 @@
     "db:generate": "deno run -A npm:drizzle-kit@1.0.0-rc.4 generate --config=drizzle.config.ts",
     "db:check": "deno run -A npm:drizzle-kit@1.0.0-rc.4 check --config=drizzle.config.ts",
     "test": "vitest run",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
     "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
-    "test:contract": "vitest run --config vitest.contract.config.ts",
     "check": "deno check ."
   },
+
   "fmt": {
     "include": [
       "apps/",
@@ -34,6 +36,7 @@
     "semiColons": false,
     "singleQuote": false
   },
+
   "lint": {
     "rules": {
       "tags": [

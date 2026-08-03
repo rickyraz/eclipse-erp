@@ -46,22 +46,19 @@ source of truth.
 ## Effect v4 Reference
 
 All TypeScript implementations that use Effect v4 MUST consult the vendored
-source at the absolute path
+canonical source at the absolute path
 `/home/rickyraz/objectives/eclipse-erp/vendor/effect-smol` before writing or
-changing Effect code. Use it as the primary local reference for v4 APIs,
-module layout, examples, and migration behavior. Do not rely on Effect v3
+changing Effect code. The legacy directory name is retained so the existing
+subtree history remains pullable. Use it as the primary local reference for v4
+APIs, module layout, examples, and migration behavior. Do not rely on Effect v3
 memory when the vendored reference can answer the question.
 
-The subtree is maintained from the `effect-smol` remote at
-`https://github.com/effect-TS/effect-smol.git`:
+The subtree is maintained from the `effect` remote at
+`https://github.com/Effect-TS/effect.git`:
 
 ```sh
-git subtree pull --prefix=vendor/effect-smol effect-smol main --squash
+git subtree pull --prefix=vendor/effect-smol effect main --squash
 ```
-
-`effect-smol` is archived upstream. If its historical v4 source conflicts with
-current canonical Effect v4 behavior, verify the discrepancy against the
-canonical Effect repository before implementation and report it explicitly.
 
 ## Drizzle v1 Reference and Effect Integration
 
@@ -99,8 +96,9 @@ Integration rules:
 - Application imports resolve from the root `package.json`; the Drizzle subtree
   is reference-only and must not be used as the runtime dependency.
 - `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are
-  covered by the kernel import smoke test. Keep those peer dependencies in the
-  root manifest rather than adding Deno import-map aliases.
+  covered by the kernel import smoke test. Keep those npm peer dependencies in
+  the root manifest. Until published, resolve the canonical Deno adapter through
+  commit-pinned Deno import-map URLs matching the vendored subtree revision.
 - Generate every migration with pinned Drizzle Kit `1.0.0-rc.4`. Custom SQL must
   start from `drizzle-kit generate --custom`; every migration directory must
   contain `migration.sql` and `snapshot.json`.
@@ -116,9 +114,11 @@ document and summarize only what is necessary for navigation or context.
 - HTTP contracts, routing, request decoding, error encoding, and OpenAPI use
   Effect v4 `HttpApi`, `HttpApiGroup`, `HttpApiEndpoint`, `HttpApiBuilder`, and
   `HttpRouter`.
-- Use `@effect/platform-node` as the server adapter on Deno. `node:http` may only
-  create the adapter server; it must not contain application routing.
-- Never use `Deno.serve`, Hono, Express, Fastify, or NestJS for application HTTP.
+- Use the canonical `@effect/platform-deno` source as the server adapter and
+  runtime entrypoint on Deno.
+- Application code must not import `node:http` or call `Deno.serve` directly;
+  native serving is owned by the Effect Deno adapter.
+- Never use Hono, Express, Fastify, or NestJS for application HTTP.
 - Use Effect HttpApi security middleware for bearer, cookie, or API-key
   authentication boundaries.
 - Use v4 `Effect.catch`, `Effect.catchCause`, and `Effect.mapError`; never use

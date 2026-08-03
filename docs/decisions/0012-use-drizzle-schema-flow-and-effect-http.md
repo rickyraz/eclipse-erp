@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-01
 - Supersedes: The migration and HTTP-adapter portions of ADR-0002
-- Superseded by: None
+- Superseded by: ADR-0017 for the HTTP runtime adapter
 
 > **Related documents**
 >
@@ -58,9 +58,10 @@ HTTP contracts and routing use Effect v4 `HttpApi`, `HttpApiGroup`,
 security middleware. OpenAPI and Scalar documentation derive from the same API
 contract.
 
-`@effect/platform-node` adapts Effect's HTTP server to `node:http`. The Node
-server is an adapter only; application routing must not use `node:http`,
-`Deno.serve`, Hono, Express, Fastify, or NestJS.
+At the time of this decision, `@effect/platform-node` adapted Effect's HTTP
+server to `node:http`. ADR-0017 later replaced that runtime adapter with the
+canonical native Deno adapter. The Effect-native contract and routing decision
+remain unchanged.
 
 Effect v4 error handling uses `Effect.catch`, `Effect.catchCause`, or
 `Effect.mapError`; v3 `catchAll` names are forbidden.
