@@ -16,6 +16,7 @@ import * as Context from "../../Context.ts"
 import * as Effect from "../../Effect.ts"
 import type * as FileSystem from "../../FileSystem.ts"
 import * as Inspectable from "../../Inspectable.ts"
+import * as InternalRecord from "../../internal/record.ts"
 import * as Option from "../../Option.ts"
 import type * as Path from "../../Path.ts"
 import type { ReadonlyRecord } from "../../Record.ts"
@@ -44,7 +45,7 @@ export {
    * Use to configure the maximum body size accepted while reading server
    * request bodies.
    *
-   * @category fiber refs
+   * @category references
    * @since 4.0.0
    */
   MaxBodySize
@@ -104,7 +105,7 @@ export interface HttpServerRequest extends HttpIncomingMessage.HttpIncomingMessa
  * Use to access the request currently being handled by HTTP server routes and
  * middleware.
  *
- * @category context
+ * @category services
  * @since 4.0.0
  */
 export const HttpServerRequest: Context.Service<HttpServerRequest, HttpServerRequest> = Context.Service(
@@ -124,7 +125,7 @@ export const HttpServerRequest: Context.Service<HttpServerRequest, HttpServerReq
  * Each key maps to a string value, or to an array when the parameter appears more
  * than once.
  *
- * @category search params
+ * @category services
  * @since 4.0.0
  */
 export class ParsedSearchParams extends Context.Service<
@@ -139,21 +140,21 @@ export class ParsedSearchParams extends Context.Service<
  *
  * Repeated parameters are represented as arrays in insertion order.
  *
- * @category search params
+ * @category parsing
  * @since 4.0.0
  */
 export const searchParamsFromURL = (url: URL): ReadonlyRecord<string, string | Array<string>> => {
   const out: Record<string, string | Array<string>> = {}
   for (const [key, value] of url.searchParams.entries()) {
-    const entry = out[key]
-    if (entry !== undefined) {
+    if (Object.hasOwn(out, key)) {
+      const entry = out[key]
       if (Array.isArray(entry)) {
         entry.push(value)
       } else {
-        out[key] = [entry, value]
+        InternalRecord.assignProperty(out, key, [entry, value])
       }
     } else {
-      out[key] = value
+      InternalRecord.assignProperty(out, key, value)
     }
   }
   return out

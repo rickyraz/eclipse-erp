@@ -26,6 +26,7 @@ import * as Stdio from "../../Stdio.ts"
 import * as Terminal from "../../Terminal.ts"
 import type { Contravariant, Covariant, NoInfer, Simplify } from "../../Types.ts"
 import type { ChildProcessSpawner } from "../process/ChildProcessSpawner.ts"
+import * as CliConfig from "./CliConfig.ts"
 import * as CliError from "./CliError.ts"
 import * as CliOutput from "./CliOutput.ts"
 import * as GlobalFlag from "./GlobalFlag.ts"
@@ -34,7 +35,9 @@ import { mergeConfig, parseConfig } from "./internal/config.ts"
 import { getGlobalFlagsForCommandPath, getGlobalFlagsForCommandTree, getHelpForCommandPath } from "./internal/help.ts"
 import * as Lexer from "./internal/lexer.ts"
 import * as Parser from "./internal/parser.ts"
+import * as Wizard from "./internal/wizard.ts"
 import * as Param from "./Param.ts"
+import * as Prompt from "./Prompt.ts"
 
 /* ========================================================================== */
 /* Public Types                                                               */
@@ -54,9 +57,27 @@ import * as Param from "./Param.ts"
  *
  * **Example** (Defining CLI commands)
  *
- * ```ts
- * import { Console } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Argument, Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
  *
  * // Simple command with no configuration
  * const version: Command.Command<"version", {}, {}, never, never> = Command.make(
@@ -81,9 +102,15 @@ import * as Param from "./Param.ts"
  * })
  *
  * // Command with handler
+ * const output: Array<string> = []
  * const greet = Command.make("greet", {
  *   name: Flag.string("name")
- * }, (config) => Console.log(`Hello, ${config.name}!`))
+ * }, (config) => Effect.sync(() => output.push(`Hello, ${config.name}!`)).pipe(Effect.asVoid))
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(greet, { version: "1.0.0" })(["--name", "Alice"]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Hello, Alice!"]
  * ```
  *
  * @category models
@@ -191,19 +218,19 @@ export declare namespace Command {
    *
    * **Example** (Configuring command input)
    *
-   * ```ts
+   * ```ts import.meta.vitest
    * import { Argument, Flag } from "effect/unstable/cli"
    * import type { Command as CliCommand } from "effect/unstable/cli"
    *
    * // Simple flat configuration
-   * const simpleConfig: CliCommand.Command.Config = {
+   * const simpleConfig = {
    *   name: Flag.string("name"),
    *   age: Flag.integer("age"),
    *   file: Argument.string("file")
-   * }
+   * } satisfies CliCommand.Command.Config
    *
    * // Nested configuration for organization
-   * const nestedConfig: CliCommand.Command.Config = {
+   * const nestedConfig = {
    *   user: {
    *     name: Flag.string("name"),
    *     email: Flag.string("email")
@@ -212,7 +239,9 @@ export declare namespace Command {
    *     host: Flag.string("host"),
    *     port: Flag.integer("port")
    *   }
-   * }
+   * } satisfies CliCommand.Command.Config
+   *
+   * [simpleConfig.name.kind, nestedConfig.server.port.kind] // => ["flag", "flag"]
    * ```
    *
    * @category models
@@ -258,7 +287,7 @@ export declare namespace Command {
      *
      * **Example** (Inferring command input)
      *
-     * ```ts
+     * ```ts import.meta.vitest
      * import { Flag } from "effect/unstable/cli"
      * import type { Command as CliCommand } from "effect/unstable/cli"
      *
@@ -278,6 +307,12 @@ export declare namespace Command {
      * //     readonly port: number
      * //   }
      * // }
+     *
+     * const inferred: Result = {
+     *   name: "Alice",
+     *   server: { host: "localhost", port: 8080 }
+     * }
+     * inferred // => { name: "Alice", server: { host: "localhost", port: 8080 } }
      * ```
      *
      * @category models
@@ -370,6 +405,21 @@ export type Error<C> = C extends Command<
   never
 
 /**
+ * A utility type to extract the required services type from a `Command`.
+ *
+ * @category utility types
+ * @since 4.0.0
+ */
+export type Services<C> = C extends Command<
+  infer _Name,
+  infer _Input,
+  infer _ContextInput,
+  infer _Error,
+  infer _Requirements
+> ? _Requirements :
+  never
+
+/**
  * Service context for a specific command, enabling subcommands to access their parent's parsed configuration.
  *
  * **Details**
@@ -381,9 +431,27 @@ export type Error<C> = C extends Command<
  *
  * **Example** (Accessing parent command context)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
  *
  * const parent = Command.make("app").pipe(
  *   Command.withSharedFlags({
@@ -392,19 +460,31 @@ export type Error<C> = C extends Command<
  *   })
  * )
  *
+ * const output: Array<string> = []
  * const child = Command.make("deploy", {
  *   target: Flag.string("target")
  * }, (config) =>
  *   Effect.gen(function*() {
  *     // Access parent's config by yielding the parent command
  *     const parentConfig = yield* parent
- *     yield* Console.log(`Verbose: ${parentConfig.verbose}`)
- *     yield* Console.log(`Config: ${parentConfig.config}`)
- *     yield* Console.log(`Target: ${config.target}`)
+ *     yield* Effect.sync(() => output.push(`Verbose: ${parentConfig.verbose}`))
+ *     yield* Effect.sync(() => output.push(`Config: ${parentConfig.config}`))
+ *     yield* Effect.sync(() => output.push(`Target: ${config.target}`))
  *   }))
  *
  * const app = parent.pipe(Command.withSubcommands([child]))
- * // Usage: app --verbose --config prod.json deploy --target staging
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(app, { version: "1.0.0" })([
+ *     "--verbose",
+ *     "--config",
+ *     "prod.json",
+ *     "deploy",
+ *     "--target",
+ *     "staging"
+ *   ]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Verbose: true", "Config: prod.json", "Target: staging"]
  * ```
  *
  * @category models
@@ -460,9 +540,27 @@ export const isCommand = (u: unknown): u is Command.Any => Predicate.hasProperty
  *
  * **Example** (Creating commands)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Argument, Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
  *
  * // Simple command with no configuration
  * const version = Command.make("version")
@@ -487,19 +585,29 @@ export const isCommand = (u: unknown): u is Command.Any => Predicate.hasProperty
  * })
  *
  * // Command with handler
+ * const output: Array<string> = []
  * const deployWithHandler = Command.make("deploy", {
  *   environment: Flag.string("env"),
  *   force: Flag.boolean("force")
  * }, (config) =>
  *   Effect.gen(function*() {
- *     yield* Console.log(`Starting deployment to ${config.environment}`)
+ *     yield* Effect.sync(() => output.push(`Starting deployment to ${config.environment}`))
  *
  *     if (!config.force && config.environment === "production") {
  *       return yield* Effect.fail("Production deployments require --force flag")
  *     }
  *
- *     yield* Console.log("Deployment completed successfully")
+ *     yield* Effect.sync(() => output.push("Deployment completed successfully"))
  *   }))
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(deployWithHandler, { version: "1.0.0" })([
+ *     "--env",
+ *     "staging",
+ *     "--force"
+ *   ]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Starting deployment to staging", "Deployment completed successfully"]
  * ```
  *
  * @category constructors
@@ -540,9 +648,27 @@ export const make: {
  *
  * **Example** (Adding command handlers)
  *
- * ```ts
- * import { Console } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
  *
  * // Command without initial handler
  * const greet = Command.make("greet", {
@@ -550,11 +676,19 @@ export const make: {
  * })
  *
  * // Add handler later
+ * const output: Array<string> = []
  * const greetWithHandler = greet.pipe(
  *   Command.withHandler((config: { readonly name: string }) =>
- *     Console.log(`Hello, ${config.name}!`)
+ *     Effect.sync(() => output.push(`Hello, ${config.name}!`)).pipe(Effect.asVoid)
  *   )
  * )
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(greetWithHandler, { version: "1.0.0" })(["--name", "Alice"]).pipe(
+ *     Effect.provide(CliTestLayer)
+ *   )
+ * )
+ * output // => ["Hello, Alice!"]
  * ```
  *
  * @category combinators
@@ -638,9 +772,27 @@ const normalizeSubcommandEntries = (
  *
  * **Example** (Adding subcommands)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
  *
  * // Parent command with shared flags
  * const git = Command.make("git").pipe(
@@ -650,19 +802,29 @@ const normalizeSubcommandEntries = (
  * )
  *
  * // Subcommand that accesses parent config
+ * const output: Array<string> = []
  * const clone = Command.make("clone", {
  *   repository: Flag.string("repo")
  * }, (config) =>
  *   Effect.gen(function*() {
  *     const parent = yield* git // Access parent's parsed config
  *     if (parent.verbose) {
- *       yield* Console.log("Verbose mode enabled")
+ *       yield* Effect.sync(() => output.push("Verbose mode enabled"))
  *     }
- *     yield* Console.log(`Cloning ${config.repository}`)
+ *     yield* Effect.sync(() => output.push(`Cloning ${config.repository}`))
  *   }))
  *
  * const app = git.pipe(Command.withSubcommands([clone]))
- * // Usage: git --verbose clone --repo github.com/foo/bar
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(app, { version: "1.0.0" })([
+ *     "--verbose",
+ *     "clone",
+ *     "--repo",
+ *     "github.com/foo/bar"
+ *   ]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Verbose mode enabled", "Cloning github.com/foo/bar"]
  * ```
  *
  * @category combinators
@@ -737,7 +899,7 @@ export const withSubcommands: {
 
     const context = yield* impl.parseContext(raw)
     const result = yield* sub.parse(raw.subcommand.value.parsedInput)
-    return Object.assign({}, context, { [SubcommandStateSymbol]: { name: sub.name, result } }) as NextInput
+    return { ...context, [SubcommandStateSymbol]: { name: sub.name, result } } as NextInput
   })
 
   const handle = Effect.fnUntraced(function*(input: NextInput, path: ReadonlyArray<string>) {
@@ -834,20 +996,20 @@ export const withSharedFlags: {
     type NextInput = Simplify<Input & SharedInput>
     type NextContextInput = Simplify<ContextInput & SharedInput>
 
-    const parseShared = makeParser(sharedConfig) as (
+    const parseShared = makeParser(sharedConfig, { allowLeftovers: true }) as (
       input: ParsedTokens
     ) => Effect.Effect<SharedInput, CliError.CliError, Environment>
 
     const parse = Effect.fnUntraced(function*(raw: ParsedTokens) {
       const base = yield* impl.parse(raw)
       const shared = yield* parseShared(raw)
-      return Object.assign({}, base, shared) as NextInput
+      return { ...(base as object), ...(shared as object) } as NextInput
     })
 
     const parseContext = Effect.fnUntraced(function*(raw: ParsedTokens) {
       const base = yield* impl.parseContext(raw)
       const shared = yield* parseShared(raw)
-      return Object.assign({}, base, shared) as NextContextInput
+      return { ...(base as object), ...(shared as object) } as NextContextInput
     })
 
     const handle = (
@@ -930,8 +1092,7 @@ type ExtractSubcommand<T> = T extends Command<infer _Name, infer _Input, infer _
   : T extends Command.SubcommandGroup<infer Commands> ? Commands[number]
   : never
 type ExtractSubcommandErrors<T extends ReadonlyArray<Command.SubcommandEntry>> = Error<ExtractSubcommand<T[number]>>
-type ExtractSubcommandContext<T extends ReadonlyArray<Command.SubcommandEntry>> = ExtractSubcommand<T[number]> extends
-  Command<infer _Name, infer _Input, infer _CI, infer _E, infer _R> ? _R : never
+type ExtractSubcommandContext<T extends ReadonlyArray<Command.SubcommandEntry>> = Services<ExtractSubcommand<T[number]>>
 
 /**
  * Sets the description for a command.
@@ -943,18 +1104,42 @@ type ExtractSubcommandContext<T extends ReadonlyArray<Command.SubcommandEntry>> 
  *
  * **Example** (Setting descriptions)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
  *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
+ *
+ * const output: Array<string> = []
  * const deploy = Command.make("deploy", {
  *   environment: Flag.string("env")
  * }, (config) =>
  *   Effect.gen(function*() {
- *     yield* Console.log(`Deploying to ${config.environment}`)
+ *     yield* Effect.sync(() => output.push(`Deploying to ${config.environment}`))
  *   })).pipe(
  *     Command.withDescription("Deploy the application to a specified environment")
  *   )
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(deploy, { version: "1.0.0" })(["--env", "staging"]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Deploying to staging"]
  * ```
  *
  * @category combinators
@@ -1033,7 +1218,7 @@ export const withAlias: {
  *
  * **Example** (Hiding a subcommand)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Command } from "effect/unstable/cli"
  *
  * // `experimental` still runs when invoked as `mycli experimental`,
@@ -1045,6 +1230,8 @@ export const withAlias: {
  * const root = Command.make("mycli").pipe(
  *   Command.withSubcommands([experimental])
  * )
+ *
+ * root.subcommands[0].commands[0].hidden // => true
  * ```
  *
  * @category combinators
@@ -1149,7 +1336,7 @@ export const annotateMerge: {
  *
  * **Example** (Adding usage examples)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Command } from "effect/unstable/cli"
  *
  * const login = Command.make("login").pipe(
@@ -1158,6 +1345,8 @@ export const annotateMerge: {
  *     { command: "myapp login --token sbp_abc123", description: "Log in with a token" }
  *   ])
  * )
+ *
+ * login.examples.map((example) => example.command) // => ["myapp login", "myapp login --token sbp_abc123"]
  * ```
  *
  * @category combinators
@@ -1195,16 +1384,35 @@ const mapHandler = <Name extends string, Input, E, R, ContextInput, E2, R2>(
  *
  * **Example** (Providing command services)
  *
- * ```ts
- * import { Effect, FileSystem, PlatformError } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, PlatformError, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
  *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
+ *
+ * const output: Array<string> = []
  * const deploy = Command.make("deploy", {
  *   env: Flag.string("env")
  * }, (config) =>
  *   Effect.gen(function*() {
  *     const fs = yield* FileSystem.FileSystem
- *     // Use fs...
+ *     yield* Effect.sync(() => output.push(`Using file system for ${config.env}`))
  *   })).pipe(
  *     // Provide FileSystem based on the --env flag
  *     Command.provide((config) =>
@@ -1221,6 +1429,11 @@ const mapHandler = <Name extends string, Input, E, R, ContextInput, E2, R2>(
  *         })
  *     )
  *   )
+ *
+ * await Effect.runPromise(
+ *   Command.runWith(deploy, { version: "1.0.0" })(["--env", "local"]).pipe(Effect.provide(CliTestLayer))
+ * )
+ * output // => ["Using file system for local"]
  * ```
  *
  * @category providing services
@@ -1354,6 +1567,61 @@ export const provideEffectDiscard: {
 /* Execution                                                                  */
 /* ========================================================================== */
 
+/**
+ * Interactively constructs command-line arguments for a command.
+ *
+ * **Details**
+ *
+ * The returned arguments include the command name and can be inspected,
+ * modified, or passed to another command runner by the caller.
+ *
+ * **Example** (Constructing command arguments)
+ *
+ * ```ts import.meta.vitest
+ * import { Console, Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
+ * import { Command } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
+ *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
+ *
+ * const command = Command.make("app")
+ * const silentConsole: Console.Console = Object.assign(Object.create(console), {
+ *   log: () => {}
+ * })
+ *
+ * const program = Command.wizard(command).pipe(
+ *   Effect.provideService(Console.Console, silentConsole),
+ *   Effect.provide(CliTestLayer)
+ * )
+ *
+ * await Effect.runPromise(program) // => ["app"]
+ * ```
+ *
+ * @category running
+ * @since 4.0.0
+ */
+export const wizard = <Name extends string, Input, E, R, ContextInput>(
+  command: Command<Name, Input, ContextInput, E, R>,
+  options?: {
+    readonly prefix?: ReadonlyArray<string> | undefined
+  } | undefined
+): Effect.Effect<Array<string>, CliError.CliError | Terminal.QuitError, Environment> => Wizard.run(command, options)
+
 const getOutOfScopeGlobalFlagErrors = (
   allFlags: ReadonlyArray<GlobalFlag.GlobalFlag<any>>,
   activeFlags: ReadonlyArray<GlobalFlag.GlobalFlag<any>>,
@@ -1398,8 +1666,9 @@ const showHelp = <Name extends string, Input, E, R, ContextInput>(
   error: CliError.ShowHelp
 ): Effect.Effect<void, CliError.CliError, Environment> =>
   Effect.gen(function*() {
+    const { builtIns } = yield* CliConfig.CliConfig
     const formatter = yield* CliOutput.Formatter
-    const helpDoc = yield* getHelpForCommandPath(command, error.commandPath, GlobalFlag.BuiltIns)
+    const helpDoc = yield* getHelpForCommandPath(command, error.commandPath, builtIns)
     yield* Console.log(formatter.formatHelpDoc(helpDoc))
     if (error.errors.length > 0) {
       yield* Console.error(formatter.formatErrors(error.errors as any))
@@ -1416,26 +1685,50 @@ const showHelp = <Name extends string, Input, E, R, ContextInput>(
  *
  * **Example** (Running commands with standard input)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
  *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({
+ *     args: Effect.succeed(["--name", "Alice"])
+ *   }),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
+ *
+ * const output: Array<string> = []
  * const greetCommand = Command.make("greet", {
  *   name: Flag.string("name")
  * }, (config) =>
  *   Effect.gen(function*() {
- *     yield* Console.log(`Hello, ${config.name}!`)
+ *     yield* Effect.sync(() => output.push(`Hello, ${config.name}!`))
  *   }))
  *
  * // Automatically gets args from the Stdio service
  * const program = Command.run(greetCommand, {
  *   version: "1.0.0"
  * })
+ *
+ * await Effect.runPromise(program.pipe(Effect.provide(CliTestLayer)))
+ * output // => ["Hello, Alice!"]
  * ```
  *
  * @see {@link runWith} for running a command with an explicit argument array
  *
- * @category command execution
+ * @category running
  * @since 4.0.0
  */
 export const run: {
@@ -1473,17 +1766,36 @@ export const run: {
  *
  * **Example** (Running commands with explicit arguments)
  *
- * ```ts
- * import { Console, Effect } from "effect"
+ * ```ts import.meta.vitest
+ * import { Effect, FileSystem, Layer, Path, Stdio, Terminal } from "effect"
  * import { Command, Flag } from "effect/unstable/cli"
+ * import { ChildProcessSpawner } from "effect/unstable/process"
  *
+ * const CliTestLayer = Layer.mergeAll(
+ *   FileSystem.layerNoop({}),
+ *   Path.layer,
+ *   Stdio.layerTest({}),
+ *   Layer.succeed(Terminal.Terminal, Terminal.make({
+ *     columns: Effect.succeed(80),
+ *     rows: Effect.succeed(24),
+ *     readInput: Effect.die("unused"),
+ *     readLine: Effect.die("unused"),
+ *     display: () => Effect.void
+ *   })),
+ *   Layer.succeed(
+ *     ChildProcessSpawner.ChildProcessSpawner,
+ *     ChildProcessSpawner.make(() => Effect.die("unused"))
+ *   )
+ * )
+ *
+ * const output: Array<string> = []
  * const greet = Command.make("greet", {
  *   name: Flag.string("name"),
  *   count: Flag.integer("count").pipe(Flag.withDefault(1))
  * }, (config) =>
  *   Effect.gen(function*() {
  *     for (let i = 0; i < config.count; i++) {
- *       yield* Console.log(`Hello, ${config.name}!`)
+ *       yield* Effect.sync(() => output.push(`Hello, ${config.name}!`))
  *     }
  *   }))
  *
@@ -1491,18 +1803,14 @@ export const run: {
  * const testProgram = Effect.gen(function*() {
  *   const runCommand = Command.runWith(greet, { version: "1.0.0" })
  *
- *   // Test normal execution
  *   yield* runCommand(["--name", "Alice", "--count", "2"])
- *
- *   // Test help display
- *   yield* runCommand(["--help"])
- *
- *   // Test version display
- *   yield* runCommand(["--version"])
  * })
+ *
+ * await Effect.runPromise(testProgram.pipe(Effect.provide(CliTestLayer)))
+ * output // => ["Hello, Alice!", "Hello, Alice!"]
  * ```
  *
- * @category command execution
+ * @category running
  * @since 4.0.0
  */
 export const runWith = <const Name extends string, Input, E, R, ContextInput>(
@@ -1516,10 +1824,11 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
   const commandImpl = toImpl(command)
   return Effect.fnUntraced(
     function*(args: ReadonlyArray<string>) {
+      const { builtIns } = yield* CliConfig.CliConfig
       const { tokens, trailingOperands } = Lexer.lex(args)
 
       // 1. Collect known global flags from the command tree
-      const allFlags = getGlobalFlagsForCommandTree(command, GlobalFlag.BuiltIns)
+      const allFlags = getGlobalFlagsForCommandTree(command, builtIns)
 
       // 2. Extract global flag tokens
       const allFlagParams = allFlags.flatMap((f) => Param.extractSingleParams(f.flag))
@@ -1534,8 +1843,8 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
       // 3. Parse command arguments from remaining tokens
       const parsedArgs = yield* Parser.parseArgs({ tokens: remainder, trailingOperands }, command)
       const commandPath = [command.name, ...Parser.getCommandPath(parsedArgs)] as const
-      const handlerCtx: GlobalFlag.HandlerContext = { command, commandPath, version: config.version }
-      const activeFlags = getGlobalFlagsForCommandPath(command, commandPath, GlobalFlag.BuiltIns)
+      const handlerCtx: GlobalFlag.HandlerContext = { builtIns, command, commandPath, version: config.version }
+      const activeFlags = getGlobalFlagsForCommandPath(command, commandPath, builtIns)
 
       // 4. Reject globals that were passed outside the active command scope
       const outOfScopeErrors = getOutOfScopeGlobalFlagErrors(allFlags, activeFlags, flagMap, commandPath)
@@ -1557,6 +1866,29 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
         })
         if (!hasEntry) continue
         const [, value] = yield* flag.flag.parse(emptyArgs)
+        if (flag === GlobalFlag.Wizard) {
+          return yield* Effect.gen(function*() {
+            yield* Console.log(Wizard.renderIntroduction(command.name, config.version, command.description))
+            const prefix = [
+              command.name,
+              ...args.filter((arg) => arg !== "--wizard" && !arg.startsWith("--wizard="))
+            ]
+            const wizardArgs = yield* Wizard.run(command, { commandPath, prefix })
+            yield* Console.log(Wizard.renderCompletion(wizardArgs))
+            const shouldRun = yield* Prompt.run(Prompt.toggle({
+              message: "Run this command?",
+              initial: true,
+              active: "yes",
+              inactive: "no"
+            }))
+            if (shouldRun) {
+              yield* Console.log()
+              yield* runWith(command, config)(wizardArgs.slice(1))
+            }
+          }).pipe(
+            Effect.catchTag("QuitError", () => Console.log(Wizard.renderQuit()))
+          )
+        }
         yield* flag.run(value, handlerCtx)
         return
       }
@@ -1575,7 +1907,9 @@ export const runWith = <const Name extends string, Input, E, R, ContextInput>(
 
       // 7. Provide setting values
       let program = commandImpl.handle(parseResult.success, [command.name])
-      const [, logLevel] = yield* GlobalFlag.LogLevel.flag.parse(emptyArgs)
+      const logLevel = activeFlags.includes(GlobalFlag.LogLevel)
+        ? (yield* GlobalFlag.LogLevel.flag.parse(emptyArgs))[1]
+        : Option.none()
       program = Effect.provideService(program, GlobalFlag.LogLevel, logLevel)
       for (const flag of activeFlags) {
         if (flag._tag !== "Setting" || flag === GlobalFlag.LogLevel) continue

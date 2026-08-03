@@ -84,7 +84,7 @@ const stripSearchAndHash = (url: string): string => {
 /**
  * Runs an effect with HTTP response logging disabled for the current server request.
  *
- * @category Logger
+ * @category logging
  * @since 4.0.0
  */
 export const withLoggerDisabled = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R | HttpServerRequest> =>
@@ -97,7 +97,7 @@ export const withLoggerDisabled = <A, E, R>(self: Effect.Effect<A, E, R>): Effec
 /**
  * Context reference for a predicate that disables server-side tracing for matching requests.
  *
- * @category Tracer
+ * @category services
  * @since 4.0.0
  */
 export const TracerDisabledWhen = Context.Reference<Predicate<HttpServerRequest>>(
@@ -108,7 +108,7 @@ export const TracerDisabledWhen = Context.Reference<Predicate<HttpServerRequest>
 /**
  * Creates a layer that disables server-side tracing for requests whose URL exactly matches one of the supplied URLs.
  *
- * @category Tracer
+ * @category layers
  * @since 4.0.0
  */
 export const layerTracerDisabledForUrls = (
@@ -118,7 +118,7 @@ export const layerTracerDisabledForUrls = (
 /**
  * Context reference for generating server span names from HTTP server requests.
  *
- * @category Tracer
+ * @category services
  * @since 4.0.0
  */
 export const SpanNameGenerator = Context.Reference<(request: HttpServerRequest) => string>(
@@ -129,7 +129,7 @@ export const SpanNameGenerator = Context.Reference<(request: HttpServerRequest) 
 /**
  * Middleware that logs sent HTTP responses with request method, request URL, and response status annotations.
  *
- * @category Logger
+ * @category logging
  * @since 4.0.0
  */
 export const logger: <E, R>(
@@ -170,7 +170,7 @@ export const logger: <E, R>(
 /**
  * Middleware that creates a server trace span for each request and records request and response HTTP attributes.
  *
- * @category Tracer
+ * @category tracing
  * @since 4.0.0
  */
 export const tracer: <E, R>(
@@ -193,32 +193,6 @@ export const tracer: <E, R>(
       fiber.setContext(prevServices)
       const endTime = fiber.getRef(Clock).currentTimeNanosUnsafe()
       fiber.currentDispatcher.scheduleTask(() => {
-        const url = Request.toURL(request)
-        if (Option.isSome(url) && (url.value.username !== "" || url.value.password !== "")) {
-          url.value.username = "REDACTED"
-          url.value.password = "REDACTED"
-        }
-        const redactedHeaderNames = fiber.getRef(Headers.CurrentRedactedNames)
-        const requestHeaders = Headers.redact(request.headers, redactedHeaderNames)
-        span.attribute("http.request.method", request.method)
-        if (Option.isSome(url)) {
-          span.attribute("url.full", url.value.toString())
-          span.attribute("url.path", url.value.pathname)
-          const query = url.value.search.slice(1)
-          if (query !== "") {
-            span.attribute("url.query", url.value.search.slice(1))
-          }
-          span.attribute("url.scheme", url.value.protocol.slice(0, -1))
-        }
-        if (request.headers["user-agent"] !== undefined) {
-          span.attribute("user_agent.original", request.headers["user-agent"])
-        }
-        for (const name in requestHeaders) {
-          span.attribute(`http.request.header.${name}`, String(requestHeaders[name]))
-        }
-        if (Option.isSome(request.remoteAddress)) {
-          span.attribute("client.address", request.remoteAddress.value)
-        }
         let response: HttpServerResponse
         let spanExit = exit
         if (Exit.isFailure(exit)) {
@@ -228,10 +202,38 @@ export const tracer: <E, R>(
         } else {
           response = exit.value
         }
-        span.attribute("http.response.status_code", response.status)
-        const responseHeaders = Headers.redact(response.headers, redactedHeaderNames)
-        for (const name in responseHeaders) {
-          span.attribute(`http.response.header.${name}`, String(responseHeaders[name]))
+        if (span.sampled) {
+          const url = Request.toURL(request)
+          if (Option.isSome(url) && (url.value.username !== "" || url.value.password !== "")) {
+            url.value.username = "REDACTED"
+            url.value.password = "REDACTED"
+          }
+          const redactedHeaderNames = fiber.getRef(Headers.CurrentRedactedNames)
+          const requestHeaders = Headers.redact(request.headers, redactedHeaderNames)
+          span.attribute("http.request.method", request.method)
+          if (Option.isSome(url)) {
+            span.attribute("url.full", url.value.toString())
+            span.attribute("url.path", url.value.pathname)
+            const query = url.value.search.slice(1)
+            if (query !== "") {
+              span.attribute("url.query", url.value.search.slice(1))
+            }
+            span.attribute("url.scheme", url.value.protocol.slice(0, -1))
+          }
+          if (request.headers["user-agent"] !== undefined) {
+            span.attribute("user_agent.original", request.headers["user-agent"])
+          }
+          for (const name in requestHeaders) {
+            span.attribute(`http.request.header.${name}`, String(requestHeaders[name]))
+          }
+          if (Option.isSome(request.remoteAddress)) {
+            span.attribute("client.address", request.remoteAddress.value)
+          }
+          span.attribute("http.response.status_code", response.status)
+          const responseHeaders = Headers.redact(response.headers, redactedHeaderNames)
+          for (const name in responseHeaders) {
+            span.attribute(`http.response.header.${name}`, String(responseHeaders[name]))
+          }
         }
         span.end(endTime, spanExit)
       }, 0)
@@ -243,7 +245,7 @@ export const tracer: <E, R>(
 /**
  * Middleware that trusts `X-Forwarded-Host` and `X-Forwarded-For`, updating the request host header and remote address.
  *
- * @category Proxying
+ * @category proxying
  * @since 4.0.0
  */
 export const xForwardedHeaders = make((httpApp) =>
@@ -263,7 +265,7 @@ export const xForwardedHeaders = make((httpApp) =>
 /**
  * Middleware that parses the current request URL's search parameters and provides them as `ParsedSearchParams`.
  *
- * @category search params
+ * @category parsing
  * @since 4.0.0
  */
 export const searchParamsParser = <E, R>(
@@ -283,7 +285,7 @@ export const searchParamsParser = <E, R>(
 /**
  * Middleware that handles CORS preflight requests and adds configured CORS headers to HTTP responses.
  *
- * @category CORS
+ * @category middleware
  * @since 4.0.0
  */
 export const cors = (options?: {

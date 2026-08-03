@@ -84,7 +84,7 @@ export const parseArgs = (
       }
     }
 
-    const subLex: LexResult = { tokens: result.childTokens, trailingOperands: [] }
+    const subLex: LexResult = { tokens: result.childTokens, trailingOperands: afterEndOfOptions }
     const subParsed = yield* parseArgs(
       subLex,
       result.sub,
@@ -94,7 +94,7 @@ export const parseArgs = (
     const allErrors = [...result.errors, ...(subParsed.errors ?? [])]
     return {
       flags: result.flags,
-      arguments: afterEndOfOptions,
+      arguments: [],
       subcommand: Option.some({ name: result.sub.name, parsedInput: subParsed }),
       ...(allErrors.length > 0 && { errors: allErrors })
     }
@@ -391,6 +391,18 @@ const invalidNegatedFlagValue = (
     kind: "flag"
   })
 
+const missingFlagValue = (spec: FlagParam): CliError.InvalidValue => {
+  const choices = Primitive.getChoiceKeys(spec.primitiveType)
+  return new CliError.InvalidValue({
+    option: spec.name,
+    value: "",
+    expected: choices === undefined
+      ? spec.typeName ?? Primitive.getTypeName(spec.primitiveType)
+      : choices.join(" | "),
+    kind: "flag"
+  })
+}
+
 /**
  * Checks whether a token is a boolean literal value.
  * Recognizes: true/false, yes/no, on/off, 1/0
@@ -497,8 +509,8 @@ const consumeFlagValueWithTokens = (
   }
 
   return {
-    _tag: "Value",
-    value: undefined,
+    _tag: "Error",
+    error: missingFlagValue(spec),
     tokens: []
   }
 }

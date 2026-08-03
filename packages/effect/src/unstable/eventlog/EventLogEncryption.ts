@@ -46,7 +46,7 @@ export interface EncryptedRemoteEntry extends Schema.Schema.Type<typeof Encrypte
  * @since 4.0.0
  */
 export const EncryptedRemoteEntry = Schema.Struct({
-  sequence: Schema.Number,
+  sequence: Schema.Natural,
   iv: Transferable.Uint8Array,
   entryId: EntryId,
   encryptedEntry: Transferable.Uint8Array
@@ -160,7 +160,7 @@ export const makeEncryptionSubtle = (crypto: Crypto): Effect.Effect<EventLogEncr
 /**
  * Provides `EventLogEncryption` using `globalThis.crypto`.
  *
- * @category encryption
+ * @category layers
  * @since 4.0.0
  */
 export const layerSubtle: Layer.Layer<EventLogEncryption> = Layer.effect(

@@ -16,6 +16,7 @@ import * as Channel from "../../Channel.ts"
 import * as Context from "../../Context.ts"
 import * as Data from "../../Data.ts"
 import * as Effect from "../../Effect.ts"
+import * as ErrorReporter from "../../ErrorReporter.ts"
 import * as Exit from "../../Exit.ts"
 import * as FileSystem from "../../FileSystem.ts"
 import { constant, dual } from "../../Function.ts"
@@ -31,6 +32,8 @@ import type * as Scope from "../../Scope.ts"
 import * as Stream from "../../Stream.ts"
 import * as UndefinedOr from "../../UndefinedOr.ts"
 import * as IncomingMessage from "./HttpIncomingMessage.ts"
+import * as HttpServerRespondable from "./HttpServerRespondable.ts"
+import * as HttpServerResponse from "./HttpServerResponse.ts"
 import * as MP from "./Multipasta.ts"
 
 /**
@@ -199,19 +202,30 @@ export class MultipartErrorReason extends Data.Error<{
   readonly cause?: unknown
 }> {}
 
+const responseStatusByReason = {
+  FileTooLarge: 413,
+  FieldTooLarge: 413,
+  BodyTooLarge: 413,
+  TooManyParts: 413,
+  InternalError: 500,
+  Parse: 400
+} as const satisfies Record<MultipartErrorReason["_tag"], number>
+
 /**
  * Error raised while parsing, streaming, or persisting multipart form data.
  *
  * **Details**
  *
- * The `reason` field contains the concrete `MultipartErrorReason`.
+ * The `reason` field contains the concrete `MultipartErrorReason`. When used as
+ * a server response, parse errors render as `400`, limit errors as `413`, and
+ * internal errors as `500`. Multipart errors are ignored by the error reporter.
  *
  * @category errors
  * @since 4.0.0
  */
 export class MultipartError extends Data.TaggedError("MultipartError")<{
   readonly reason: MultipartErrorReason
-}> {
+}> implements HttpServerRespondable.Respondable {
   /**
    * Creates a multipart error from a reason tag and optional cause.
    *
@@ -227,6 +241,22 @@ export class MultipartError extends Data.TaggedError("MultipartError")<{
    * @since 4.0.0
    */
   readonly [MultipartErrorTypeId] = MultipartErrorTypeId
+
+  override readonly [ErrorReporter.ignore] = true;
+
+  /**
+   * Converts the multipart error into an HTTP response based on its reason.
+   *
+   * **Details**
+   *
+   * Parse errors produce `400`, size and part-count limits produce `413`, and
+   * internal errors produce `500`.
+   *
+   * @since 4.0.0
+   */
+  [HttpServerRespondable.symbol]() {
+    return Effect.succeed(HttpServerResponse.empty({ status: responseStatusByReason[this.reason._tag] }))
+  }
 
   /**
    * Uses the concrete multipart error reason as the public message.
@@ -246,6 +276,13 @@ export class MultipartError extends Data.TaggedError("MultipartError")<{
  */
 export interface PersistedFileSchema extends Schema.declare<PersistedFile> {}
 
+const PersistedFileEncoded = Schema.Struct({
+  key: Schema.String,
+  name: Schema.String,
+  contentType: Schema.String.annotate({ contentEncoding: "binary" }),
+  path: Schema.String
+})
+
 /**
  * Schema for persisted multipart files.
  *
@@ -260,23 +297,19 @@ export interface PersistedFileSchema extends Schema.declare<PersistedFile> {}
 export const PersistedFileSchema: PersistedFileSchema = Schema.declare(
   isPersistedFile,
   {
-    typeConstructor: {
-      _tag: "effect/http/PersistedFile"
+    representation: {
+      id: "effect/http/PersistedFile",
+      payload: null
     },
-    generation: {
-      runtime: `Multipart.PersistedFileSchema`,
-      Type: `Multipart.PersistedFile`,
-      importDeclaration: `import * as Multipart from "effect/unstable/http/Multipart"`
-    },
+    toCode: () => ({
+      runtime: "Multipart.PersistedFileSchema",
+      Type: "Multipart.PersistedFile",
+      importDeclarations: [`import * as Multipart from "effect/unstable/http/Multipart"`]
+    }),
     expected: "PersistedFile",
     toCodecJson: () =>
       Schema.link<PersistedFile>()(
-        Schema.Struct({
-          key: Schema.String,
-          name: Schema.String,
-          contentType: Schema.String.annotate({ contentEncoding: "binary" }),
-          path: Schema.String
-        }),
+        PersistedFileEncoded,
         SchemaTransformation.transform({
           decode: ({ contentType, key, name, path }) => new PersistedFileImpl(key, name, contentType, path),
           encode: (file) => ({
@@ -405,7 +438,7 @@ export const makeConfig = (
  * non-empty batches of parsed `Part` values, failing with `MultipartError` for
  * parser and limit failures.
  *
- * @category Parsers
+ * @category parsing
  * @since 4.0.0
  */
 export const makeChannel = <IE>(headers: Record<string, string>): Channel.Channel<
@@ -452,7 +485,9 @@ export const makeChannel = <IE>(headers: Record<string, string>): Channel.Channe
           exit = Option.some(Exit.fail(convertError(error_)))
         },
         onDone() {
-          exit = Option.some(Exit.fail(Cause.Done()))
+          if (Option.isNone(exit)) {
+            exit = Option.some(Exit.fail(Cause.Done()))
+          }
         }
       })
 
@@ -759,7 +794,7 @@ export declare namespace withLimits {
    * These settings control maximum part count, field size, file size, total body
    * size, and MIME types that should be treated as fields instead of files.
    *
-   * @category fiber refs
+   * @category options
    * @since 4.0.0
    */
   export type Options = {
@@ -778,7 +813,7 @@ export declare namespace withLimits {
  *
  * The default is `undefined`, meaning no explicit part-count limit.
  *
- * @category references
+ * @category services
  * @since 4.0.0
  */
 export const MaxParts = Context.Reference<number | undefined>("effect/http/Multipart/MaxParts", {
@@ -792,7 +827,7 @@ export const MaxParts = Context.Reference<number | undefined>("effect/http/Multi
  *
  * The default limit is 10 MiB.
  *
- * @category references
+ * @category services
  * @since 4.0.0
  */
 export const MaxFieldSize = Context.Reference<FileSystem.SizeInput>("effect/http/Multipart/MaxFieldSize", {
@@ -806,7 +841,7 @@ export const MaxFieldSize = Context.Reference<FileSystem.SizeInput>("effect/http
  *
  * The default is `undefined`, meaning no explicit per-file limit.
  *
- * @category references
+ * @category services
  * @since 4.0.0
  */
 export const MaxFileSize = Context.Reference<FileSystem.SizeInput | undefined>(
@@ -822,7 +857,7 @@ export const MaxFileSize = Context.Reference<FileSystem.SizeInput | undefined>(
  *
  * The default treats `application/json` parts as fields.
  *
- * @category references
+ * @category services
  * @since 4.0.0
  */
 export const FieldMimeTypes = Context.Reference<ReadonlyArray<string>>("effect/http/Multipart/FieldMimeTypes", {

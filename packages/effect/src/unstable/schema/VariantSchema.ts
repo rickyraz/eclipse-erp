@@ -11,10 +11,10 @@
 import type { Brand } from "../../Brand.ts"
 import * as Effect from "../../Effect.ts"
 import { dual } from "../../Function.ts"
+import * as InternalRecord from "../../internal/record.ts"
 import { type Pipeable, pipeArguments } from "../../Pipeable.ts"
 import * as Predicate from "../../Predicate.ts"
 import * as Schema from "../../Schema.ts"
-import type * as SchemaAST from "../../SchemaAST.ts"
 import * as Struct_ from "../../Struct.ts"
 
 /**
@@ -167,7 +167,7 @@ export declare namespace Field {
  * Computes the `Schema.Struct` field map for a variant by selecting matching
  * field schemas and recursively extracting nested structs.
  *
- * @category extractors
+ * @category utility types
  * @since 4.0.0
  */
 export type ExtractFields<V extends string, Fields extends Struct.Fields, IsDefault = false> = {
@@ -186,7 +186,7 @@ export type ExtractFields<V extends string, Fields extends Struct.Fields, IsDefa
  * Computes the schema type produced by extracting a single variant from a variant
  * schema struct.
  *
- * @category extractors
+ * @category utility types
  * @since 4.0.0
  */
 export type Extract<V extends string, A extends Struct<any>, IsDefault = false> = [A] extends [
@@ -214,9 +214,9 @@ const extract: {
       readonly isDefault?: boolean | undefined
     }
   ): Extract<V, A> => {
-    const cache = self[cacheSymbol] ?? (self[cacheSymbol] = {})
+    const cache = self[cacheSymbol] ?? (self[cacheSymbol] = Object.create(null))
     const cacheKey = options?.isDefault === true ? "__default" : variant
-    if (cache[cacheKey] !== undefined) {
+    if (Object.hasOwn(cache, cacheKey)) {
       return cache[cacheKey] as any
     }
     const fields: Record<string, any> = {}
@@ -224,19 +224,21 @@ const extract: {
       const value = self[TypeId][key]
       if (TypeId in value) {
         if (options?.isDefault === true && Schema.isSchema(value)) {
-          fields[key] = value
+          InternalRecord.assignProperty(fields, key, value)
         } else {
-          fields[key] = extract(value, variant)
+          InternalRecord.assignProperty(fields, key, extract(value, variant))
         }
       } else if (FieldTypeId in value) {
-        if (variant in value.schemas) {
-          fields[key] = value.schemas[variant]
+        if (Object.hasOwn(value.schemas, variant)) {
+          InternalRecord.assignProperty(fields, key, value.schemas[variant])
         }
       } else {
-        fields[key] = value
+        InternalRecord.assignProperty(fields, key, value)
       }
     }
-    return cache[cacheKey] = Schema.Struct(fields) as any
+    const schema = Schema.Struct(fields)
+    cache[cacheKey] = schema
+    return schema as any
   }
 )
 
@@ -261,19 +263,7 @@ export interface Class<
   S extends Schema.Top & {
     readonly fields: Schema.Struct.Fields
   }
-> extends
-  Schema.BottomLazy<
-    SchemaAST.Declaration,
-    Schema.decodeTo<Schema.declareConstructor<Self, S["Encoded"], readonly [S], S["Iso"]>, S>,
-    readonly [S],
-    S["~type.mutability"],
-    S["~type.optionality"],
-    S["~type.constructor.default"],
-    S["~encoded.mutability"],
-    S["~encoded.optionality"]
-  >,
-  Struct<Struct_.Simplify<Fields>>
-{
+> extends Schema.Class<Self, S, {}>, Struct<Struct_.Simplify<Fields>> {
   readonly "Type": Self
   readonly "Encoded": S["Encoded"]
   readonly "DecodingServices": S["DecodingServices"]
@@ -462,7 +452,7 @@ export const make = <
     return function<S extends Schema.Top>(schema: S) {
       const obj: Record<string, S> = {}
       for (const key of keys) {
-        obj[key] = schema
+        InternalRecord.assignProperty(obj, key, schema)
       }
       return Field(obj)
     }
@@ -472,7 +462,7 @@ export const make = <
       const obj: Record<string, S> = {}
       for (const variant of options.variants) {
         if (!keys.includes(variant)) {
-          obj[variant] = schema
+          InternalRecord.assignProperty(obj, variant, schema)
         }
       }
       return Field(obj)
@@ -516,7 +506,7 @@ export const make = <
 /**
  * Marks a value as an explicit override for an `Overrideable` schema default.
  *
- * @category overrideable
+ * @category constructors
  * @since 4.0.0
  */
 export const Override = <A>(value: A): A & Brand<"Override"> => value as any
@@ -525,7 +515,7 @@ export const Override = <A>(value: A): A & Brand<"Override"> => value as any
  * Schema type whose constructor can use an effectful default unless a value is
  * explicitly branded with `Override`.
  *
- * @category overrideable
+ * @category schemas
  * @since 4.0.0
  */
 export interface Overrideable<S extends Schema.Top & Schema.WithoutConstructorDefault> extends
@@ -553,7 +543,7 @@ export interface Overrideable<S extends Schema.Top & Schema.WithoutConstructorDe
  * Wraps a schema with an effectful constructor default while allowing explicit
  * values to be marked with `Override`.
  *
- * @category overrideable
+ * @category schemas
  * @since 4.0.0
  */
 export const Overrideable = <S extends Schema.Top & Schema.WithoutConstructorDefault>(
