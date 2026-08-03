@@ -26,6 +26,9 @@ export {
   reservations,
   reservationStatus,
   stockBalances,
+  stockTransferLines,
+  stockTransfers,
+  transferStatus,
   warehouses,
 } from "./inventory.ts"
 export {

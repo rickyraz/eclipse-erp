@@ -6,6 +6,7 @@ import {
   pgSchema,
   primaryKey,
   text,
+  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core"
@@ -21,6 +22,10 @@ export const reservationStatus = inventorySchema.enum(
 export const movementKind = inventorySchema.enum(
   "movement_kind",
   ["receipt", "issue", "reservation", "release"],
+)
+export const transferStatus = inventorySchema.enum(
+  "transfer_status",
+  ["draft", "confirmed", "completed"],
 )
 
 export const warehouses = inventorySchema.table("warehouses", {
@@ -81,6 +86,67 @@ export const stockBalances = inventorySchema.table("stock_balances", {
     "stock_balances_reserved_check",
     sql`${table.reserved} >= 0 and ${table.reserved} <= ${table.onHand}`,
   ),
+])
+
+export const stockTransfers = inventorySchema.table("stock_transfers", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  sourceWarehouseId: uuid("source_warehouse_id").notNull(),
+  destinationWarehouseId: uuid("destination_warehouse_id").notNull(),
+  status: transferStatus("status").notNull().default("draft"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("stock_transfers_tenant_id_id_key").on(table.tenantId, table.id),
+  foreignKey({
+    columns: [table.tenantId, table.sourceWarehouseId],
+    foreignColumns: [warehouses.tenantId, warehouses.id],
+    name: "stock_transfers_source_warehouse_fkey",
+  }),
+  foreignKey({
+    columns: [table.tenantId, table.destinationWarehouseId],
+    foreignColumns: [warehouses.tenantId, warehouses.id],
+    name: "stock_transfers_destination_warehouse_fkey",
+  }),
+  check(
+    "stock_transfers_distinct_warehouses_check",
+    sql`${table.sourceWarehouseId} <> ${table.destinationWarehouseId}`,
+  ),
+  check(
+    "stock_transfers_state_dates_check",
+    sql`(${table.status} = 'draft' and ${table.confirmedAt} is null and ${table.completedAt} is null) or
+      (${table.status} = 'confirmed' and ${table.confirmedAt} is not null and ${table.completedAt} is null) or
+      (${table.status} = 'completed' and ${table.confirmedAt} is not null and ${table.completedAt} is not null)`,
+  ),
+])
+
+export const stockTransferLines = inventorySchema.table("stock_transfer_lines", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  transferId: uuid("transfer_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  quantity: bigint("quantity", { mode: "string" }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("stock_transfer_lines_tenant_transfer_item_key").on(
+    table.tenantId,
+    table.transferId,
+    table.itemId,
+  ),
+  foreignKey({
+    columns: [table.tenantId, table.transferId],
+    foreignColumns: [stockTransfers.tenantId, stockTransfers.id],
+    name: "stock_transfer_lines_transfer_fkey",
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.itemId],
+    foreignColumns: [items.tenantId, items.id],
+    name: "stock_transfer_lines_item_fkey",
+  }),
+  check("stock_transfer_lines_quantity_check", sql`${table.quantity} > 0`),
 ])
 
 export const reservations = inventorySchema.table("reservations", {
