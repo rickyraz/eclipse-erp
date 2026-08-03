@@ -50,6 +50,9 @@ accounting.invoice.post
 accounting.invoice.reverse
 inventory.stock.reserve
 inventory.stock.adjust
+inventory.stock.transfer.create
+inventory.stock.transfer.confirm
+inventory.stock.transfer.complete
 auth.role.assign
 ```
 

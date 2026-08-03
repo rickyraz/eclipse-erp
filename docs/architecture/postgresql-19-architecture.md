@@ -83,6 +83,8 @@ Redis, ClickHouse, search indexes, and caches are not authoritative.
 - Use row or advisory locks only with documented lock ordering.
 - Keep immutable financial facts append-oriented.
 - Record corrections through reversal or compensating entries.
+- Warehouse transfers are transactional inventory operations: confirmation
+  deducts source availability, while completion credits the destination.
 
 ## Migration Integrity
 
