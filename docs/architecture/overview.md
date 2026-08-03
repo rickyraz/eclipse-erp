@@ -7,6 +7,7 @@
 > - Full specification: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
+> - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
 - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
 - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
 - ADR index: [`../decisions/README.md`](../decisions/README.md)
@@ -79,6 +80,18 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.
 - ClickHouse, search indexes, and caches: rebuildable projections.
+
+## Process Composition
+
+The planned Process Studio composes versioned typed actions and events through a
+small deterministic Process IR. It is catalog-first and runtime-first: domain
+capability metadata, compensation, idempotency, correlation, and durable
+headless execution mature before the visual designer. Published definitions are
+immutable, running instances remain version-pinned, and every command executes
+through its owning public domain contract.
+
+See [`./process-studio.md`](./process-studio.md) for the canonical target and
+0.8–1.0 delivery gates.
 
 ## Extensions
 

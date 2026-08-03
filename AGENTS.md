@@ -12,6 +12,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - Documentation workflow: [`./docs/development/documentation-workflow.md`](./docs/development/documentation-workflow.md)
 > - Documentation ownership: [`./docs/documentation-boundaries.md`](./docs/documentation-boundaries.md)
 > - Frontend architecture: [`./docs/architecture/frontend.md`](./docs/architecture/frontend.md)
+> - Process Studio architecture: [`./docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
 > - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
@@ -318,6 +319,26 @@ introduced.
 - Use `pg_durable` only after compatibility and production gates pass.
 - Make consumers and workflow steps idempotent.
 - Do not dual-write to PostgreSQL and an external broker.
+
+## Process Studio Rules
+
+Before implementing process catalogs, Process IR, workflow definitions,
+compensation, static validation, designer, monitor, or inbox behavior, read
+[`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
+and ADR-0018.
+
+- Build Typed Action and Event Catalogs before the visual designer.
+- Invoke only authorized public domain contracts; never expose arbitrary SQL,
+  scripts, private repositories, or cross-domain table writes.
+- Treat compensation as a new idempotent business command, not as deletion or a
+  later rollback of committed facts.
+- Keep decisions pure and Process IR small, typed, deterministic, and versioned.
+- Keep BPMN and DMN at interoperability boundaries unless a later ADR expands
+  their role.
+- Published definitions are immutable and running instances remain pinned to
+  exact definition and catalog versions.
+- Do not activate `pg_durable` before the existing compatibility and production
+  gates pass.
 
 ## Authorization and Security
 

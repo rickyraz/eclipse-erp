@@ -20,6 +20,11 @@ The authoritative architecture specification is:
 - Frontend: Vite + SolidJS 2.0
 - Contracts: Effect Schema
 - Native compute: optional Zig through `Deno.dlopen`
+- Process composition target: typed catalogs, deterministic Process IR, and a
+  governed Process Studio
+
+The canonical Process Studio target and staged 0.8–1.0 roadmap are defined in
+[`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md).
 
 ## Dependency Ownership
 

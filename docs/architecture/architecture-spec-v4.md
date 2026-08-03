@@ -11,6 +11,7 @@
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
+> - Process Studio: [`./process-studio.md`](./process-studio.md)
 > - Plugin architecture: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Frontend SPA decision:
@@ -28,6 +29,8 @@
 >   [`../decisions/0016-isolate-jurisdiction-localization.md`](../decisions/0016-isolate-jurisdiction-localization.md)
 > - Native Deno Effect adapter:
 >   [`../decisions/0017-use-effect-platform-deno.md`](../decisions/0017-use-effect-platform-deno.md)
+> - Typed Process Studio:
+>   [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
 
 ## Decision
@@ -205,6 +208,21 @@ invariants, or become a super-domain that absorbs their ownership.
 
 Process-specific state is permitted only when it represents coordination state that no participating
 domain owns, such as durable progress, retry, or compensation status.
+
+## Process Studio Contract
+
+EclipseERP's planned Process Studio composes versioned, typed domain actions and events through a
+small deterministic Process IR. It does not expose arbitrary SQL, scripts, private repositories, or
+cross-domain table mutation. Actions execute through authorized public domain contracts; decisions
+are pure; published definitions are immutable and running instances remain version-pinned.
+
+Committed effects are not treated as if a later SQL rollback could erase them. Domains may publish
+explicit compensating commands, and process definitions select compensation or manual-recovery
+policy. Static validation checks catalog versions, schemas, mappings, capabilities, tenant scope,
+transition ordering, idempotency, waits, parallel effects, and compensation before publication.
+
+The detailed target architecture and staged 0.8–1.0 delivery gates are owned by
+[`./process-studio.md`](./process-studio.md).
 
 ## Asynchronous Contract
 

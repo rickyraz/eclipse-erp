@@ -4,7 +4,8 @@
 >
 > - Project overview: [`../../README.md`](../../README.md)
 > - Architecture overview: [`../architecture/overview.md`](../architecture/overview.md)
-- Frontend architecture: [`../architecture/frontend.md`](../architecture/frontend.md)
+> - Frontend architecture: [`../architecture/frontend.md`](../architecture/frontend.md)
+> - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
 > - Orthogonal design reference: [`../architecture/reference/orthogonal-erp-design.md`](../architecture/reference/orthogonal-erp-design.md)
 
 EclipseERP aims to preserve the strengths of traditional ERP systems:
@@ -27,6 +28,19 @@ Business change should be:
 - testable;
 - owned by an explicit module;
 - free from hidden side effects.
+
+## Process Composition Vision
+
+EclipseERP will let developers build safe, typed domain capabilities and let
+business users compose those capabilities into governed workflows. The Process
+Studio is intended to be domain-aware rather than a generic diagram editor: it
+uses versioned Action and Event Catalogs, deterministic Process IR, pure
+decisions, static business validation, durable execution, explicit
+compensation, task inboxes, monitoring, and immutable publication.
+
+The visual designer follows catalog and headless-runtime maturity; it does not
+precede them. The canonical target and staged 0.8–1.0 roadmap are owned by
+[`process-studio.md`](../architecture/process-studio.md).
 
 ## Initial Non-Goals
 

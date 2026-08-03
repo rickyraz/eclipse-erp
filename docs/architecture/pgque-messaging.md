@@ -5,6 +5,7 @@
 > **Related documents**
 >
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
+> - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 
@@ -63,6 +64,11 @@ payload
 ```
 
 Event names use past tense and payload versions are explicit.
+
+Process triggers and waits discover versioned event schemas through the Typed
+Event Catalog defined by [`process-studio.md`](./process-studio.md). PgQue remains
+the delivery mechanism; the catalog does not replace the durable event envelope
+or consumer rules.
 
 ## Consumer Rules
 

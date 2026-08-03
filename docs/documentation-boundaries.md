@@ -41,7 +41,8 @@ create a second independent definition.
 | PostgreSQL ownership and integrity | [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md) |
 | Authorization | [`./architecture/authorization.md`](./architecture/authorization.md) |
 | Events and messaging | [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md) |
-| Jobs and durable workflows | [`./architecture/durable-execution.md`](./architecture/durable-execution.md) |
+| Jobs and durable workflow engine selection | [`./architecture/durable-execution.md`](./architecture/durable-execution.md) |
+| Process Studio, catalogs, Process IR, definition governance, and static validation | [`./architecture/process-studio.md`](./architecture/process-studio.md) |
 | Plugin trust and extension model | [`./architecture/plugin-architecture.md`](./architecture/plugin-architecture.md) |
 | Hierarchy and graph selection | [`./architecture/hierarchy-and-graph-selection.md`](./architecture/hierarchy-and-graph-selection.md) |
 | Native Zig boundary | [`./architecture/native-zig-kernel.md`](./architecture/native-zig-kernel.md) |

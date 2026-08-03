@@ -22,6 +22,7 @@
 - [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md)
 - [`./architecture/authorization.md`](./architecture/authorization.md)
 - [`./architecture/durable-execution.md`](./architecture/durable-execution.md)
+- [`./architecture/process-studio.md`](./architecture/process-studio.md)
 - [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md)
 - [`./architecture/plugin-architecture.md`](./architecture/plugin-architecture.md)
 - [`./architecture/hierarchy-and-graph-selection.md`](./architecture/hierarchy-and-graph-selection.md)

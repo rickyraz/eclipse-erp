@@ -12,6 +12,7 @@
 > - SolidJS decision: [`../decisions/0009-use-solidjs-2.md`](../decisions/0009-use-solidjs-2.md)
 > - SPA architecture decision: [`../decisions/0010-use-vite-solidjs-spa.md`](../decisions/0010-use-vite-solidjs-spa.md)
 > - Authorization architecture: [`./authorization.md`](./authorization.md)
+> - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
 > - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Documentation ownership: [`../documentation-boundaries.md`](../documentation-boundaries.md)
@@ -425,6 +426,19 @@ Presentation components must not own:
 - idempotency rules.
 
 These belong to the backend domain or explicit shared contracts.
+
+## Process Studio UI
+
+The planned Process Designer, Process Monitor, and Task Inbox are frontend
+features over public Process Studio contracts. The designer serializes the
+canonical Eclipse Process IR, discovers actions and events from typed catalogs,
+and renders static validation results from the backend contract. It must not
+hard-code domain capabilities or execute process semantics in the browser.
+
+Drag-and-drop is an enhancement, not the only interaction model. Every modeling
+action requires an accessible keyboard and structured-form alternative. Detailed
+process semantics, governance, catalogs, compensation, and roadmap are owned by
+[`process-studio.md`](./process-studio.md).
 
 ## Authorization UX
 
