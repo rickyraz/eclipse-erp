@@ -8,6 +8,7 @@
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
+> - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
 - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
 - ADR index: [`../decisions/README.md`](../decisions/README.md)
@@ -80,6 +81,16 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.
 - ClickHouse, search indexes, and caches: rebuildable projections.
+
+## External Integration Surface
+
+External integrations use a typed connector boundary. HTTPS + JSON + OpenAPI is
+the default action surface; CloudEvents over HTTPS and AsyncAPI describe external
+events; OAuth 2.0 and stable Problem Details protect and normalize the surface.
+Connector protocols such as Kafka, gRPC, SOAP, or OData remain adapters and do
+not enter domain contracts or Process IR.
+
+See [`./integration-architecture.md`](./integration-architecture.md).
 
 ## Process Composition
 

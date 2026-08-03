@@ -13,6 +13,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - Documentation ownership: [`./docs/documentation-boundaries.md`](./docs/documentation-boundaries.md)
 > - Frontend architecture: [`./docs/architecture/frontend.md`](./docs/architecture/frontend.md)
 > - Process Studio architecture: [`./docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
+> - External integration surface: [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
 > - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
@@ -319,6 +320,26 @@ introduced.
 - Use `pg_durable` only after compatibility and production gates pass.
 - Make consumers and workflow steps idempotent.
 - Do not dual-write to PostgreSQL and an external broker.
+
+## External Integration Rules
+
+Before implementing external actions, events, connectors, OpenAPI imports,
+CloudEvents ingestion, AsyncAPI contracts, OAuth integration, or provider
+adapters, read [`docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
+and ADR-0019.
+
+- Use HTTPS + JSON + OpenAPI for the default external action surface.
+- Use CloudEvents over HTTPS for external events and AsyncAPI as the message
+  contract/catalog; do not make AsyncAPI a required broker.
+- Keep `DomainAction`/`DomainEvent` distinct from `ExternalAction`/`ExternalEvent`.
+- Keep protocols, credentials, provider retries, and transport failures inside
+  `packages/integrations` or approved connector plugins.
+- Do not expose Kafka partitions, gRPC stubs, SOAP envelopes, raw OAuth tokens,
+  or provider storage identifiers to Process Studio or domain packages.
+- Use OAuth 2.0 with RFC 9700 security practices and RFC 9457 Problem Details;
+  do not silently turn OAuth scopes into domain capabilities.
+- External side effects require idempotency, timeout/retry policy, provider
+  status, and explicit compensation or manual recovery.
 
 ## Process Studio Rules
 

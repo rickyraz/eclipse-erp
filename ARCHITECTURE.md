@@ -25,6 +25,8 @@ The authoritative architecture specification is:
 
 The canonical Process Studio target and staged 0.8–1.0 roadmap are defined in
 [`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md).
+The external connector profile is defined in
+[`docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md).
 
 ## Dependency Ownership
 

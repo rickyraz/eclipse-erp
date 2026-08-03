@@ -14,6 +14,7 @@
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - Messaging and event delivery: [`./pgque-messaging.md`](./pgque-messaging.md)
+> - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Plugin trust: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
@@ -194,10 +195,31 @@ Domain execution owns:
 A process step invokes a public domain command. It must not import private repositories or mutate
 another module's tables.
 
+### External Integration Execution
+
+Process Studio may also compose normalized `ExternalAction` and `ExternalEvent`
+contracts from the connector layer. These are distinct from `DomainAction` and
+`DomainEvent`:
+
+```text
+DomainAction
+  -> public command owned by an EclipseERP domain
+
+ExternalAction
+  -> connector operation owned by an external provider adapter
+```
+
+The connector owns HTTPS, OpenAPI, CloudEvents, OAuth, provider retries,
+transport failures, and secrets. Process Studio sees only the typed normalized
+contract. External actions may trigger domain commands, but they never become
+owners of domain invariants. Detailed protocol rules are owned by
+[`integration-architecture.md`](./integration-architecture.md).
+
 ## Typed Action Catalog
 
 The Typed Action Catalog is a core product capability, not an implementation detail. It is the
-authoritative registry of ERP commands that process definitions may invoke.
+authoritative registry of approved domain and connector actions that process definitions may invoke.
+Domain and external actions use separate typed namespaces and compatibility rules.
 
 The designer reads the catalog dynamically. It must not hard-code a permanent list such as
 `Reserve Stock`, `Post Journal`, or `Approve Invoice`. When a domain publishes a new approved
@@ -403,9 +425,23 @@ DomainEvent
   correlationFields
   filterableFields
   occurredAtSemantics
+
+ExternalEvent
+  id
+  version
+  connectorId
+  source
+  payloadSchema
+  tenantScope
+  correlationFields
+  filterableFields
+  deduplicationKey
 ```
 
 Event envelopes and durable delivery remain owned by [`pgque-messaging.md`](./pgque-messaging.md).
+External event authentication, CloudEvents validation, provider deduplication,
+and protocol normalization remain owned by
+[`integration-architecture.md`](./integration-architecture.md).
 The catalog supplies typed discovery and process-compatible metadata.
 
 The designer may express:

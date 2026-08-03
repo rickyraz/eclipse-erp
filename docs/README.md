@@ -24,6 +24,7 @@
 - [`./architecture/durable-execution.md`](./architecture/durable-execution.md)
 - [`./architecture/process-studio.md`](./architecture/process-studio.md)
 - [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md)
+- [`./architecture/integration-architecture.md`](./architecture/integration-architecture.md)
 - [`./architecture/plugin-architecture.md`](./architecture/plugin-architecture.md)
 - [`./architecture/hierarchy-and-graph-selection.md`](./architecture/hierarchy-and-graph-selection.md)
 - [`./architecture/native-zig-kernel.md`](./architecture/native-zig-kernel.md)
@@ -43,6 +44,7 @@
 - [`./roadmap/README.md`](./roadmap/README.md)
 - [`./roadmap/erp-primitives.md`](./roadmap/erp-primitives.md)
 - [`./roadmap/domain-maturity.md`](./roadmap/domain-maturity.md)
+- [`./roadmap/integration-surface.md`](./roadmap/integration-surface.md)
 - [`./roadmap/process-studio.md`](./roadmap/process-studio.md)
 
 ## Documentation Governance

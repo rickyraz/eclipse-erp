@@ -41,5 +41,6 @@ current system; ADRs preserve decision history.
 | [`0016`](./0016-isolate-jurisdiction-localization.md)          | Isolate localization from primitive cores            | Accepted |
 | [`0017`](./0017-use-effect-platform-deno.md)                   | Use the canonical Effect Deno adapter                | Accepted |
 | [`0018`](./0018-adopt-typed-process-studio.md)                 | Adopt a typed, domain-aware Process Studio           | Accepted |
+| [`0019`](./0019-adopt-integration-surface-profile.md)           | Adopt a typed external integration surface profile   | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

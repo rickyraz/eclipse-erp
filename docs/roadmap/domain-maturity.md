@@ -15,6 +15,8 @@
 > - Architecture enforcement: [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
+> - External integration surface: [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
+> - Plugin architecture: [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
 
 ## Readiness Rule
 
@@ -50,7 +52,7 @@ contract and database tests
 | `sales` | customers, quotations, sales orders | `PARTIAL` | decide fulfillment, invoicing, credit policy, and customer-facing events |
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
-| `integrations` | external adapter boundary | `BOUNDARY ONLY` | version standards and external identities; do not become an internal domain owner |
+| `integrations` | external adapter and connector boundary | `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner |
 | `workflow` | no implemented package | `PLANNED` | create only after Process Studio primitive and runtime gates are approved |
 
 ## Maturity Levels
@@ -102,6 +104,12 @@ The package additionally publishes:
 - catalog compatibility tests against public contracts.
 
 Only Level 3 packages may appear as production Process Studio actions/events.
+
+A plugin follows the same maturity levels, with additional requirements from
+its trust level: owned schema and migration isolation for trusted extensions,
+contributor-contract compatibility for catalog entries, and no core-invariant
+access for declarative or sandboxed extensions. Plugin installation alone never
+makes a capability Process Studio-ready.
 
 ## Delivery Sequence
 

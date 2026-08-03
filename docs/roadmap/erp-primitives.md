@@ -16,6 +16,7 @@
 > - Authorization architecture: [`../architecture/authorization.md`](../architecture/authorization.md)
 > - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
 > - Orthogonal ERP areas: [`../architecture/reference/orthogonal-erp-areas.md`](../architecture/reference/orthogonal-erp-areas.md)
+> - Plugin architecture: [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
 > - Semantic owner ADR: [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
 
 ## Rule
@@ -49,6 +50,26 @@ READY
 
 `UNKNOWN` is not permission to guess. It is a gate that blocks dependent runtime
 work until resolved.
+
+## Plugin Boundary
+
+Plugins are an extension mechanism for approved primitive capabilities, not a
+second ownership system.
+
+- `CORE` and `TRUSTED_SERVER` extensions may own a new primitive only when they
+  declare an owned schema, public contract, capabilities, migrations, tests, and
+  compatibility policy.
+- A trusted plugin may register Typed Action and Event Catalog entries through an
+  approved contributor contract.
+- `DECLARATIVE` extensions may configure existing primitives, policies, forms,
+  reports, notifications, and safe automations; they cannot define new core
+  invariants or arbitrary commands.
+- `SANDBOXED` extensions cannot receive direct database, native, or core
+  invariant access.
+- No plugin may redefine or directly mutate a core domain's invariant.
+
+A plugin primitive is not Process Studio-ready until it satisfies the same
+Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 
 ## Primitive Backlog
 

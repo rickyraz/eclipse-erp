@@ -13,6 +13,7 @@
 > - ERP primitive decisions: [`./erp-primitives.md`](./erp-primitives.md)
 > - Domain maturity: [`./domain-maturity.md`](./domain-maturity.md)
 > - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
+> - External integration surface: [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
 > - Process Studio ADR: [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
 > - Durable execution: [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Messaging: [`../architecture/pgque-messaging.md`](../architecture/pgque-messaging.md)
@@ -53,9 +54,13 @@ Before Process Studio 0.8 work starts, resolve:
 [ ] catalog versioning and compatibility rules have an ADR or canonical rule
 [ ] workflow authorization is separate from domain action authorization
 [ ] durable engine compatibility gates remain enforced
+[ ] external action/event profile is defined separately from domain actions/events
+[ ] connector authentication, idempotency, delivery, and compensation rules are explicit
 ```
 
-If any item is material `UNKNOWN`, remain in the primitive/domain roadmap.
+If any item is material `UNKNOWN`, remain in the primitive/domain roadmap. External
+integration details are governed by
+[`../architecture/integration-architecture.md`](../architecture/integration-architecture.md).
 
 ## 0.8 — Capability Metadata
 
@@ -65,8 +70,8 @@ readiness work is:
 
 ```text
 domain capability metadata
-Typed Action Catalog
-Typed Event Catalog
+Typed Domain Action/Event Catalog
+Typed External Action/Event Catalog boundary
 idempotency contracts
 correlation and causation contracts
 compensation metadata

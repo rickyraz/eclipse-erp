@@ -7,6 +7,8 @@
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
+> - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
+> - Primitive and domain roadmap: [`../roadmap/README.md`](../roadmap/README.md)
 > - Plugin ADR:
 >   [`../decisions/0007-adopt-tiered-plugin-trust.md`](../decisions/0007-adopt-tiered-plugin-trust.md)
 > - Localization ADR:
@@ -68,6 +70,12 @@ contract. Direct mutation of core accounting or inventory tables is forbidden.
 
 Core modules and trusted server plugins may contribute versioned Typed Action
 Catalog and Typed Event Catalog entries through approved contributor contracts.
+Trusted plugins may also contribute connector adapters, but connector protocols,
+credentials, provider retries, and external failures remain behind the
+integration boundary and cannot become domain invariants.
+A plugin contribution is Process Studio-ready only after it satisfies the
+primitive and Level 3 domain-provider gates in
+[`../roadmap/domain-maturity.md`](../roadmap/domain-maturity.md).
 Declarative tenant extensions may compose and configure approved entries but
 cannot register arbitrary executable code, forge catalog metadata, or elevate
 their trust. Detailed process contribution rules are owned by

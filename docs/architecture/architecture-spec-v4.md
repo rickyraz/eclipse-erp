@@ -12,6 +12,9 @@
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
+> - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
+> - Integration profile ADR:
+>   [`../decisions/0019-adopt-integration-surface-profile.md`](../decisions/0019-adopt-integration-surface-profile.md)
 > - Plugin architecture: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Frontend SPA decision:
@@ -275,6 +278,24 @@ SolidStart and SSR are not enabled by default. Their adoption requires an explic
 new or superseding ADR.
 
 See [`./frontend.md`](./frontend.md) for detailed frontend rules.
+
+## External Integration Surface Contract
+
+External developer integrations use the canonical profile defined by
+[`./integration-architecture.md`](./integration-architecture.md): HTTPS + JSON + OpenAPI for
+actions, CloudEvents over HTTPS for external events, AsyncAPI for message contracts, OAuth 2.0 with
+RFC 9700 security practices, and RFC 9457 Problem Details for HTTP failures.
+
+Domain actions/events and external connector actions/events are separate typed namespaces. The
+connector layer owns protocol translation, credentials, provider retries, delivery, and external
+failures. Process Studio composes normalized contracts and never exposes Kafka partitions, gRPC
+stubs, SOAP envelopes, raw OAuth tokens, or provider storage identifiers.
+
+Advanced protocols such as gRPC, Kafka, AMQP, NATS, SQS, Pub/Sub, EventBridge, SOAP, and OData may
+exist behind versioned adapters. They are not the universal external interface and never become
+Process IR primitives. External calls do not extend PostgreSQL transactions across the network;
+side effects require idempotency, timeout/retry policy, provider status, and compensation or
+manual recovery.
 
 ## External Standards Contract
 

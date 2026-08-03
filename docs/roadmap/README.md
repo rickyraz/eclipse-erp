@@ -14,6 +14,7 @@
 > - Product vision: [`../product/vision.md`](../product/vision.md)
 > - Architecture overview: [`../architecture/overview.md`](../architecture/overview.md)
 > - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
+> - External integration surface: [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
 > - Process Studio ADR: [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
 
 ## Purpose
@@ -71,6 +72,7 @@ invariant tests exist.
 | ERP primitives | Resolve scope, master data, document, quantity, money, control, and integration semantics | [`erp-primitives.md`](./erp-primitives.md) |
 | Domain maturity | Turn existing packages into stable action/event providers and identify missing domains | [`domain-maturity.md`](./domain-maturity.md) |
 | Process Studio readiness | Gate catalogs, runtime, recovery, and designer work | [`process-studio.md`](./process-studio.md) |
+| External integration surface | Gate connector protocols, auth, delivery, and external action/event normalization | [`integration-surface.md`](./integration-surface.md) |
 
 ## Dependency Stages
 
@@ -105,6 +107,22 @@ A domain capability must have:
 - database constraints and invariant tests;
 - typed event behavior when a committed fact is process-visible;
 - compensation or explicit manual-recovery semantics for committed effects.
+
+### Integration Surface Gate
+
+Before external actions or events become Process Studio capabilities:
+
+- `DomainAction`/`DomainEvent` and `ExternalAction`/`ExternalEvent` are separate;
+- OpenAPI operations are allowlisted and versioned;
+- CloudEvents are authenticated, schema-validated, and deduplicated;
+- AsyncAPI remains a message contract/catalog, not a required broker;
+- OAuth scopes remain separate from domain capabilities;
+- external side effects declare idempotency, retry, provider status, and
+  compensation/manual recovery;
+- connector protocols do not leak into Process IR or domain contracts.
+
+The canonical profile is owned by
+[`../architecture/integration-architecture.md`](../architecture/integration-architecture.md).
 
 ### Catalog Gate — Process Studio 0.8
 

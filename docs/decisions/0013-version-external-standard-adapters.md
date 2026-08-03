@@ -10,6 +10,8 @@
 > - ADR index: [`./README.md`](./README.md)
 > - Canonical architecture:
 >   [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
+> - External integration surface:
+>   [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
 > - ERP standards reference:
 >   [`../architecture/reference/erp-standards.md`](../architecture/reference/erp-standards.md)
 
