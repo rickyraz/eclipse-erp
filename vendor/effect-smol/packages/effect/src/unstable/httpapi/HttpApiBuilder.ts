@@ -58,7 +58,7 @@ import * as OpenApi from "./OpenApi.ts"
 /**
  * Registers an `HttpApi` with a `HttpRouter`.
  *
- * @category constructors
+ * @category layers
  * @since 4.0.0
  */
 export const layer = <Id extends string, Groups extends HttpApiGroup.Constraint>(
@@ -171,7 +171,7 @@ type HandlerRequirements<
 > =
   | HttpApiEndpoint.Middleware<Endpoint>
   | HttpApiEndpoint.MiddlewareServices<Endpoint>
-  | ([R] extends [never] ? never : HttpRouter.Request<"Requires", R>)
+  | ([R] extends [never] ? never : HttpRouter.Request.From<"Requires", R>)
 
 interface HandlerOptions {
   readonly uninterruptible?: boolean | undefined

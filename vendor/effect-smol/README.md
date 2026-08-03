@@ -1,26 +1,36 @@
-# Effect V4 Has Moved
+<!-- Use a static Shields badge because pkg.pr.new's dynamic badge times out while counting this repository's releases. -->
 
-This repository is archived and read-only. Effect V4 has moved to the canonical
-[`Effect-TS/effect`](https://github.com/Effect-TS/effect) repository.
+[![pkg.pr.new](https://img.shields.io/badge/pkg.pr.new-Effect--TS%2Feffect-black)](https://pkg.pr.new/~/Effect-TS/effect)
 
-## Source Code
+# Effect
 
-The complete V4 Git history has been merged into the canonical `effect` repository.
+Effect is a library for building robust, maintainable, type-safe, and production grade applications in TypeScript.
 
-- [Effect V4 (`main`)](https://github.com/Effect-TS/effect/tree/main)
-- [Effect V3 (`v3`)](https://github.com/Effect-TS/effect/tree/v3)
+> **Effect V4 is currently in beta.** The `main` branch contains v4 development.
 
-Historical commits, issues, and pull requests from this repository remain
-available for reference.
+## Install V4 Beta
 
-## Issues And Pull Requests
+```sh
+npm install effect@beta
+```
 
-**Do not** open new issues or pull requests in this repository.
+## Effect v3
 
-- [Open an issue](https://github.com/Effect-TS/effect/issues/new/choose)
-- [View existing issues](https://github.com/Effect-TS/effect/issues)
-- [Open a V4 pull request against `main`](https://github.com/Effect-TS/effect/compare)
+The Effect v3 source code is available on the [`v3`](https://github.com/Effect-TS/effect/tree/v3) branch.
 
-## Migrating From V3
+```sh
+npm install effect@latest
+```
 
-See the [V3 to V4 migration guide](https://github.com/Effect-TS/effect/blob/main/MIGRATION.md).
+Issues and pull requests meant for Effect v3 should target the [`v3`](https://github.com/Effect-TS/effect/tree/v3) branch.
+
+## Resources
+
+- Documentation (https://effect.website)
+- Discord (https://discord.gg/effect-ts)
+- Effect v3 source (https://github.com/Effect-TS/effect/tree/v3)
+- Effect v4 source (https://github.com/Effect-TS/effect/tree/main)
+
+## License
+
+MIT
