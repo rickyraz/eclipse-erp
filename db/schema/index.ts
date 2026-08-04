@@ -11,6 +11,8 @@ export { authorizationSchema, memberships } from "./authorization.ts"
 export { createdAt, id, money, updatedAt, uuidv7 } from "./common.ts"
 export { identities, identitySchema } from "./identity.ts"
 export {
+  branches,
+  legalEntities,
   parties,
   partyIdentifiers,
   partyKind,

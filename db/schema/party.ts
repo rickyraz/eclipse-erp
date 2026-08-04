@@ -28,6 +28,47 @@ export const parties = partySchema.table("parties", {
   }).onDelete("cascade"),
 ])
 
+export const legalEntities = partySchema.table("legal_entities", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  organizationPartyId: uuid("organization_party_id").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("legal_entities_tenant_id_id_key").on(table.tenantId, table.id),
+  unique("legal_entities_tenant_organization_party_key").on(
+    table.tenantId,
+    table.organizationPartyId,
+  ),
+  foreignKey({
+    columns: [table.tenantId, table.organizationPartyId],
+    foreignColumns: [parties.tenantId, parties.id],
+    name: "legal_entities_tenant_organization_party_fkey",
+  }),
+])
+
+export const branches = partySchema.table("branches", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
+  name: text("name").notNull(),
+  timezone: text("timezone"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("branches_tenant_id_id_key").on(table.tenantId, table.id),
+  unique("branches_tenant_legal_entity_name_key").on(
+    table.tenantId,
+    table.legalEntityId,
+    table.name,
+  ),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "branches_tenant_legal_entity_fkey",
+  }),
+])
+
 export const partyRoles = partySchema.table("party_roles", {
   tenantId: uuid("tenant_id").notNull(),
   partyId: uuid("party_id").notNull(),

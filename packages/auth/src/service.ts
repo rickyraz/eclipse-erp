@@ -8,8 +8,12 @@ import { sessions, tenants } from "../../../db/schema/auth.ts"
 import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const PositiveSeconds = Schema.Int.check(Schema.isGreaterThan(0))
+const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
 
-export const CreateTenantInput = Schema.Struct({ slug: Schema.String })
+export const CreateTenantInput = Schema.Struct({
+  slug: Schema.String,
+  timezone: Schema.optionalKey(NonBlankString),
+})
 export const IssueSessionInput = Schema.Struct({
   identityId: Schema.String,
   ttlSeconds: PositiveSeconds,
@@ -18,6 +22,7 @@ export const IssueSessionInput = Schema.Struct({
 export const Tenant = Schema.Struct({
   id: Schema.String,
   slug: Schema.String,
+  timezone: Schema.String,
 })
 
 export const Session = Schema.Struct({
@@ -98,11 +103,12 @@ export const makeAuthService = (database: DatabaseService): AuthService => ({
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
       const slug = decoded.slug.trim().toLowerCase()
+      const timezone = decoded.timezone?.trim() ?? "UTC"
       const rows = yield* database.query(
         (db) =>
           db.insert(tenants)
-            .values({ slug })
-            .returning({ id: tenants.id, slug: tenants.slug }),
+            .values({ slug, timezone })
+            .returning({ id: tenants.id, slug: tenants.slug, timezone: tenants.timezone }),
         "tenant.create",
       ).pipe(
         Effect.mapError((error) =>
@@ -195,10 +201,11 @@ export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) => {
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
         const slug = decoded.slug.trim().toLowerCase()
+        const timezone = decoded.timezone?.trim() ?? "UTC"
         if ([...storedTenants.values()].some((tenant) => tenant.slug === slug)) {
           return yield* Effect.fail(new TenantAlreadyExists({ slug }))
         }
-        const tenant = { id: crypto.randomUUID(), slug }
+        const tenant = { id: crypto.randomUUID(), slug, timezone }
         storedTenants.set(tenant.id, tenant)
         return tenant
       }),

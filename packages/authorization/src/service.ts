@@ -13,6 +13,8 @@ export const Capability = Schema.Literals([
   "identity.read",
   "identity.write",
   "party.create",
+  "party.legal_entity.create",
+  "party.branch.create",
   "party.role.assign",
   "party.identifier.attach",
   "sales.customer.create",

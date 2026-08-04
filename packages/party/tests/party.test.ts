@@ -1,17 +1,31 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
+  AuthorizationDenied,
+  AuthorizationService,
+  makeAuthorizationTestLayer,
+} from "../../authorization/mod.ts"
+import {
+  BranchAlreadyExists,
   ExternalIdentifierAlreadyAssigned,
+  LegalEntityAlreadyExists,
+  LegalEntityNotFound,
   makePartyTestLayer,
+  OrganizationPartyRequired,
   PartyRoleAlreadyAssigned,
   PartyService,
 } from "../mod.ts"
 
 const principal = { identityId: "party-admin", sessionId: "session" }
 const tenantId = "tenant-a"
-const capabilities = ["party.create", "party.role.assign", "party.identifier.attach"] as const
+const capabilities = [
+  "party.create",
+  "party.legal_entity.create",
+  "party.branch.create",
+  "party.role.assign",
+  "party.identifier.attach",
+] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
   capabilities.map((capability) => ({ identityId: principal.identityId, tenantId, capability })),
@@ -42,10 +56,25 @@ describe("party contract", () => {
         scope: "global",
         value: "1234567890123",
       })
+      const legalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationPartyId: party.id,
+      })
+      const branch = yield* service.createBranch({
+        principal,
+        tenantId,
+        legalEntityId: legalEntity.id,
+        name: " Jakarta ",
+        timezone: " Asia/Jakarta ",
+      })
 
       assert.strictEqual(party.name, "ACME Indonesia")
       assert.strictEqual(identifier.scheme, "GLN")
       assert.strictEqual(identifier.partyId, party.id)
+      assert.strictEqual(legalEntity.organizationPartyId, party.id)
+      assert.strictEqual(branch.name, "Jakarta")
+      assert.strictEqual(branch.timezone, "Asia/Jakarta")
     })))
 
   it.effect("rejects duplicate roles and identifiers in their declared scope", () =>
@@ -80,5 +109,86 @@ describe("party contract", () => {
         yield* Effect.flip(service.attachIdentifier({ ...identifier, partyId: second.id })),
         ExternalIdentifierAlreadyAssigned,
       )
+
+      const legalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationPartyId: first.id,
+      })
+      assert.instanceOf(
+        yield* Effect.flip(service.createLegalEntity({
+          principal,
+          tenantId,
+          organizationPartyId: first.id,
+        })),
+        LegalEntityAlreadyExists,
+      )
+      const branch = {
+        principal,
+        tenantId,
+        legalEntityId: legalEntity.id,
+        name: "Jakarta",
+      }
+      yield* service.createBranch(branch)
+      assert.instanceOf(yield* Effect.flip(service.createBranch(branch)), BranchAlreadyExists)
     })))
+
+  it.effect("requires an organization party and an existing legal entity", () =>
+    withParty(Effect.gen(function* () {
+      const service = yield* PartyService
+      const person = yield* service.create({
+        principal,
+        tenantId,
+        kind: "person",
+        name: "Sari",
+      })
+      assert.instanceOf(
+        yield* Effect.flip(service.createLegalEntity({
+          principal,
+          tenantId,
+          organizationPartyId: person.id,
+        })),
+        OrganizationPartyRequired,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(service.createBranch({
+          principal,
+          tenantId,
+          legalEntityId: "missing",
+          name: "Jakarta",
+        })),
+        LegalEntityNotFound,
+      )
+    })))
+
+  it.effect("denies legal entity creation without its capability", () =>
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      return yield* Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* PartyService
+          const party = yield* service.create({
+            principal,
+            tenantId,
+            kind: "organization",
+            name: "No Legal Entity Capability",
+          })
+          assert.instanceOf(
+            yield* Effect.flip(service.createLegalEntity({
+              principal,
+              tenantId,
+              organizationPartyId: party.id,
+            })),
+            AuthorizationDenied,
+          )
+        }),
+        makePartyTestLayer(authorization),
+      )
+    }).pipe(
+      Effect.provide(
+        makeAuthorizationTestLayer([
+          { identityId: principal.identityId, tenantId, capability: "party.create" },
+        ]),
+      ),
+    ))
 })

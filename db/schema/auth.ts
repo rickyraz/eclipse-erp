@@ -9,6 +9,7 @@ export const authSchema = pgSchema("auth")
 export const tenants = authSchema.table("tenants", {
   id: id(),
   slug: text("slug").notNull(),
+  timezone: text("timezone").notNull().default("UTC"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [unique("tenants_slug_key").on(table.slug)])
