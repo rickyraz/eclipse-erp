@@ -1,3 +1,4 @@
+import "../../tooling/load-env.ts"
 import * as DenoHttpServer from "@effect/platform-deno/DenoHttpServer"
 import * as DenoRuntime from "@effect/platform-deno/DenoRuntime"
 import * as Effect from "effect/Effect"

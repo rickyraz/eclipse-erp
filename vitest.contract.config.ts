@@ -6,6 +6,7 @@ export default defineConfig({
       "packages/**/tests/**/*.test.{ts,tsx}",
       "tests/architecture/**/*.test.{ts,tsx}",
     ],
+    setupFiles: ["./tooling/load-env.ts"],
     exclude: ["vendor/**", "node_modules/**"],
   },
 })

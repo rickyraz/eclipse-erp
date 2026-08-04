@@ -1,3 +1,4 @@
+import "../../tooling/load-env.ts"
 import * as Effect from "effect/Effect"
 import postgres from "postgres"
 

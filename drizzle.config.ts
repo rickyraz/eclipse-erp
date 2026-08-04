@@ -1,10 +1,6 @@
+import "./tooling/load-env.ts"
 import { defineConfig } from "drizzle-kit"
-import { existsSync } from "node:fs"
 import process from "node:process"
-
-const envFile = existsSync(".env") ? ".env" : existsSync(".env.local") ? ".env.local" : undefined
-
-if (envFile) process.loadEnvFile(envFile)
 
 const databaseUrl = process.env.DATABASE_URL
 

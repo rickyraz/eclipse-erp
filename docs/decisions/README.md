@@ -44,5 +44,6 @@ current system; ADRs preserve decision history.
 | [`0019`](./0019-adopt-integration-surface-profile.md)           | Adopt a typed external integration surface profile   | Accepted |
 | [`0020`](./0020-adopt-capability-release-and-runtime-governance.md) | Adopt capability release and runtime governance | Accepted |
 | [`0021`](./0021-define-p0-scope-and-identity-model.md) | Define the P0 scope and identity model | Accepted |
+| [`0022`](./0022-update-effect-v4-to-beta-103.md) | Update Effect v4 and Deno adapter to beta.103 | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

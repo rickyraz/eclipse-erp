@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@effect/platform-deno/DenoHttpServer": "https://raw.githubusercontent.com/Effect-TS/effect/d1133e8f2bad96b059310a2b8f74cdd4db0a3381/packages/platform-deno/src/DenoHttpServer.ts",
+    "@effect/platform-deno/DenoRuntime": "https://raw.githubusercontent.com/Effect-TS/effect/d1133e8f2bad96b059310a2b8f74cdd4db0a3381/packages/platform-deno/src/DenoRuntime.ts"
+  }
+}

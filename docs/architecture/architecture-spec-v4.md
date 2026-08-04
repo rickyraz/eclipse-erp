@@ -30,6 +30,8 @@
 >   [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
 > - P0 scope and identity model:
 >   [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md)
+> - Effect v4 beta.103 update:
+>   [`../decisions/0022-update-effect-v4-to-beta-103.md`](../decisions/0022-update-effect-v4-to-beta-103.md)
 > - Jurisdiction localization:
 >   [`../decisions/0016-isolate-jurisdiction-localization.md`](../decisions/0016-isolate-jurisdiction-localization.md)
 > - Native Deno Effect adapter:
@@ -61,10 +63,9 @@ Drizzle owns typed schema and query construction. PostgreSQL owns constraints an
 
 Deno remains the runtime and primary toolchain. npm ecosystem dependencies are canonical in the root
 `package.json`; Deno uses `nodeModulesDir: "auto"` so package peers resolve through the conventional
-local `node_modules` topology. The Effect packages are aligned on `4.0.0-beta.102`. The canonical
-`@effect/platform-deno` package is not yet published, so its server and runtime entrypoints resolve
-through commit-pinned Deno import-map URLs matching the canonical Effect subtree revision. Vendored
-Effect source and the Drizzle subtree otherwise remain reference-only.
+local `node_modules` topology. The Effect packages are aligned on `4.0.0-beta.103`. The Deno adapter
+entrypoints resolve through the separate `import_map.json`, pinned to the same canonical Effect subtree
+revision. Vendored Effect source and the Drizzle subtree otherwise remain reference-only.
 
 ### Dependency Ownership
 

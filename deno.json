@@ -4,6 +4,7 @@
   },
   "preferPackageJson": true,
   "nodeModulesDir": "auto",
+  "importMap": "./import_map.json",
   "exclude": [
     "node_modules/",
     "vendor/"
