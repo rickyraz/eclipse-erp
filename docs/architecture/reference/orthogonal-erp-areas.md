@@ -7,7 +7,8 @@
 > - Orthogonal design: [`./orthogonal-erp-design.md`](./orthogonal-erp-design.md)
 > - Graph models: [`./graph-models.md`](./graph-models.md)
 > - Process Studio architecture: [`../process-studio.md`](../process-studio.md)
-> - Canonical architecture: [`../architecture-spec-v4.md`](../architecture-spec-v4.md)
+> - P0 scope and identity model: [`../../decisions/0021-define-p0-scope-and-identity-model.md`](../../decisions/0021-define-p0-scope-and-identity-model.md)
+- Canonical architecture: [`../architecture-spec-v4.md`](../architecture-spec-v4.md)
 
 Traditional ERP modules are useful for navigation but are not always the best
 architecture boundaries. A more orthogonal decomposition uses primitive

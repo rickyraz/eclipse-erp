@@ -28,6 +28,8 @@
 >   [`../decisions/0014-separate-internal-and-external-identifiers.md`](../decisions/0014-separate-internal-and-external-identifiers.md)
 > - Semantic invariant ownership:
 >   [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
+> - P0 scope and identity model:
+>   [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md)
 > - Jurisdiction localization:
 >   [`../decisions/0016-isolate-jurisdiction-localization.md`](../decisions/0016-isolate-jurisdiction-localization.md)
 > - Native Deno Effect adapter:
@@ -189,6 +191,33 @@ Detailed rationale and HTTP rules are owned by
 Financial ledger engine selection is an infrastructure decision owned by
 [ADR-0011](../decisions/0011-financial-ledger-engine.md), not by the orthogonal ledger domain
 primitives. PostgreSQL remains the initial authoritative ledger store.
+
+## Scope and Identity Contract
+
+The P0 scope model keeps tenant isolation, legal identity, operational structure,
+and financial configuration distinct:
+
+```text
+Tenant
+└── Legal Entity
+    ├── Branch (optional)
+    └── Warehouse (inventory-owned; primary Branch association optional)
+```
+
+- `auth` owns Tenant and its default timezone; one Identity may access multiple
+  tenants through separate scoped capabilities.
+- `party` owns Organization Party, one-to-one Legal Entity identity in P0,
+  optional Branches, PartyRole, and generic PartyRelationship records.
+- `inventory` owns Warehouses and stock; a Warehouse is scoped to a Legal Entity.
+- `accounting` owns Legal Entity base currency, precision, fiscal period, and
+  posting configuration.
+- Party relationships and role classifications do not grant authorization by
+  themselves; owning domains enforce capabilities at runtime.
+
+The first implementation uses owner-local commands rather than a universal
+cross-domain provisioning command. Detailed rationale and deferred group,
+validity, delegation, and cross-domain configuration decisions are owned by
+[ADR-0021](../decisions/0021-define-p0-scope-and-identity-model.md).
 
 ## Transaction Contract
 

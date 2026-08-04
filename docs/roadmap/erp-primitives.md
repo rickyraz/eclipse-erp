@@ -92,6 +92,12 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 
 ### P0 — Scope and Identity
 
+The initial scope and identity decisions are recorded in
+[`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md).
+The first implementation slice covers tenant timezone, Organization Party,
+Legal Entity, and optional Branch. Warehouse and accounting Legal Entity scope
+remain follow-up work.
+
 Resolve before adding cross-domain business flows:
 
 ```text
