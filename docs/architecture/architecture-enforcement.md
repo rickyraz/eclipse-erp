@@ -3,7 +3,8 @@
 > **Status:** Canonical
 >
 > **Owns:** Automated enforcement of package boundaries, schema ownership,
-> forbidden cross-domain imports, and dependency-cycle rules.
+> forbidden cross-domain imports, dependency cycles, and conservative public
+> call-graph checks.
 >
 > **Related documents**
 >
@@ -94,7 +95,9 @@ The current scaffold enforces these checks with:
 - structural rules: [`../../tooling/boundary-linter/rules/`](../../tooling/boundary-linter/rules/);
 - rule tests: [`../../tooling/boundary-linter/rule-tests/`](../../tooling/boundary-linter/rule-tests/);
 - package-entrypoint and cycle validation:
-  [`../../tooling/dependency-graph/check.ts`](../../tooling/dependency-graph/check.ts).
+  [`../../tooling/dependency-graph/check.ts`](../../tooling/dependency-graph/check.ts);
+- conservative public call-graph validation:
+  [`../../tooling/call-graph/check.ts`](../../tooling/call-graph/check.ts).
 
 ## Schema Ownership
 
@@ -185,6 +188,23 @@ through an Effect service interface. The active checker is
 [`../../tooling/dependency-graph/check.ts`](../../tooling/dependency-graph/check.ts)
 and runs through `deno task boundary:lint` locally and in CI.
 
+## Public Call Graph
+
+The repository records a conservative static call graph for `apps/` and
+`packages/`. It tracks:
+
+- direct calls between locally defined functions;
+- calls to callable names imported through another package's public `mod.ts`;
+- the public package symbol used by each cross-package edge.
+
+The checker rejects a tracked cross-package call when the imported symbol is not
+exported by the target package. It is a boundary aid, not proof of every runtime
+call: Effect dependency injection, callbacks, reflection, dynamic property
+access, and generated code remain outside its static resolution model.
+
+Run it directly with `deno task callgraph:check`; it also runs as part of
+`deno task boundary:lint`.
+
 ## Architecture Exceptions
 
 An exception must include:
@@ -205,6 +225,7 @@ The default branch must reject changes when any of these fail:
 ```text
 package-boundary validation
 forbidden-import detection
+public call-graph validation
 dependency-cycle detection
 schema-ownership validation
 Drizzle migration-graph validation
@@ -218,6 +239,7 @@ relative-link validation for documentation
 ```text
 tooling/
 ├── boundary-linter/
+├── call-graph/
 ├── dependency-graph/
 └── schema-ownership-check/
 
@@ -236,5 +258,6 @@ Architecture enforcement is complete only when:
 - every PostgreSQL schema has one registered owner;
 - forbidden imports fail locally and in CI;
 - dependency cycles fail CI;
+- tracked public call edges resolve through public package contracts;
 - architecture exceptions are explicit and reviewable;
 - database privileges reinforce the same ownership model.

@@ -137,6 +137,7 @@ The current architecture tests validate schema ownership through
 - packages import only approved dependencies;
 - private internals are not imported cross-domain;
 - dependency cycles do not exist;
+- tracked public call edges resolve through package public contracts;
 - database schema ownership is respected;
 - frontend code does not import backend implementation;
 - public packages do not leak persistence models.

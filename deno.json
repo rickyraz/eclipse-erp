@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:contract": "vitest run --config vitest.contract.config.ts",
     "skills:check": "deno run --allow-read tooling/check-agent-skills.ts",
-    "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts && deno run --allow-read tooling/dependency-graph/check.ts",
+    "callgraph:check": "deno run --allow-read --allow-run tooling/call-graph/check.ts",
+    "boundary:lint": "ast-grep scan apps packages tooling tests && deno run --allow-read tooling/boundary-linter/check-ownership.ts && deno run --allow-read tooling/dependency-graph/check.ts && deno task callgraph:check",
     "boundary:test": "ast-grep test --skip-snapshot-tests",
     "check": "deno check ."
   },
