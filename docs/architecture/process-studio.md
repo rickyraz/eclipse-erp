@@ -17,6 +17,8 @@
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Plugin trust: [`./plugin-architecture.md`](./plugin-architecture.md)
+> - Capability-oriented plugin contribution:
+>   [`../decisions/0023-adopt-capability-oriented-plugin-contribution.md`](../decisions/0023-adopt-capability-oriented-plugin-contribution.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Process Studio decision:
@@ -1005,6 +1007,10 @@ Core domains and trusted server plugins may register action and event catalog en
 versioned contributor contracts. Declarative tenant extensions may compose approved entries and
 configure bounded decisions, forms, routing, notifications, and webhooks within their granted
 capabilities.
+
+Plugin-local workflows remain owned by the plugin and are not Process Studio definitions. Process
+Studio owns cross-domain process definitions, Process IR, release/deployment, and runtime
+orchestration; plugin behavior enters Process Studio only through released typed catalog contracts.
 
 Declarative extensions cannot register arbitrary executable code, elevate trust, mutate core tables,
 redefine core invariants, or bypass catalog validation. Sandboxed executable extensions remain a

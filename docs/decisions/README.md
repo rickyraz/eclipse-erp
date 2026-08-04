@@ -45,5 +45,6 @@ current system; ADRs preserve decision history.
 | [`0020`](./0020-adopt-capability-release-and-runtime-governance.md) | Adopt capability release and runtime governance | Accepted |
 | [`0021`](./0021-define-p0-scope-and-identity-model.md) | Define the P0 scope and identity model | Accepted |
 | [`0022`](./0022-update-effect-v4-to-beta-103.md) | Update Effect v4 and Deno adapter to beta.103 | Accepted |
+| [`0023`](./0023-adopt-capability-oriented-plugin-contribution.md) | Adopt capability-oriented plugin contribution | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

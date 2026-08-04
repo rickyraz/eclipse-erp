@@ -11,6 +11,8 @@
 > - Primitive and domain roadmap: [`../roadmap/README.md`](../roadmap/README.md)
 > - Plugin ADR:
 >   [`../decisions/0007-adopt-tiered-plugin-trust.md`](../decisions/0007-adopt-tiered-plugin-trust.md)
+> - Capability-oriented contribution ADR:
+>   [`../decisions/0023-adopt-capability-oriented-plugin-contribution.md`](../decisions/0023-adopt-capability-oriented-plugin-contribution.md)
 > - Localization ADR:
 >   [`../decisions/0016-isolate-jurisdiction-localization.md`](../decisions/0016-isolate-jurisdiction-localization.md)
 
@@ -18,6 +20,24 @@
 
 Extension boundaries must be designed before version 1, but a full marketplace and arbitrary
 third-party runtime are post-version-1 concerns.
+
+## Contribution Model
+
+EclipseERP uses **extension by contribution**, not in-place extension of a core
+model, table, repository, or domain implementation.
+
+- **Public contracts** serve ordinary domain consumers through supported
+  commands, queries, services, DTOs, errors, and events.
+- **Contributor contracts** are separate, versioned extension points published
+  deliberately by a core domain or platform capability.
+- A contributor contract does not transfer ownership of the core invariant.
+- Physical importability does not make an internal implementation an accessible
+  dependency; only published public or contributor contracts are supported.
+
+A plugin therefore participates in a domain through an explicit capability
+surface rather than becoming another implementation of the domain's model.
+Detailed rationale is owned by
+[`../decisions/0023-adopt-capability-oriented-plugin-contribution.md`](../decisions/0023-adopt-capability-oriented-plugin-contribution.md).
 
 ## Extension Classes
 
@@ -68,6 +88,14 @@ registration, and workflow capabilities. A tenant administrator cannot elevate t
 A plugin may only write to its owned schema unless a core module exposes an explicit contributor
 contract. Direct mutation of core accounting or inventory tables is forbidden.
 
+A plugin manifest declares its identity, versions, trust level, execution/deployment topology,
+dependencies, entry point, owned schemas, requested capabilities, and declared contributions. The
+effective authority is the intersection of declared capabilities, trust policy, installation policy,
+and tenant policy; declaration is not a grant.
+
+Trust level and deployment topology are separate dimensions. Local execution is not automatically
+trusted, and remote execution is not automatically untrusted.
+
 Core modules and trusted server plugins may contribute versioned Typed Action
 Catalog and Typed Event Catalog entries through approved contributor contracts.
 Trusted plugins may also contribute connector adapters, but connector protocols,
@@ -76,6 +104,11 @@ integration boundary and cannot become domain invariants.
 A plugin contribution is Process Studio-ready only after it satisfies the
 primitive and Level 3 domain-provider gates in
 [`../roadmap/domain-maturity.md`](../roadmap/domain-maturity.md).
+A plugin-local workflow is implementation or domain-local coordination owned by
+the plugin; it is not a Process Studio definition. Process Studio owns
+cross-domain process definitions, Process IR, release/deployment, and runtime
+orchestration, and may invoke plugin behavior only through released catalog
+contracts.
 Declarative tenant extensions may compose and configure approved entries but
 cannot register arbitrary executable code, forge catalog metadata, or elevate
 their trust. Detailed process contribution rules are owned by
@@ -93,7 +126,16 @@ A plugin manifest must define:
 - dependencies;
 - entry point;
 - owned schema;
-- declared capabilities.
+- declared capabilities;
+- execution/deployment topology;
+- declared action, event, workflow, route, connector, and UI contributions.
+
+Installation does not make a contribution Process Studio-ready. It must pass the relevant public
+contract, schema, capability, compatibility, idempotency, recovery, observability, and maturity
+gates before production orchestration may use it.
+
+The plugin loader, manifest registry, sandbox runtime, and marketplace are not part of the current
+implementation; they remain design and roadmap work.
 
 ## Localization Boundaries
 

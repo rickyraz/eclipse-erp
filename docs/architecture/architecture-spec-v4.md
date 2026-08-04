@@ -16,6 +16,8 @@
 > - Integration profile ADR:
 >   [`../decisions/0019-adopt-integration-surface-profile.md`](../decisions/0019-adopt-integration-surface-profile.md)
 > - Plugin architecture: [`./plugin-architecture.md`](./plugin-architecture.md)
+> - Capability-oriented plugin contribution:
+>   [`../decisions/0023-adopt-capability-oriented-plugin-contribution.md`](../decisions/0023-adopt-capability-oriented-plugin-contribution.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Frontend SPA decision:
 >   [`../decisions/0010-use-vite-solidjs-spa.md`](../decisions/0010-use-vite-solidjs-spa.md)
