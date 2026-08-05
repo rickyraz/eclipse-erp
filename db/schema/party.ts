@@ -1,4 +1,4 @@
-import { foreignKey, pgSchema, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core"
+import { boolean, foreignKey, pgSchema, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
@@ -85,6 +85,40 @@ export const partyRoles = partySchema.table("party_roles", {
     columns: [table.tenantId, table.partyId],
     foreignColumns: [parties.tenantId, parties.id],
     name: "party_roles_tenant_party_fkey",
+  }).onDelete("cascade"),
+])
+
+export const partyRelationships = partySchema.table("party_relationships", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  partyId: uuid("party_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
+  kind: partyRole("kind").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("party_relationships_tenant_id_id_key").on(table.tenantId, table.id),
+  unique("party_relationships_tenant_party_legal_entity_kind_key").on(
+    table.tenantId,
+    table.partyId,
+    table.legalEntityId,
+    table.kind,
+  ),
+  foreignKey({
+    columns: [table.tenantId, table.partyId],
+    foreignColumns: [parties.tenantId, parties.id],
+    name: "party_relationships_tenant_party_fkey",
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "party_relationships_tenant_legal_entity_fkey",
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.partyId, table.kind],
+    foreignColumns: [partyRoles.tenantId, partyRoles.partyId, partyRoles.role],
+    name: "party_relationships_tenant_party_role_fkey",
   }).onDelete("cascade"),
 ])
 

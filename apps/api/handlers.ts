@@ -161,6 +161,18 @@ export const PartyHandlers = HttpApiBuilder.group(
               ...payload,
             })
           )
+        })))
+      .handle("createRelationship", ({ headers, params, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* PartyService.use((service) =>
+            service.createRelationship({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              partyId: params.id,
+              ...payload,
+            })
+          )
         }))),
 )
 

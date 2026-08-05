@@ -13,6 +13,8 @@ import {
   LegalEntityNotFound,
   makePartyTestLayer,
   OrganizationPartyRequired,
+  PartyRelationshipAlreadyExists,
+  PartyRelationshipRoleNotAssigned,
   PartyRoleAlreadyAssigned,
   PartyService,
 } from "../mod.ts"
@@ -24,6 +26,7 @@ const capabilities = [
   "party.legal_entity.create",
   "party.branch.create",
   "party.role.assign",
+  "party.relationship.create",
   "party.identifier.attach",
 ] as const
 
@@ -68,6 +71,13 @@ describe("party contract", () => {
         name: " Jakarta ",
         timezone: " Asia/Jakarta ",
       })
+      const relationship = yield* service.createRelationship({
+        principal,
+        tenantId,
+        partyId: party.id,
+        legalEntityId: legalEntity.id,
+        kind: "customer",
+      })
 
       assert.strictEqual(party.name, "ACME Indonesia")
       assert.strictEqual(identifier.scheme, "GLN")
@@ -75,6 +85,8 @@ describe("party contract", () => {
       assert.strictEqual(legalEntity.organizationPartyId, party.id)
       assert.strictEqual(branch.name, "Jakarta")
       assert.strictEqual(branch.timezone, "Asia/Jakarta")
+      assert.strictEqual(relationship.kind, "customer")
+      assert.strictEqual(relationship.active, true)
     })))
 
   it.effect("rejects duplicate roles and identifiers in their declared scope", () =>
@@ -115,6 +127,18 @@ describe("party contract", () => {
         tenantId,
         organizationPartyId: first.id,
       })
+      const relationship = {
+        principal,
+        tenantId,
+        partyId: first.id,
+        legalEntityId: legalEntity.id,
+        kind: "supplier" as const,
+      }
+      yield* service.createRelationship(relationship)
+      assert.instanceOf(
+        yield* Effect.flip(service.createRelationship(relationship)),
+        PartyRelationshipAlreadyExists,
+      )
       assert.instanceOf(
         yield* Effect.flip(service.createLegalEntity({
           principal,
@@ -131,6 +155,30 @@ describe("party contract", () => {
       }
       yield* service.createBranch(branch)
       assert.instanceOf(yield* Effect.flip(service.createBranch(branch)), BranchAlreadyExists)
+    })))
+
+  it.effect("requires an assigned role for a legal entity relationship", () =>
+    withParty(Effect.gen(function* () {
+      const service = yield* PartyService
+      const party = yield* service.create({
+        principal,
+        tenantId,
+        kind: "organization",
+        name: "Unclassified Supplier",
+      })
+      const legalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationPartyId: party.id,
+      })
+      const error = yield* Effect.flip(service.createRelationship({
+        principal,
+        tenantId,
+        partyId: party.id,
+        legalEntityId: legalEntity.id,
+        kind: "supplier",
+      }))
+      assert.instanceOf(error, PartyRelationshipRoleNotAssigned)
     })))
 
   it.effect("requires an organization party and an existing legal entity", () =>
@@ -188,6 +236,52 @@ describe("party contract", () => {
       Effect.provide(
         makeAuthorizationTestLayer([
           { identityId: principal.identityId, tenantId, capability: "party.create" },
+        ]),
+      ),
+    ))
+
+  it.effect("denies relationship creation without its capability", () =>
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      return yield* Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* PartyService
+          const party = yield* service.create({
+            principal,
+            tenantId,
+            kind: "organization",
+            name: "No Relationship Capability",
+          })
+          yield* service.assignRole({
+            principal,
+            tenantId,
+            partyId: party.id,
+            role: "supplier",
+          })
+          const legalEntity = yield* service.createLegalEntity({
+            principal,
+            tenantId,
+            organizationPartyId: party.id,
+          })
+          assert.instanceOf(
+            yield* Effect.flip(service.createRelationship({
+              principal,
+              tenantId,
+              partyId: party.id,
+              legalEntityId: legalEntity.id,
+              kind: "supplier",
+            })),
+            AuthorizationDenied,
+          )
+        }),
+        makePartyTestLayer(authorization),
+      )
+    }).pipe(
+      Effect.provide(
+        makeAuthorizationTestLayer([
+          { identityId: principal.identityId, tenantId, capability: "party.create" },
+          { identityId: principal.identityId, tenantId, capability: "party.role.assign" },
+          { identityId: principal.identityId, tenantId, capability: "party.legal_entity.create" },
         ]),
       ),
     ))

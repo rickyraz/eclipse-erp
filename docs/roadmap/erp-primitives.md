@@ -151,6 +151,11 @@ Legal Entity with a three-letter base-currency code, decimal precision,
 fiscal-year start month, and posting-enabled flag. Fiscal close/reopen and
 jurisdiction-specific currency rules remain out of scope.
 
+The initial `P0-08` relationship is tenant-scoped to one Party and one Legal
+Entity, reuses a PartyRole kind, requires that role to be assigned first, and
+starts active. It is a business eligibility relationship, not an authorization
+grant.
+
 ### P1 — Product, Quantity, and Location
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:

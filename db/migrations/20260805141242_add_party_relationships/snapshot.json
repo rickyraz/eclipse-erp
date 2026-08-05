@@ -1,0 +1,3749 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "29c24a55-f212-4753-8601-39579ab0006f",
+  "prevIds": [
+    "7b410023-f556-4826-b421-19c7a4369da4"
+  ],
+  "ddl": [
+    {
+      "name": "accounting",
+      "entityType": "schemas"
+    },
+    {
+      "name": "auth",
+      "entityType": "schemas"
+    },
+    {
+      "name": "authorization",
+      "entityType": "schemas"
+    },
+    {
+      "name": "identity",
+      "entityType": "schemas"
+    },
+    {
+      "name": "inventory",
+      "entityType": "schemas"
+    },
+    {
+      "name": "party",
+      "entityType": "schemas"
+    },
+    {
+      "name": "sales",
+      "entityType": "schemas"
+    },
+    {
+      "values": [
+        "asset",
+        "liability",
+        "equity",
+        "revenue",
+        "expense"
+      ],
+      "name": "account_type",
+      "entityType": "enums",
+      "schema": "accounting"
+    },
+    {
+      "values": [
+        "draft",
+        "posted",
+        "reversed"
+      ],
+      "name": "journal_status",
+      "entityType": "enums",
+      "schema": "accounting"
+    },
+    {
+      "values": [
+        "receipt",
+        "issue",
+        "reservation",
+        "release"
+      ],
+      "name": "movement_kind",
+      "entityType": "enums",
+      "schema": "inventory"
+    },
+    {
+      "values": [
+        "draft",
+        "confirmed",
+        "cancelled"
+      ],
+      "name": "order_status",
+      "entityType": "enums",
+      "schema": "sales"
+    },
+    {
+      "values": [
+        "person",
+        "organization"
+      ],
+      "name": "party_kind",
+      "entityType": "enums",
+      "schema": "party"
+    },
+    {
+      "values": [
+        "customer",
+        "supplier",
+        "employee",
+        "partner"
+      ],
+      "name": "party_role",
+      "entityType": "enums",
+      "schema": "party"
+    },
+    {
+      "values": [
+        "draft",
+        "sent",
+        "accepted",
+        "rejected",
+        "expired"
+      ],
+      "name": "quotation_status",
+      "entityType": "enums",
+      "schema": "sales"
+    },
+    {
+      "values": [
+        "active",
+        "released",
+        "fulfilled"
+      ],
+      "name": "reservation_status",
+      "entityType": "enums",
+      "schema": "inventory"
+    },
+    {
+      "values": [
+        "draft",
+        "confirmed",
+        "completed"
+      ],
+      "name": "transfer_status",
+      "entityType": "enums",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "accounts",
+      "entityType": "tables",
+      "schema": "accounting"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "branches",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "customers",
+      "entityType": "tables",
+      "schema": "sales"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "identities",
+      "entityType": "tables",
+      "schema": "identity"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "items",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "journal_entries",
+      "entityType": "tables",
+      "schema": "accounting"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "journal_lines",
+      "entityType": "tables",
+      "schema": "accounting"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "legal_entities",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "legal_entity_accounting_configurations",
+      "entityType": "tables",
+      "schema": "accounting"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "memberships",
+      "entityType": "tables",
+      "schema": "authorization"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "movements",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "orders",
+      "entityType": "tables",
+      "schema": "sales"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "parties",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "party_identifiers",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "party_relationships",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "party_roles",
+      "entityType": "tables",
+      "schema": "party"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "quotations",
+      "entityType": "tables",
+      "schema": "sales"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "reservations",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "sessions",
+      "entityType": "tables",
+      "schema": "auth"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "stock_balances",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "stock_transfer_lines",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "stock_transfers",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "tenants",
+      "entityType": "tables",
+      "schema": "auth"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "warehouses",
+      "entityType": "tables",
+      "schema": "inventory"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "account_type",
+      "typeSchema": "accounting",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "timezone",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "identity",
+      "table": "identities"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "identity",
+      "table": "identities"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "identity",
+      "table": "identities"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "identity",
+      "table": "identities"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sku",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reference",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "journal_status",
+      "typeSchema": "accounting",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "posted_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "entry_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "account_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'0'",
+      "generated": null,
+      "identity": null,
+      "name": "debit",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'0'",
+      "generated": null,
+      "identity": null,
+      "name": "credit",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_party_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_currency",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "decimal_precision",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "fiscal_year_start_month",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "posting_enabled",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "identity_id",
+      "entityType": "columns",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "capability",
+      "entityType": "columns",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "warehouse_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quantity",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "movement_kind",
+      "typeSchema": "inventory",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reference_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "customer_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quotation_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "order_status",
+      "typeSchema": "sales",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "total",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "party_kind",
+      "typeSchema": "party",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "party_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scheme",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "value",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "party_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "party_role",
+      "typeSchema": "party",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "party_id",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "type": "party_role",
+      "typeSchema": "party",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "customer_id",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "quotation_status",
+      "typeSchema": "sales",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "total",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "warehouse_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quantity",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "reservation_status",
+      "typeSchema": "inventory",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "identity_id",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "revoked_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "warehouse_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "on_hand",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "reserved",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "transfer_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quantity",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_warehouse_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "destination_warehouse_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "transfer_status",
+      "typeSchema": "inventory",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "confirmed_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "slug",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'UTC'",
+      "generated": null,
+      "identity": null,
+      "name": "timezone",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "primary_branch_id",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "accounts_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "legal_entities",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "branches_tenant_legal_entity_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "customers_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "items_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "journal_entries_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "entry_id"
+      ],
+      "schemaTo": "accounting",
+      "tableTo": "journal_entries",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "journal_lines_entry_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "account_id"
+      ],
+      "schemaTo": "accounting",
+      "tableTo": "accounts",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "journal_lines_account_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "organization_party_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "parties",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "legal_entities_tenant_organization_party_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "legal_entity_accounting_configurations_tenant_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "legal_entities",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "legal_entity_accounting_configurations_legal_entity_fkey",
+      "entityType": "fks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "identity_id"
+      ],
+      "schemaTo": "identity",
+      "tableTo": "identities",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "memberships_identity_id_fkey",
+      "entityType": "fks",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "memberships_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "warehouse_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "warehouses",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "movements_warehouse_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "item_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "items",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "movements_item_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "orders_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "customer_id"
+      ],
+      "schemaTo": "sales",
+      "tableTo": "customers",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "orders_tenant_customer_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "quotation_id"
+      ],
+      "schemaTo": "sales",
+      "tableTo": "quotations",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "orders_tenant_quotation_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "parties_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "party_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "parties",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "party_identifiers_tenant_party_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "party_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "parties",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "party_relationships_tenant_party_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "legal_entities",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "party_relationships_tenant_legal_entity_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "party_id",
+        "kind"
+      ],
+      "schemaTo": "party",
+      "tableTo": "party_roles",
+      "columnsTo": [
+        "tenant_id",
+        "party_id",
+        "role"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "party_relationships_tenant_party_role_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "party_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "parties",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "party_roles_tenant_party_fkey",
+      "entityType": "fks",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "quotations_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "customer_id"
+      ],
+      "schemaTo": "sales",
+      "tableTo": "customers",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "quotations_tenant_customer_fkey",
+      "entityType": "fks",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "warehouse_id",
+        "item_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "stock_balances",
+      "columnsTo": [
+        "tenant_id",
+        "warehouse_id",
+        "item_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "reservations_balance_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "identity_id"
+      ],
+      "schemaTo": "identity",
+      "tableTo": "identities",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "sessions_identity_id_fkey",
+      "entityType": "fks",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "warehouse_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "warehouses",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "stock_balances_warehouse_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "item_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "items",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "stock_balances_item_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "transfer_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "stock_transfers",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "stock_transfer_lines_transfer_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "item_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "items",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "stock_transfer_lines_item_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "source_warehouse_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "warehouses",
+      "columnsTo": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "stock_transfers_source_warehouse_scope_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "destination_warehouse_id"
+      ],
+      "schemaTo": "inventory",
+      "tableTo": "warehouses",
+      "columnsTo": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "stock_transfers_destination_warehouse_scope_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id"
+      ],
+      "schemaTo": "auth",
+      "tableTo": "tenants",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "warehouses_tenant_id_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "legal_entities",
+      "columnsTo": [
+        "tenant_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "warehouses_tenant_legal_entity_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "primary_branch_id"
+      ],
+      "schemaTo": "party",
+      "tableTo": "branches",
+      "columnsTo": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "warehouses_tenant_legal_entity_branch_fkey",
+      "entityType": "fks",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "columns": [
+        "tenant_id",
+        "legal_entity_id"
+      ],
+      "nameExplicit": false,
+      "name": "legal_entity_accounting_configurations_pkey",
+      "entityType": "pks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "columns": [
+        "identity_id",
+        "tenant_id",
+        "capability"
+      ],
+      "nameExplicit": false,
+      "name": "memberships_pkey",
+      "entityType": "pks",
+      "schema": "authorization",
+      "table": "memberships"
+    },
+    {
+      "columns": [
+        "tenant_id",
+        "party_id",
+        "role"
+      ],
+      "nameExplicit": false,
+      "name": "party_roles_pkey",
+      "entityType": "pks",
+      "schema": "party",
+      "table": "party_roles"
+    },
+    {
+      "columns": [
+        "tenant_id",
+        "warehouse_id",
+        "item_id"
+      ],
+      "nameExplicit": false,
+      "name": "stock_balances_pkey",
+      "entityType": "pks",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "accounts_pkey",
+      "schema": "accounting",
+      "table": "accounts",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "branches_pkey",
+      "schema": "party",
+      "table": "branches",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "customers_pkey",
+      "schema": "sales",
+      "table": "customers",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "identities_pkey",
+      "schema": "identity",
+      "table": "identities",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "items_pkey",
+      "schema": "inventory",
+      "table": "items",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "journal_entries_pkey",
+      "schema": "accounting",
+      "table": "journal_entries",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "journal_lines_pkey",
+      "schema": "accounting",
+      "table": "journal_lines",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "legal_entities_pkey",
+      "schema": "party",
+      "table": "legal_entities",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "movements_pkey",
+      "schema": "inventory",
+      "table": "movements",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "orders_pkey",
+      "schema": "sales",
+      "table": "orders",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "parties_pkey",
+      "schema": "party",
+      "table": "parties",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "party_identifiers_pkey",
+      "schema": "party",
+      "table": "party_identifiers",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "party_relationships_pkey",
+      "schema": "party",
+      "table": "party_relationships",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "quotations_pkey",
+      "schema": "sales",
+      "table": "quotations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "reservations_pkey",
+      "schema": "inventory",
+      "table": "reservations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "sessions_pkey",
+      "schema": "auth",
+      "table": "sessions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "stock_transfer_lines_pkey",
+      "schema": "inventory",
+      "table": "stock_transfer_lines",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "stock_transfers_pkey",
+      "schema": "inventory",
+      "table": "stock_transfers",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "tenants_pkey",
+      "schema": "auth",
+      "table": "tenants",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "warehouses_pkey",
+      "schema": "inventory",
+      "table": "warehouses",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "accounts_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "code"
+      ],
+      "nullsNotDistinct": false,
+      "name": "accounts_tenant_code_key",
+      "entityType": "uniques",
+      "schema": "accounting",
+      "table": "accounts"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "branches_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "name"
+      ],
+      "nullsNotDistinct": false,
+      "name": "branches_tenant_legal_entity_name_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "branches_tenant_legal_entity_id_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "branches"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "customers_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "name": "customers_tenant_email_key",
+      "entityType": "uniques",
+      "schema": "sales",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "name": "identities_email_key",
+      "entityType": "uniques",
+      "schema": "identity",
+      "table": "identities"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "items_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "sku"
+      ],
+      "nullsNotDistinct": false,
+      "name": "items_tenant_sku_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "items"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "journal_entries_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "reference"
+      ],
+      "nullsNotDistinct": false,
+      "name": "journal_entries_reference_key",
+      "entityType": "uniques",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "legal_entities_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "organization_party_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "legal_entities_tenant_organization_party_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "legal_entities"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "parties_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "parties"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "scheme",
+        "scope",
+        "value"
+      ],
+      "nullsNotDistinct": false,
+      "name": "party_identifiers_tenant_scheme_scope_value_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "party_identifiers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "party_relationships_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "party_id",
+        "legal_entity_id",
+        "kind"
+      ],
+      "nullsNotDistinct": false,
+      "name": "party_relationships_tenant_party_legal_entity_kind_key",
+      "entityType": "uniques",
+      "schema": "party",
+      "table": "party_relationships"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "quotations_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "token_hash"
+      ],
+      "nullsNotDistinct": false,
+      "name": "sessions_token_hash_key",
+      "entityType": "uniques",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "transfer_id",
+        "item_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "stock_transfer_lines_tenant_transfer_item_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "stock_transfers_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "slug"
+      ],
+      "nullsNotDistinct": false,
+      "name": "tenants_slug_key",
+      "entityType": "uniques",
+      "schema": "auth",
+      "table": "tenants"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "warehouses_tenant_id_id_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "warehouses_tenant_legal_entity_id_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "name"
+      ],
+      "nullsNotDistinct": false,
+      "name": "warehouses_tenant_name_key",
+      "entityType": "uniques",
+      "schema": "inventory",
+      "table": "warehouses"
+    },
+    {
+      "value": "(\"status\" = 'draft' and \"posted_at\" is null) or\n      (\"status\" in ('posted', 'reversed') and \"posted_at\" is not null)",
+      "name": "journal_entries_posted_at_check",
+      "entityType": "checks",
+      "schema": "accounting",
+      "table": "journal_entries"
+    },
+    {
+      "value": "(\"debit\" > 0 and \"credit\" = 0) or\n      (\"credit\" > 0 and \"debit\" = 0)",
+      "name": "journal_lines_amount_check",
+      "entityType": "checks",
+      "schema": "accounting",
+      "table": "journal_lines"
+    },
+    {
+      "value": "\"base_currency\" ~ '^[A-Z]{3}$'",
+      "name": "legal_entity_accounting_configurations_currency_check",
+      "entityType": "checks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "value": "\"decimal_precision\" between 0 and 18",
+      "name": "legal_entity_accounting_configurations_precision_check",
+      "entityType": "checks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "value": "\"fiscal_year_start_month\" between 1 and 12",
+      "name": "legal_entity_accounting_configurations_fiscal_month_check",
+      "entityType": "checks",
+      "schema": "accounting",
+      "table": "legal_entity_accounting_configurations"
+    },
+    {
+      "value": "\"quantity\" <> 0",
+      "name": "movements_quantity_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "movements"
+    },
+    {
+      "value": "\"total\" >= 0",
+      "name": "orders_total_check",
+      "entityType": "checks",
+      "schema": "sales",
+      "table": "orders"
+    },
+    {
+      "value": "\"total\" >= 0",
+      "name": "quotations_total_check",
+      "entityType": "checks",
+      "schema": "sales",
+      "table": "quotations"
+    },
+    {
+      "value": "\"quantity\" > 0",
+      "name": "reservations_quantity_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "reservations"
+    },
+    {
+      "value": "\"expires_at\" > \"created_at\"",
+      "name": "sessions_expiry_check",
+      "entityType": "checks",
+      "schema": "auth",
+      "table": "sessions"
+    },
+    {
+      "value": "\"on_hand\" >= 0",
+      "name": "stock_balances_on_hand_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "value": "\"reserved\" >= 0 and \"reserved\" <= \"on_hand\"",
+      "name": "stock_balances_reserved_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "stock_balances"
+    },
+    {
+      "value": "\"quantity\" > 0",
+      "name": "stock_transfer_lines_quantity_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "stock_transfer_lines"
+    },
+    {
+      "value": "\"source_warehouse_id\" <> \"destination_warehouse_id\"",
+      "name": "stock_transfers_distinct_warehouses_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    },
+    {
+      "value": "(\"status\" = 'draft' and \"confirmed_at\" is null and \"completed_at\" is null) or\n      (\"status\" = 'confirmed' and \"confirmed_at\" is not null and \"completed_at\" is null) or\n      (\"status\" = 'completed' and \"confirmed_at\" is not null and \"completed_at\" is not null)",
+      "name": "stock_transfers_state_dates_check",
+      "entityType": "checks",
+      "schema": "inventory",
+      "table": "stock_transfers"
+    }
+  ],
+  "renames": []
+}

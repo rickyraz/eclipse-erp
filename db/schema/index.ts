@@ -17,6 +17,7 @@ export {
   parties,
   partyIdentifiers,
   partyKind,
+  partyRelationships,
   partyRole,
   partyRoles,
   partySchema,

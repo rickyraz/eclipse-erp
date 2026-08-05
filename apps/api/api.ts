@@ -11,7 +11,14 @@ import * as OpenApi from "effect/unstable/httpapi/OpenApi"
 import { Principal } from "../../packages/auth/mod.ts"
 import { Capability } from "../../packages/authorization/mod.ts"
 import { Identity } from "../../packages/identity/mod.ts"
-import { ExternalIdentifier, Party, PartyKind, PartyRole } from "../../packages/party/mod.ts"
+import {
+  ExternalIdentifier,
+  Party,
+  PartyKind,
+  PartyRelationship,
+  PartyRelationshipKind,
+  PartyRole,
+} from "../../packages/party/mod.ts"
 import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
 import {
   Item,
@@ -61,6 +68,7 @@ const tenantHeaders = { "x-tenant-id": Schema.String }
 const CreatedIdentity = Identity.pipe(HttpApiSchema.status(201))
 const CreatedParty = Party.pipe(HttpApiSchema.status(201))
 const CreatedExternalIdentifier = ExternalIdentifier.pipe(HttpApiSchema.status(201))
+const CreatedPartyRelationship = PartyRelationship.pipe(HttpApiSchema.status(201))
 const CreatedCustomer = Customer.pipe(HttpApiSchema.status(201))
 const CreatedQuotation = Quotation.pipe(HttpApiSchema.status(201))
 const CreatedOrder = SalesOrder.pipe(HttpApiSchema.status(201))
@@ -131,6 +139,16 @@ const Parties = HttpApiGroup.make("Parties").add(
       value: Schema.String,
     }),
     success: CreatedExternalIdentifier,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createRelationship", "/parties/:id/relationships", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      legalEntityId: Schema.String,
+      kind: PartyRelationshipKind,
+    }),
+    success: CreatedPartyRelationship,
     error: errors,
   }).middleware(BearerAuth),
 )

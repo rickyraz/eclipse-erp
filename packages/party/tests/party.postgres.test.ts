@@ -11,6 +11,8 @@ import {
   LegalEntityAlreadyExists,
   makePartyService,
   OrganizationPartyRequired,
+  PartyRelationshipAlreadyExists,
+  PartyRelationshipRoleNotAssigned,
 } from "../mod.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -101,6 +103,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant.id,
             capability: "party.branch.create",
           },
+          {
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability: "party.role.assign",
+          },
+          {
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability: "party.relationship.create",
+          },
         ])
 
         yield* Effect.gen(function* () {
@@ -123,6 +135,40 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant.id,
             organizationPartyId: organization.id,
           })
+          assert.instanceOf(
+            yield* Effect.flip(party.createRelationship({
+              principal,
+              tenantId: tenant.id,
+              partyId: person.id,
+              legalEntityId: legalEntity.id,
+              kind: "supplier",
+            })),
+            PartyRelationshipRoleNotAssigned,
+          )
+          yield* party.assignRole({
+            principal,
+            tenantId: tenant.id,
+            partyId: organization.id,
+            role: "customer",
+          })
+          const relationship = yield* party.createRelationship({
+            principal,
+            tenantId: tenant.id,
+            partyId: organization.id,
+            legalEntityId: legalEntity.id,
+            kind: "customer",
+          })
+          assert.strictEqual(relationship.active, true)
+          assert.instanceOf(
+            yield* Effect.flip(party.createRelationship({
+              principal,
+              tenantId: tenant.id,
+              partyId: organization.id,
+              legalEntityId: legalEntity.id,
+              kind: "customer",
+            })),
+            PartyRelationshipAlreadyExists,
+          )
           assert.instanceOf(
             yield* Effect.flip(party.createLegalEntity({
               principal,
