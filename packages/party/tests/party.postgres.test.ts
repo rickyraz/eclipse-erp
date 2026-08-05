@@ -46,6 +46,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant.id,
             partyId: first.id,
+            provider: "GS1",
             scheme: "GLN",
             scope: "global",
             value: "1234567890123",
@@ -113,6 +114,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant.id,
             capability: "party.relationship.create",
           },
+          {
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability: "party.identifier.attach",
+          },
         ])
 
         yield* Effect.gen(function* () {
@@ -130,11 +136,50 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "person",
             name: "Scope Person",
           })
+          const secondOrganization = yield* party.create({
+            principal,
+            tenantId: tenant.id,
+            kind: "organization",
+            name: "Second Scope Organization",
+          })
           const legalEntity = yield* party.createLegalEntity({
             principal,
             tenantId: tenant.id,
             organizationPartyId: organization.id,
           })
+          const secondLegalEntity = yield* party.createLegalEntity({
+            principal,
+            tenantId: tenant.id,
+            organizationPartyId: secondOrganization.id,
+          })
+          const scopedIdentifier = {
+            principal,
+            tenantId: tenant.id,
+            provider: "GLEIF",
+            scheme: "LEI",
+            scope: "registry",
+            value: "5493001KJTIIGC8Y1R12",
+          }
+          const firstIdentifier = yield* party.attachIdentifier({
+            ...scopedIdentifier,
+            partyId: organization.id,
+            legalEntityId: legalEntity.id,
+          })
+          const secondIdentifier = yield* party.attachIdentifier({
+            ...scopedIdentifier,
+            partyId: secondOrganization.id,
+            legalEntityId: secondLegalEntity.id,
+          })
+          assert.strictEqual(firstIdentifier.legalEntityId, legalEntity.id)
+          assert.strictEqual(secondIdentifier.legalEntityId, secondLegalEntity.id)
+          assert.instanceOf(
+            yield* Effect.flip(party.attachIdentifier({
+              ...scopedIdentifier,
+              partyId: organization.id,
+              legalEntityId: legalEntity.id,
+            })),
+            ExternalIdentifierAlreadyAssigned,
+          )
           assert.instanceOf(
             yield* Effect.flip(party.createRelationship({
               principal,

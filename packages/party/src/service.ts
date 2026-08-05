@@ -38,8 +38,10 @@ export const ExternalIdentifier = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
   partyId: Schema.String,
+  provider: Schema.String,
   scheme: Schema.String,
   scope: Schema.String,
+  legalEntityId: Schema.NullOr(Schema.String),
   value: Schema.String,
 })
 
@@ -99,8 +101,10 @@ export const CreatePartyRelationshipInput = Schema.Struct({
 export const AttachExternalIdentifierInput = Schema.Struct({
   ...ScopedInput,
   partyId: Schema.String,
+  provider: NonEmptyString,
   scheme: NonEmptyString,
   scope: NonEmptyString,
+  legalEntityId: Schema.optionalKey(Schema.String),
   value: NonEmptyString,
 })
 
@@ -154,8 +158,10 @@ export class ExternalIdentifierAlreadyAssigned
     "ExternalIdentifierAlreadyAssigned",
     {
       tenantId: Schema.String,
+      provider: Schema.String,
       scheme: Schema.String,
       scope: Schema.String,
+      legalEntityId: Schema.NullOr(Schema.String),
       value: Schema.String,
     },
   ) {}
@@ -218,7 +224,10 @@ export interface PartyService {
     input: unknown,
   ) => Effect.Effect<
     ExternalIdentifier,
-    PartyNotFound | ExternalIdentifierAlreadyAssigned | CommonFailure
+    | LegalEntityNotFound
+    | PartyNotFound
+    | ExternalIdentifierAlreadyAssigned
+    | CommonFailure
   >
 }
 
@@ -235,8 +244,10 @@ const identifierSelection = {
   id: partyIdentifiers.id,
   tenantId: partyIdentifiers.tenantId,
   partyId: partyIdentifiers.partyId,
+  provider: partyIdentifiers.provider,
   scheme: partyIdentifiers.scheme,
   scope: partyIdentifiers.scope,
+  legalEntityId: partyIdentifiers.legalEntityId,
   value: partyIdentifiers.value,
 }
 
@@ -499,8 +510,10 @@ export const makePartyService = (
         tenantId: decoded.tenantId,
         capability: "party.identifier.attach",
       })
+      const provider = decoded.provider.trim().toUpperCase()
       const scheme = decoded.scheme.trim().toUpperCase()
       const scope = decoded.scope.trim()
+      const legalEntityId = decoded.legalEntityId ?? null
       const value = decoded.value.trim()
       const rows = yield* database.query(
         (db) =>
@@ -508,8 +521,10 @@ export const makePartyService = (
             .values({
               tenantId: decoded.tenantId,
               partyId: decoded.partyId,
+              provider,
               scheme,
               scope,
+              legalEntityId,
               value,
             })
             .returning(identifierSelection),
@@ -523,15 +538,34 @@ export const makePartyService = (
             })
           }
           if (
+            legalEntityId !== null &&
             isDatabaseConstraint(
               error,
-              "party_identifiers_tenant_scheme_scope_value_key",
+              "party_identifiers_tenant_legal_entity_fkey",
+              "23503",
+            )
+          ) {
+            return new LegalEntityNotFound({
+              tenantId: decoded.tenantId,
+              legalEntityId,
+            })
+          }
+          if (
+            isDatabaseConstraint(
+              error,
+              "party_identifiers_tenant_provider_scope_value_uq",
+            ) ||
+            isDatabaseConstraint(
+              error,
+              "party_identifiers_tenant_provider_entity_scope_value_uq",
             )
           ) {
             return new ExternalIdentifierAlreadyAssigned({
               tenantId: decoded.tenantId,
+              provider,
               scheme,
               scope,
+              legalEntityId,
               value,
             })
           }
@@ -743,16 +777,30 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
             new PartyNotFound({ tenantId: decoded.tenantId, partyId: decoded.partyId }),
           )
         }
+        const provider = decoded.provider.trim().toUpperCase()
         const scheme = decoded.scheme.trim().toUpperCase()
         const scope = decoded.scope.trim()
+        const legalEntityId = decoded.legalEntityId ?? null
+        if (
+          legalEntityId !== null &&
+          (storedLegalEntities.get(legalEntityId)?.tenantId !== decoded.tenantId)
+        ) {
+          return yield* Effect.fail(
+            new LegalEntityNotFound({ tenantId: decoded.tenantId, legalEntityId }),
+          )
+        }
         const value = decoded.value.trim()
-        const key = `${decoded.tenantId}:${scheme}:${scope}:${value}`
+        const key = `${decoded.tenantId}:${provider}:${scheme}:${scope}:${
+          legalEntityId ?? "tenant"
+        }:${value}`
         if (identifiers.has(key)) {
           return yield* Effect.fail(
             new ExternalIdentifierAlreadyAssigned({
               tenantId: decoded.tenantId,
+              provider,
               scheme,
               scope,
+              legalEntityId,
               value,
             }),
           )
@@ -762,8 +810,10 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           id: crypto.randomUUID(),
           tenantId: decoded.tenantId,
           partyId: decoded.partyId,
+          provider,
           scheme,
           scope,
+          legalEntityId,
           value,
         }
       }),

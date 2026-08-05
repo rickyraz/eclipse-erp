@@ -1,4 +1,14 @@
-import { boolean, foreignKey, pgSchema, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import {
+  boolean,
+  foreignKey,
+  pgSchema,
+  primaryKey,
+  text,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
@@ -126,21 +136,35 @@ export const partyIdentifiers = partySchema.table("party_identifiers", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
   partyId: uuid("party_id").notNull(),
+  provider: text("provider").notNull(),
   scheme: text("scheme").notNull(),
   scope: text("scope").notNull(),
+  legalEntityId: uuid("legal_entity_id"),
   value: text("value").notNull(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
-  unique("party_identifiers_tenant_scheme_scope_value_key").on(
-    table.tenantId,
-    table.scheme,
-    table.scope,
-    table.value,
-  ),
+  uniqueIndex("party_identifiers_tenant_provider_scope_value_uq")
+    .on(table.tenantId, table.provider, table.scheme, table.scope, table.value)
+    .where(sql`${table.legalEntityId} is null`),
+  uniqueIndex("party_identifiers_tenant_provider_entity_scope_value_uq")
+    .on(
+      table.tenantId,
+      table.provider,
+      table.legalEntityId,
+      table.scheme,
+      table.scope,
+      table.value,
+    )
+    .where(sql`${table.legalEntityId} is not null`),
   foreignKey({
     columns: [table.tenantId, table.partyId],
     foreignColumns: [parties.tenantId, parties.id],
     name: "party_identifiers_tenant_party_fkey",
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "party_identifiers_tenant_legal_entity_fkey",
   }).onDelete("cascade"),
 ])

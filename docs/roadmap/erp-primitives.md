@@ -156,6 +156,11 @@ Entity, reuses a PartyRole kind, requires that role to be assigned first, and
 starts active. It is a business eligibility relationship, not an authorization
 grant.
 
+The `P0-09` identifier migration requires an explicit provider backfill for
+existing identifier rows; it does not invent a provider or Legal Entity scope.
+Tenant-wide identifiers use a separate uniqueness path from Legal Entity-scoped
+identifiers.
+
 ### P1 — Product, Quantity, and Location
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:

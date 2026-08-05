@@ -55,6 +55,7 @@ describe("party contract", () => {
         principal,
         tenantId,
         partyId: party.id,
+        provider: "gs1",
         scheme: "gln",
         scope: "global",
         value: "1234567890123",
@@ -112,6 +113,7 @@ describe("party contract", () => {
         principal,
         tenantId,
         partyId: first.id,
+        provider: "gleif",
         scheme: "LEI",
         scope: "global",
         value: "5493001KJTIIGC8Y1R12",
@@ -155,6 +157,63 @@ describe("party contract", () => {
       }
       yield* service.createBranch(branch)
       assert.instanceOf(yield* Effect.flip(service.createBranch(branch)), BranchAlreadyExists)
+    })))
+
+  it.effect("scopes external identifiers by provider and legal entity", () =>
+    withParty(Effect.gen(function* () {
+      const service = yield* PartyService
+      const first = yield* service.create({
+        principal,
+        tenantId,
+        kind: "organization",
+        name: "First Identifier Owner",
+      })
+      const second = yield* service.create({
+        principal,
+        tenantId,
+        kind: "organization",
+        name: "Second Identifier Owner",
+      })
+      const firstLegalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationPartyId: first.id,
+      })
+      const secondLegalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationPartyId: second.id,
+      })
+      const identifier = {
+        principal,
+        tenantId,
+        provider: "registry",
+        scheme: "account",
+        scope: "local",
+        value: "42",
+      }
+      const firstIdentifier = yield* service.attachIdentifier({
+        ...identifier,
+        partyId: first.id,
+        legalEntityId: firstLegalEntity.id,
+      })
+      const secondIdentifier = yield* service.attachIdentifier({
+        ...identifier,
+        partyId: second.id,
+        legalEntityId: secondLegalEntity.id,
+      })
+
+      assert.strictEqual(firstIdentifier.provider, "REGISTRY")
+      assert.strictEqual(firstIdentifier.legalEntityId, firstLegalEntity.id)
+      assert.strictEqual(secondIdentifier.legalEntityId, secondLegalEntity.id)
+      assert.instanceOf(
+        yield* Effect.flip(service.attachIdentifier({
+          ...identifier,
+          partyId: first.id,
+          legalEntityId: "missing",
+        })),
+        LegalEntityNotFound,
+      )
     })))
 
   it.effect("requires an assigned role for a legal entity relationship", () =>

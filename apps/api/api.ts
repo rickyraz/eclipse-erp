@@ -134,8 +134,10 @@ const Parties = HttpApiGroup.make("Parties").add(
     params: { id: Schema.String },
     headers: tenantHeaders,
     payload: Schema.Struct({
+      provider: Schema.String,
       scheme: Schema.String,
       scope: Schema.String,
+      legalEntityId: Schema.optionalKey(Schema.String),
       value: Schema.String,
     }),
     success: CreatedExternalIdentifier,
