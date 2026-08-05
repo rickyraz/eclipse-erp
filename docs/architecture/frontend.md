@@ -11,6 +11,7 @@
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - SolidJS decision: [`../decisions/0009-use-solidjs-2.md`](../decisions/0009-use-solidjs-2.md)
 > - SPA architecture decision: [`../decisions/0010-use-vite-solidjs-spa.md`](../decisions/0010-use-vite-solidjs-spa.md)
+> - Contract schema decision: [`../decisions/0024-adopt-effect-schema-as-canonical-contract-schema.md`](../decisions/0024-adopt-effect-schema-as-canonical-contract-schema.md)
 > - Authorization architecture: [`./authorization.md`](./authorization.md)
 > - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
 > - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
@@ -335,7 +336,11 @@ Do not virtualize small tables without measurement.
 
 TanStack Solid Form manages client form state and interaction.
 
-Effect Schema remains the contract and decoding boundary.
+Effect Schema remains the contract and decoding boundary. The cross-layer schema
+policy is owned by [`ADR-0024`](../decisions/0024-adopt-effect-schema-as-canonical-contract-schema.md):
+shared API, route, plugin, Process Studio, and normalized integration contracts
+must not be duplicated with a second canonical validator. Effect v4 schemas may
+be adapted to Standard Schema with `Schema.toStandardSchemaV1`.
 
 A form layer may provide:
 

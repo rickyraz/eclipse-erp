@@ -46,5 +46,6 @@ current system; ADRs preserve decision history.
 | [`0021`](./0021-define-p0-scope-and-identity-model.md) | Define the P0 scope and identity model | Accepted |
 | [`0022`](./0022-update-effect-v4-to-beta-103.md) | Update Effect v4 and Deno adapter to beta.103 | Accepted |
 | [`0023`](./0023-adopt-capability-oriented-plugin-contribution.md) | Adopt capability-oriented plugin contribution | Accepted |
+| [`0024`](./0024-adopt-effect-schema-as-canonical-contract-schema.md) | Adopt Effect Schema as the canonical contract schema | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.
