@@ -21,7 +21,12 @@ import {
   StockTransferLine,
   Warehouse,
 } from "../../packages/inventory/mod.ts"
-import { Account, JournalEntry, JournalLine } from "../../packages/accounting/mod.ts"
+import {
+  Account,
+  AccountingConfiguration,
+  JournalEntry,
+  JournalLine,
+} from "../../packages/accounting/mod.ts"
 
 export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(
   "EclipseERP/Http/CurrentPrincipal",
@@ -63,6 +68,7 @@ const CreatedWarehouse = Warehouse.pipe(HttpApiSchema.status(201))
 const CreatedItem = Item.pipe(HttpApiSchema.status(201))
 const CreatedReservation = StockReservation.pipe(HttpApiSchema.status(201))
 const CreatedTransfer = StockTransfer.pipe(HttpApiSchema.status(201))
+const CreatedAccountingConfiguration = AccountingConfiguration.pipe(HttpApiSchema.status(201))
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
 
@@ -224,6 +230,18 @@ const Inventory = HttpApiGroup.make("Inventory").add(
 )
 
 const Accounting = HttpApiGroup.make("Accounting").add(
+  HttpApiEndpoint.post("configureLegalEntity", "/accounting/legal-entities/:id/configuration", {
+    params: { id: Schema.String },
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      baseCurrency: Schema.String,
+      precision: Schema.Int,
+      fiscalYearStartMonth: Schema.Int,
+      postingEnabled: Schema.Boolean,
+    }),
+    success: CreatedAccountingConfiguration,
+    error: errors,
+  }).middleware(BearerAuth),
   HttpApiEndpoint.post("createAccount", "/accounting/accounts", {
     headers: tenantHeaders,
     payload: Schema.Struct({

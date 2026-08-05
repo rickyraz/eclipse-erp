@@ -5,6 +5,7 @@ export {
   journalEntries,
   journalLines,
   journalStatus,
+  legalEntityAccountingConfigurations,
 } from "./accounting.ts"
 export { authSchema, sessions, tenants } from "./auth.ts"
 export { authorizationSchema, memberships } from "./authorization.ts"

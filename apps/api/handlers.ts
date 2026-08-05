@@ -310,6 +310,18 @@ export const AccountingHandlers = HttpApiBuilder.group(
   "Accounting",
   (handlers) =>
     handlers
+      .handle("configureLegalEntity", ({ headers, params, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* AccountingService.use((service) =>
+            service.configureLegalEntity({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              legalEntityId: params.id,
+              ...payload,
+            })
+          )
+        })))
       .handle("createAccount", ({ headers, payload }) =>
         apiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal

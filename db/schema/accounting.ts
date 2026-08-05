@@ -1,7 +1,19 @@
 import { sql } from "drizzle-orm"
-import { check, foreignKey, pgSchema, text, timestamp, unique, uuid } from "drizzle-orm/pg-core"
+import {
+  boolean,
+  check,
+  foreignKey,
+  pgSchema,
+  primaryKey,
+  smallint,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
+import { legalEntities } from "./party.ts"
 import { createdAt, id, money, updatedAt } from "./common.ts"
 
 export const accountingSchema = pgSchema("accounting")
@@ -12,6 +24,45 @@ export const accountType = accountingSchema.enum(
 export const journalStatus = accountingSchema.enum(
   "journal_status",
   ["draft", "posted", "reversed"],
+)
+
+export const legalEntityAccountingConfigurations = accountingSchema.table(
+  "legal_entity_accounting_configurations",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    legalEntityId: uuid("legal_entity_id").notNull(),
+    baseCurrency: text("base_currency").notNull(),
+    precision: smallint("decimal_precision").notNull(),
+    fiscalYearStartMonth: smallint("fiscal_year_start_month").notNull(),
+    postingEnabled: boolean("posting_enabled").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.legalEntityId] }),
+    foreignKey({
+      columns: [table.tenantId],
+      foreignColumns: [tenants.id],
+      name: "legal_entity_accounting_configurations_tenant_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tenantId, table.legalEntityId],
+      foreignColumns: [legalEntities.tenantId, legalEntities.id],
+      name: "legal_entity_accounting_configurations_legal_entity_fkey",
+    }),
+    check(
+      "legal_entity_accounting_configurations_currency_check",
+      sql`${table.baseCurrency} ~ '^[A-Z]{3}$'`,
+    ),
+    check(
+      "legal_entity_accounting_configurations_precision_check",
+      sql`${table.precision} between 0 and 18`,
+    ),
+    check(
+      "legal_entity_accounting_configurations_fiscal_month_check",
+      sql`${table.fiscalYearStartMonth} between 1 and 12`,
+    ),
+  ],
 )
 
 export const accounts = accountingSchema.table("accounts", {

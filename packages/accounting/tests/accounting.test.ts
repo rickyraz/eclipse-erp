@@ -1,23 +1,93 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { AccountingService, makeAccountingTestLayer, UnbalancedJournal } from "../mod.ts"
+import {
+  AuthorizationDenied,
+  AuthorizationService,
+  makeAuthorizationTestLayer,
+} from "../../authorization/mod.ts"
+import {
+  AccountingConfigurationAlreadyExists,
+  AccountingService,
+  makeAccountingTestLayer,
+  UnbalancedJournal,
+} from "../mod.ts"
 
 const principal = { identityId: "accountant", sessionId: "session" }
 const tenantId = "tenant-a"
-const authorizationLayer = makeAuthorizationTestLayer([
-  { identityId: principal.identityId, tenantId, capability: "accounting.account.create" },
-  { identityId: principal.identityId, tenantId, capability: "accounting.journal.post" },
-])
+const capabilities = [
+  "accounting.legal_entity.configure",
+  "accounting.account.create",
+  "accounting.journal.post",
+] as const
 
-const withAccounting = <A, E>(program: Effect.Effect<A, E, AccountingService>) =>
+const withAccounting = <A, E>(
+  program: Effect.Effect<A, E, AccountingService>,
+  grantedCapabilities: readonly string[] = capabilities,
+) =>
   Effect.gen(function* () {
     const authorization = yield* AuthorizationService
     return yield* Effect.provide(program, makeAccountingTestLayer(authorization))
-  }).pipe(Effect.provide(authorizationLayer))
+  }).pipe(
+    Effect.provide(
+      makeAuthorizationTestLayer(
+        grantedCapabilities.map((capability) => ({
+          identityId: principal.identityId,
+          tenantId,
+          capability: capability as (typeof capabilities)[number],
+        })),
+      ),
+    ),
+  )
 
 describe("accounting contract", () => {
+  it.effect("configures a legal entity once", () =>
+    withAccounting(Effect.gen(function* () {
+      const accounting = yield* AccountingService
+      const configuration = yield* accounting.configureLegalEntity({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-a",
+        baseCurrency: "usd",
+        precision: 2,
+        fiscalYearStartMonth: 1,
+        postingEnabled: true,
+      })
+      assert.strictEqual(configuration.baseCurrency, "USD")
+      assert.strictEqual(configuration.precision, 2)
+      assert.strictEqual(configuration.fiscalYearStartMonth, 1)
+      assert.strictEqual(configuration.postingEnabled, true)
+
+      const error = yield* Effect.flip(accounting.configureLegalEntity({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-a",
+        baseCurrency: "USD",
+        precision: 2,
+        fiscalYearStartMonth: 1,
+        postingEnabled: true,
+      }))
+      assert.instanceOf(error, AccountingConfigurationAlreadyExists)
+    })))
+
+  it.effect("requires the legal entity configuration capability", () =>
+    withAccounting(
+      Effect.gen(function* () {
+        const accounting = yield* AccountingService
+        const error = yield* Effect.flip(accounting.configureLegalEntity({
+          principal,
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          baseCurrency: "USD",
+          precision: 2,
+          fiscalYearStartMonth: 1,
+          postingEnabled: true,
+        }))
+        assert.instanceOf(error, AuthorizationDenied)
+      }),
+      capabilities.filter((capability) => capability !== "accounting.legal_entity.configure"),
+    ))
+
   it.effect("posts a balanced journal", () =>
     withAccounting(Effect.gen(function* () {
       const accounting = yield* AccountingService

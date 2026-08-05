@@ -146,6 +146,11 @@ warehouse or transfer rows. Deployments with existing inventory data need an
 explicit, reviewed backfill in the deployment migration; this migration fails
 closed rather than inventing ownership.
 
+The initial `P0-07` configuration is one accounting-owned row per tenant and
+Legal Entity with a three-letter base-currency code, decimal precision,
+fiscal-year start month, and posting-enabled flag. Fiscal close/reopen and
+jurisdiction-specific currency rules remain out of scope.
+
 ### P1 — Product, Quantity, and Location
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:

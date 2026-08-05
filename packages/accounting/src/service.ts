@@ -4,12 +4,29 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-import { accounts, journalEntries, journalLines } from "../../../db/schema/accounting.ts"
+import {
+  accounts,
+  journalEntries,
+  journalLines,
+  legalEntityAccountingConfigurations,
+} from "../../../db/schema/accounting.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, type AuthorizationServiceShape } from "../../authorization/mod.ts"
 import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
+const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
+const Precision = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 18 }))
+const FiscalYearStartMonth = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 12 }))
+
+export const AccountingConfiguration = Schema.Struct({
+  tenantId: Schema.String,
+  legalEntityId: Schema.String,
+  baseCurrency: CurrencyCode,
+  precision: Precision,
+  fiscalYearStartMonth: FiscalYearStartMonth,
+  postingEnabled: Schema.Boolean,
+})
 
 export const Account = Schema.Struct({
   id: Schema.String,
@@ -34,11 +51,21 @@ export const JournalEntry = Schema.Struct({
   lines: Schema.Array(JournalLine),
 })
 
+export type AccountingConfiguration = Schema.Schema.Type<typeof AccountingConfiguration>
 export type Account = Schema.Schema.Type<typeof Account>
 export type JournalLine = Schema.Schema.Type<typeof JournalLine>
 export type JournalEntry = Schema.Schema.Type<typeof JournalEntry>
 
 const ScopedInput = { principal: Principal, tenantId: Schema.String }
+
+export const ConfigureLegalEntityInput = Schema.Struct({
+  ...ScopedInput,
+  legalEntityId: Schema.String,
+  baseCurrency: CurrencyCode,
+  precision: Precision,
+  fiscalYearStartMonth: FiscalYearStartMonth,
+  postingEnabled: Schema.Boolean,
+})
 
 export const CreateAccountInput = Schema.Struct({
   ...ScopedInput,
@@ -53,6 +80,22 @@ export const PostJournalInput = Schema.Struct({
   lines: Schema.Array(JournalLine),
 })
 
+export class AccountingConfigurationAlreadyExists
+  extends Schema.TaggedErrorClass<AccountingConfigurationAlreadyExists>()(
+    "AccountingConfigurationAlreadyExists",
+    {
+      tenantId: Schema.String,
+      legalEntityId: Schema.String,
+    },
+  ) {}
+export class AccountingLegalEntityNotFound
+  extends Schema.TaggedErrorClass<AccountingLegalEntityNotFound>()(
+    "AccountingLegalEntityNotFound",
+    {
+      tenantId: Schema.String,
+      legalEntityId: Schema.String,
+    },
+  ) {}
 export class AccountAlreadyExists
   extends Schema.TaggedErrorClass<AccountAlreadyExists>()("AccountAlreadyExists", {
     tenantId: Schema.String,
@@ -82,6 +125,12 @@ export class UnbalancedJournal
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
 export interface AccountingService {
+  readonly configureLegalEntity: (
+    input: unknown,
+  ) => Effect.Effect<
+    AccountingConfiguration,
+    AccountingConfigurationAlreadyExists | AccountingLegalEntityNotFound | CommonFailure
+  >
   readonly createAccount: (
     input: unknown,
   ) => Effect.Effect<Account, AccountAlreadyExists | CommonFailure>
@@ -126,6 +175,58 @@ export const makeAccountingService = (
   database: DatabaseService,
   authorization: AuthorizationServiceShape,
 ): AccountingService => ({
+  configureLegalEntity: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: "accounting.legal_entity.configure",
+      })
+      const baseCurrency = decoded.baseCurrency.toUpperCase()
+      const rows = yield* database.query(
+        (db) =>
+          db.insert(legalEntityAccountingConfigurations).values({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            baseCurrency,
+            precision: decoded.precision,
+            fiscalYearStartMonth: decoded.fiscalYearStartMonth,
+            postingEnabled: decoded.postingEnabled,
+          }).returning({
+            tenantId: legalEntityAccountingConfigurations.tenantId,
+            legalEntityId: legalEntityAccountingConfigurations.legalEntityId,
+            baseCurrency: legalEntityAccountingConfigurations.baseCurrency,
+            precision: legalEntityAccountingConfigurations.precision,
+            fiscalYearStartMonth: legalEntityAccountingConfigurations.fiscalYearStartMonth,
+            postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
+          }),
+        "accounting.legal_entity.configure",
+      ).pipe(
+        Effect.mapError((error) => {
+          if (isDatabaseConstraint(error, "legal_entity_accounting_configurations_pkey")) {
+            return new AccountingConfigurationAlreadyExists({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+            })
+          }
+          if (
+            isDatabaseConstraint(
+              error,
+              "legal_entity_accounting_configurations_legal_entity_fkey",
+              "23503",
+            )
+          ) {
+            return new AccountingLegalEntityNotFound({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+            })
+          }
+          return error
+        }),
+      )
+      return rows[0]!
+    }),
   createAccount: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateAccountInput)(input)
@@ -227,9 +328,38 @@ export const makeAccountingService = (
 })
 
 export const makeAccountingTestLayer = (authorization: AuthorizationServiceShape) => {
+  const configurations = new Map<string, AccountingConfiguration>()
   const storedAccounts = new Map<string, Account>()
   const references = new Set<string>()
   const service: AccountingService = {
+    configureLegalEntity: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: "accounting.legal_entity.configure",
+        })
+        const key = `${decoded.tenantId}:${decoded.legalEntityId}`
+        if (configurations.has(key)) {
+          return yield* Effect.fail(
+            new AccountingConfigurationAlreadyExists({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+            }),
+          )
+        }
+        const configuration: AccountingConfiguration = {
+          tenantId: decoded.tenantId,
+          legalEntityId: decoded.legalEntityId,
+          baseCurrency: decoded.baseCurrency.toUpperCase(),
+          precision: decoded.precision,
+          fiscalYearStartMonth: decoded.fiscalYearStartMonth,
+          postingEnabled: decoded.postingEnabled,
+        }
+        configurations.set(key, configuration)
+        return configuration
+      }),
     createAccount: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateAccountInput)(input)

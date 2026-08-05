@@ -1,8 +1,12 @@
 export {
   Account,
   AccountAlreadyExists,
+  AccountingConfiguration,
+  AccountingConfigurationAlreadyExists,
+  AccountingLegalEntityNotFound,
   AccountingService,
   AccountNotFound,
+  ConfigureLegalEntityInput,
   CreateAccountInput,
   InvalidJournalLine,
   JournalEntry,
@@ -15,6 +19,7 @@ export {
 } from "./src/service.ts"
 export type {
   Account as AccountType,
+  AccountingConfiguration as AccountingConfigurationType,
   AccountingService as AccountingServiceShape,
   JournalEntry as JournalEntryType,
   JournalLine as JournalLineType,

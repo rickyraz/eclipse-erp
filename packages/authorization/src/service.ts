@@ -27,6 +27,7 @@ export const Capability = Schema.Literals([
   "inventory.stock.transfer.create",
   "inventory.stock.transfer.confirm",
   "inventory.stock.transfer.complete",
+  "accounting.legal_entity.configure",
   "accounting.account.create",
   "accounting.journal.post",
 ])
