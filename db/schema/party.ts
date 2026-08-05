@@ -62,6 +62,11 @@ export const branches = partySchema.table("branches", {
     table.legalEntityId,
     table.name,
   ),
+  unique("branches_tenant_legal_entity_id_key").on(
+    table.tenantId,
+    table.legalEntityId,
+    table.id,
+  ),
   foreignKey({
     columns: [table.tenantId, table.legalEntityId],
     foreignColumns: [legalEntities.tenantId, legalEntities.id],

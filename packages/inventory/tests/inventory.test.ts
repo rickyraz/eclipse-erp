@@ -9,12 +9,14 @@ import {
 import {
   InventoryService,
   makeInventoryTestLayer,
+  StockTransferDifferentLegalEntity,
   StockTransferInvalidState,
   StockUnavailable,
 } from "../mod.ts"
 
 const principal = { identityId: "keeper", sessionId: "session" }
 const tenantId = "tenant-a"
+const legalEntityId = "legal-entity-a"
 const capabilities = [
   "inventory.warehouse.create",
   "inventory.item.create",
@@ -47,7 +49,12 @@ describe("inventory contract", () => {
   it.effect("receives and atomically reserves available stock", () =>
     withInventory(Effect.gen(function* () {
       const inventory = yield* InventoryService
-      const warehouse = yield* inventory.createWarehouse({ principal, tenantId, name: "Main" })
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Main",
+      })
       const item = yield* inventory.createItem({
         principal,
         tenantId,
@@ -76,7 +83,12 @@ describe("inventory contract", () => {
   it.effect("rejects reservations above available stock", () =>
     withInventory(Effect.gen(function* () {
       const inventory = yield* InventoryService
-      const warehouse = yield* inventory.createWarehouse({ principal, tenantId, name: "Main" })
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Main",
+      })
       const item = yield* inventory.createItem({
         principal,
         tenantId,
@@ -96,10 +108,16 @@ describe("inventory contract", () => {
   it.effect("moves multiple items only across the confirmed and completed states", () =>
     withInventory(Effect.gen(function* () {
       const inventory = yield* InventoryService
-      const source = yield* inventory.createWarehouse({ principal, tenantId, name: "Source" })
+      const source = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Source",
+      })
       const destination = yield* inventory.createWarehouse({
         principal,
         tenantId,
+        legalEntityId,
         name: "Destination",
       })
       const widget = yield* inventory.createItem({
@@ -212,14 +230,47 @@ describe("inventory contract", () => {
       })
     })))
 
+  it.effect("rejects transfers across legal entities", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      const source = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-a",
+        name: "Source",
+      })
+      const destination = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-b",
+        name: "Destination",
+      })
+
+      const error = yield* Effect.flip(inventory.createTransfer({
+        principal,
+        tenantId,
+        sourceWarehouseId: source.id,
+        destinationWarehouseId: destination.id,
+        lines: [{ itemId: "item-1", quantity: "1" }],
+      }))
+
+      assert.instanceOf(error, StockTransferDifferentLegalEntity)
+    })))
+
   it.effect("requires a capability to confirm a transfer", () =>
     withInventory(
       Effect.gen(function* () {
         const inventory = yield* InventoryService
-        const source = yield* inventory.createWarehouse({ principal, tenantId, name: "Source" })
+        const source = yield* inventory.createWarehouse({
+          principal,
+          tenantId,
+          legalEntityId,
+          name: "Source",
+        })
         const destination = yield* inventory.createWarehouse({
           principal,
           tenantId,
+          legalEntityId,
           name: "Destination",
         })
         const item = yield* inventory.createItem({
@@ -249,10 +300,16 @@ describe("inventory contract", () => {
     withInventory(
       Effect.gen(function* () {
         const inventory = yield* InventoryService
-        const source = yield* inventory.createWarehouse({ principal, tenantId, name: "Source" })
+        const source = yield* inventory.createWarehouse({
+          principal,
+          tenantId,
+          legalEntityId,
+          name: "Source",
+        })
         const destination = yield* inventory.createWarehouse({
           principal,
           tenantId,
+          legalEntityId,
           name: "Destination",
         })
         const item = yield* inventory.createItem({

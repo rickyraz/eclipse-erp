@@ -3,14 +3,27 @@ import * as Effect from "effect/Effect"
 import type { Sql } from "postgres"
 
 import { makeAuthService } from "../../auth/mod.ts"
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { makeInventoryService, StockUnavailable } from "../mod.ts"
-import { makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import {
+  AuthorizationService,
+  type AuthorizationServiceShape,
+  makeAuthorizationTestLayer,
+} from "../../authorization/mod.ts"
+import { makePartyService } from "../../party/mod.ts"
+import {
+  makeInventoryService,
+  StockTransferDifferentLegalEntity,
+  StockUnavailable,
+  WarehouseBranchNotFound,
+} from "../mod.ts"
+import { type DatabaseService, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const principal = { identityId: "inventory-transfer-integration", sessionId: "session" }
 const capabilities = [
+  "party.create",
+  "party.legal_entity.create",
+  "party.branch.create",
   "inventory.warehouse.create",
   "inventory.item.create",
   "inventory.stock.receive",
@@ -34,6 +47,35 @@ const readBalances = (client: Sql, tenantId: string) =>
     order by warehouse_id, item_id
   `
 
+const createLegalEntityScope = (
+  database: DatabaseService,
+  authorization: AuthorizationServiceShape,
+  tenantId: string,
+  name: string,
+) =>
+  Effect.gen(function* () {
+    const party = makePartyService(database, authorization)
+    const organization = yield* party.create({
+      principal,
+      tenantId,
+      kind: "organization",
+      name: `${name} Organization`,
+    })
+    const legalEntity = yield* party.createLegalEntity({
+      principal,
+      tenantId,
+      organizationPartyId: organization.id,
+    })
+    const branch = yield* party.createBranch({
+      principal,
+      tenantId,
+      legalEntityId: legalEntity.id,
+      name: `${name} Branch`,
+      timezone: "Asia/Jakarta",
+    })
+    return { legalEntity, branch }
+  })
+
 it.effect.skipIf(databaseUrl === undefined)(
   "moves transfer lines only at confirmation and completion",
   () =>
@@ -52,15 +94,24 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
+          const scope = yield* createLegalEntityScope(
+            database,
+            authorization,
+            tenant.id,
+            "Transfer",
+          )
           const inventory = makeInventoryService(database, authorization)
           const source = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
+            primaryBranchId: scope.branch.id,
             name: "Source",
           })
           const destination = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
             name: "Destination",
           })
           const widget = yield* inventory.createItem({
@@ -190,15 +241,24 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
+          const scope = yield* createLegalEntityScope(
+            database,
+            authorization,
+            tenant.id,
+            "Rollback",
+          )
           const inventory = makeInventoryService(database, authorization)
           const source = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
+            primaryBranchId: scope.branch.id,
             name: "Source",
           })
           const destination = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
             name: "Destination",
           })
           const widget = yield* inventory.createItem({
@@ -260,6 +320,73 @@ it.effect.skipIf(databaseUrl === undefined)(
               `${a.warehouse_id}:${a.item_id}`.localeCompare(`${b.warehouse_id}:${b.item_id}`)
             ),
           )
+        }).pipe(Effect.provide(authorizationLayer))
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "enforces warehouse legal entity and branch scope",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const database = makePostgresDatabase(client)
+        const auth = makeAuthService(database)
+        const tenant = yield* auth.createTenant({ slug: `warehouse-${crypto.randomUUID()}` })
+        const authorizationLayer = makeAuthorizationTestLayer(
+          capabilities.map((capability) => ({
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability,
+          })),
+        )
+        yield* Effect.gen(function* () {
+          const authorization = yield* AuthorizationService
+          const sourceScope = yield* createLegalEntityScope(
+            database,
+            authorization,
+            tenant.id,
+            "Source",
+          )
+          const destinationScope = yield* createLegalEntityScope(
+            database,
+            authorization,
+            tenant.id,
+            "Destination",
+          )
+          const inventory = makeInventoryService(database, authorization)
+
+          const invalidWarehouse = yield* Effect.flip(inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: sourceScope.legalEntity.id,
+            primaryBranchId: destinationScope.branch.id,
+            name: "Invalid Branch Scope",
+          }))
+          assert.instanceOf(invalidWarehouse, WarehouseBranchNotFound)
+
+          const source = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: sourceScope.legalEntity.id,
+            primaryBranchId: sourceScope.branch.id,
+            name: "Source Warehouse",
+          })
+          const destination = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: destinationScope.legalEntity.id,
+            primaryBranchId: destinationScope.branch.id,
+            name: "Destination Warehouse",
+          })
+          const error = yield* Effect.flip(inventory.createTransfer({
+            principal,
+            tenantId: tenant.id,
+            sourceWarehouseId: source.id,
+            destinationWarehouseId: destination.id,
+            lines: [{ itemId: "item-not-needed", quantity: "1" }],
+          }))
+          assert.instanceOf(error, StockTransferDifferentLegalEntity)
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )

@@ -118,6 +118,34 @@ Exit criteria:
 - external identifiers are attached through the owning domain;
 - an ADR exists for any difficult-to-reverse identity or organization choice.
 
+### P0 Implementation Task Board
+
+Complete these tasks in order. Each task requires implementation evidence and
+focused contract, database, authorization, or integration tests; a completed
+schema or migration alone is not sufficient.
+
+| ID | Task | Required proof |
+|---|---|---|
+| `P0-01` | Freeze vocabulary and ownership for Tenant, Identity, Party, Organization Party, Legal Entity, Branch, Warehouse, currency, and timezone. | Ownership matrix, public terminology, and no unresolved P0 naming collision. |
+| `P0-02` | Harden tenant and legal-entity isolation. | Composite foreign keys, unique constraints, and negative tests reject cross-tenant and cross-legal-entity references. |
+| `P0-03` | Complete Identity membership and capability context. | One Identity can access multiple Tenants through separate memberships; Party representation never grants authorization by itself. |
+| `P0-04` | Implement Organization Party and Legal Entity lifecycle. | Owner-local commands, one-to-one Organization Party/Legal Entity constraint, tenant-scoped administration, and tagged failure tests. |
+| `P0-05` | Implement Branch scope and local metadata. | Branch is optional and operational/reporting scoped; timezone overrides, local tax registration, and dedicated journals are possible without creating an independent ledger, fiscal period, or base currency. |
+| `P0-06` | Bind Warehouse and stock ownership to Legal Entity. | A Warehouse has one authoritative Legal Entity owner, an optional primary Branch association, and stock cannot cross Legal Entity scope without an explicit transfer. |
+| `P0-07` | Complete Legal Entity accounting configuration. | Accounting owns base currency, precision, fiscal period, and posting configuration; Branch cannot override those authorities. |
+| `P0-08` | Complete PartyRole and PartyRelationship contracts. | One tenant-scoped Party may be customer and supplier; Legal Entity relationships carry eligibility and terms without becoming authorization grants. |
+| `P0-09` | Stabilize identifiers and public contracts. | Internal IDs remain stable and opaque; external IDs are scoped to provider/tenant/Legal Entity; Effect Schema commands, outputs, and failures have contract tests. |
+| `P0-10` | Prove the bootstrap vertical slice and failure boundaries. | Tenant → Party → Legal Entity → Branch → accounting configuration → Warehouse succeeds; duplicate, unauthorized, cross-tenant, cross-entity, and conflicting external-ID cases fail with typed errors. |
+
+P0 is `READY` only when all ten tasks have executable proof. The bootstrap
+coordinator may compose owner-local commands but must not become a new domain
+owner or universal persistence model.
+
+The `P0-06` migration does not infer Legal Entity ownership for existing
+warehouse or transfer rows. Deployments with existing inventory data need an
+explicit, reviewed backfill in the deployment migration; this migration fails
+closed rather than inventing ownership.
+
 ### P1 — Product, Quantity, and Location
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:

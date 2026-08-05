@@ -22,6 +22,8 @@ const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 export const Warehouse = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
+  legalEntityId: Schema.String,
+  primaryBranchId: Schema.NullOr(Schema.String),
   name: Schema.String,
 })
 export const Item = Schema.Struct({
@@ -53,6 +55,7 @@ export const StockTransferLine = Schema.Struct({
 export const StockTransfer = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
+  legalEntityId: Schema.String,
   sourceWarehouseId: Schema.String,
   destinationWarehouseId: Schema.String,
   status: StockTransferStatus,
@@ -70,7 +73,12 @@ export type StockTransferLine = Schema.Schema.Type<typeof StockTransferLine>
 export type StockTransfer = Schema.Schema.Type<typeof StockTransfer>
 
 const ScopedInput = { principal: Principal, tenantId: Schema.String }
-export const CreateWarehouseInput = Schema.Struct({ ...ScopedInput, name: Schema.String })
+export const CreateWarehouseInput = Schema.Struct({
+  ...ScopedInput,
+  legalEntityId: Schema.String,
+  primaryBranchId: Schema.optionalKey(Schema.String),
+  name: Schema.String,
+})
 export const CreateItemInput = Schema.Struct({
   ...ScopedInput,
   sku: Schema.String,
@@ -106,6 +114,17 @@ export class WarehouseAlreadyExists
     tenantId: Schema.String,
     name: Schema.String,
   }) {}
+export class WarehouseLegalEntityNotFound
+  extends Schema.TaggedErrorClass<WarehouseLegalEntityNotFound>()("WarehouseLegalEntityNotFound", {
+    tenantId: Schema.String,
+    legalEntityId: Schema.String,
+  }) {}
+export class WarehouseBranchNotFound
+  extends Schema.TaggedErrorClass<WarehouseBranchNotFound>()("WarehouseBranchNotFound", {
+    tenantId: Schema.String,
+    legalEntityId: Schema.String,
+    branchId: Schema.String,
+  }) {}
 export class ItemAlreadyExists
   extends Schema.TaggedErrorClass<ItemAlreadyExists>()("ItemAlreadyExists", {
     tenantId: Schema.String,
@@ -135,6 +154,15 @@ export class StockTransferSameWarehouse
     tenantId: Schema.String,
     warehouseId: Schema.String,
   }) {}
+export class StockTransferDifferentLegalEntity
+  extends Schema.TaggedErrorClass<StockTransferDifferentLegalEntity>()(
+    "StockTransferDifferentLegalEntity",
+    {
+      tenantId: Schema.String,
+      sourceWarehouseId: Schema.String,
+      destinationWarehouseId: Schema.String,
+    },
+  ) {}
 export class StockTransferDuplicateItem
   extends Schema.TaggedErrorClass<StockTransferDuplicateItem>()("StockTransferDuplicateItem", {
     tenantId: Schema.String,
@@ -156,7 +184,10 @@ type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 export interface InventoryService {
   readonly createWarehouse: (
     input: unknown,
-  ) => Effect.Effect<Warehouse, WarehouseAlreadyExists | CommonFailure>
+  ) => Effect.Effect<
+    Warehouse,
+    WarehouseAlreadyExists | WarehouseBranchNotFound | WarehouseLegalEntityNotFound | CommonFailure
+  >
   readonly createItem: (input: unknown) => Effect.Effect<Item, ItemAlreadyExists | CommonFailure>
   readonly receiveStock: (
     input: unknown,
@@ -168,6 +199,7 @@ export interface InventoryService {
     input: unknown,
   ) => Effect.Effect<
     StockTransfer,
+    | StockTransferDifferentLegalEntity
     | StockTransferDuplicateItem
     | StockTransferItemNotFound
     | StockTransferSameWarehouse
@@ -200,6 +232,7 @@ const referenceFailure = (tenantId: string, warehouseId: string, itemId: string)
 const transferSelection = {
   id: stockTransfers.id,
   tenantId: stockTransfers.tenantId,
+  legalEntityId: stockTransfers.legalEntityId,
   sourceWarehouseId: stockTransfers.sourceWarehouseId,
   destinationWarehouseId: stockTransfers.destinationWarehouseId,
   status: stockTransfers.status,
@@ -216,6 +249,7 @@ const toStockTransfer = (
   row: {
     readonly id: string
     readonly tenantId: string
+    readonly legalEntityId: string
     readonly sourceWarehouseId: string
     readonly destinationWarehouseId: string
     readonly status: StockTransferStatus
@@ -226,6 +260,7 @@ const toStockTransfer = (
 ): StockTransfer => ({
   id: row.id,
   tenantId: row.tenantId,
+  legalEntityId: row.legalEntityId,
   sourceWarehouseId: row.sourceWarehouseId,
   destinationWarehouseId: row.destinationWarehouseId,
   status: row.status,
@@ -258,20 +293,45 @@ export const makeInventoryService = (
         capability: "inventory.warehouse.create",
       })
       const name = decoded.name.trim()
+      const primaryBranchId = decoded.primaryBranchId ?? null
       const rows = yield* database.query(
         (db) =>
-          db.insert(warehouses).values({ tenantId: decoded.tenantId, name }).returning({
+          db.insert(warehouses).values({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            primaryBranchId,
+            name,
+          }).returning({
             id: warehouses.id,
             tenantId: warehouses.tenantId,
+            legalEntityId: warehouses.legalEntityId,
+            primaryBranchId: warehouses.primaryBranchId,
             name: warehouses.name,
           }),
         "inventory.warehouse.create",
       ).pipe(
-        Effect.mapError((error) =>
-          isDatabaseConstraint(error, "warehouses_tenant_name_key")
-            ? new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name })
-            : error
-        ),
+        Effect.mapError((error) => {
+          if (isDatabaseConstraint(error, "warehouses_tenant_name_key")) {
+            return new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name })
+          }
+          if (isDatabaseConstraint(error, "warehouses_tenant_legal_entity_fkey", "23503")) {
+            return new WarehouseLegalEntityNotFound({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+            })
+          }
+          if (
+            primaryBranchId !== null &&
+            isDatabaseConstraint(error, "warehouses_tenant_legal_entity_branch_fkey", "23503")
+          ) {
+            return new WarehouseBranchNotFound({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              branchId: primaryBranchId,
+            })
+          }
+          return error
+        }),
       )
       return rows[0]!
     }),
@@ -445,7 +505,10 @@ export const makeInventoryService = (
 
       const result = yield* database.transaction(
         async (tx) => {
-          const warehouseRows = await tx.select({ id: warehouses.id })
+          const warehouseRows = await tx.select({
+            id: warehouses.id,
+            legalEntityId: warehouses.legalEntityId,
+          })
             .from(warehouses)
             .where(
               and(
@@ -454,11 +517,23 @@ export const makeInventoryService = (
               ),
             )
             .for("update")
-          const warehouseIds = new Set(warehouseRows.map((row) => row.id))
-          const missingWarehouseId = [decoded.sourceWarehouseId, decoded.destinationWarehouseId]
-            .find((warehouseId) => !warehouseIds.has(warehouseId))
+          const warehousesById = new Map(warehouseRows.map((row) => [row.id, row]))
+          const sourceWarehouse = warehousesById.get(decoded.sourceWarehouseId)
+          const destinationWarehouse = warehousesById.get(decoded.destinationWarehouseId)
+          const missingWarehouseId = sourceWarehouse === undefined
+            ? decoded.sourceWarehouseId
+            : destinationWarehouse === undefined
+            ? decoded.destinationWarehouseId
+            : undefined
           if (missingWarehouseId !== undefined) {
             return { _tag: "warehouse-not-found" as const, warehouseId: missingWarehouseId }
+          }
+          if (sourceWarehouse!.legalEntityId !== destinationWarehouse!.legalEntityId) {
+            return {
+              _tag: "different-legal-entity" as const,
+              sourceWarehouseId: decoded.sourceWarehouseId,
+              destinationWarehouseId: decoded.destinationWarehouseId,
+            }
           }
 
           const itemRows = await tx.select({ id: items.id })
@@ -479,6 +554,7 @@ export const makeInventoryService = (
 
           const [row] = await tx.insert(stockTransfers).values({
             tenantId: decoded.tenantId,
+            legalEntityId: sourceWarehouse!.legalEntityId,
             sourceWarehouseId: decoded.sourceWarehouseId,
             destinationWarehouseId: decoded.destinationWarehouseId,
           }).returning(transferSelection)
@@ -503,6 +579,15 @@ export const makeInventoryService = (
           new StockTransferWarehouseNotFound({
             tenantId: decoded.tenantId,
             warehouseId: result.warehouseId,
+          }),
+        )
+      }
+      if (result._tag === "different-legal-entity") {
+        return yield* Effect.fail(
+          new StockTransferDifferentLegalEntity({
+            tenantId: decoded.tenantId,
+            sourceWarehouseId: result.sourceWarehouseId,
+            destinationWarehouseId: result.destinationWarehouseId,
           }),
         )
       }
@@ -755,7 +840,13 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
             new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name }),
           )
         }
-        const value = { id: crypto.randomUUID(), tenantId: decoded.tenantId, name }
+        const value = {
+          id: crypto.randomUUID(),
+          tenantId: decoded.tenantId,
+          legalEntityId: decoded.legalEntityId,
+          primaryBranchId: decoded.primaryBranchId ?? null,
+          name,
+        }
         storedWarehouses.set(value.id, value)
         return value
       }),
@@ -876,6 +967,17 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
             }),
           )
         }
+        const sourceWarehouse = storedWarehouses.get(decoded.sourceWarehouseId)!
+        const destinationWarehouse = storedWarehouses.get(decoded.destinationWarehouseId)!
+        if (destinationWarehouse.legalEntityId !== sourceWarehouse.legalEntityId) {
+          return yield* Effect.fail(
+            new StockTransferDifferentLegalEntity({
+              tenantId: decoded.tenantId,
+              sourceWarehouseId: decoded.sourceWarehouseId,
+              destinationWarehouseId: decoded.destinationWarehouseId,
+            }),
+          )
+        }
         const missingItem = decoded.lines.find((line) =>
           storedItems.get(line.itemId)?.tenantId !== decoded.tenantId
         )
@@ -890,6 +992,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
         const transfer: StockTransfer = {
           id: crypto.randomUUID(),
           tenantId: decoded.tenantId,
+          legalEntityId: sourceWarehouse.legalEntityId,
           sourceWarehouseId: decoded.sourceWarehouseId,
           destinationWarehouseId: decoded.destinationWarehouseId,
           status: "draft",

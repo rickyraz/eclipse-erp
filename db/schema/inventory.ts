@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
+import { branches, legalEntities } from "./party.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
 
 export const inventorySchema = pgSchema("inventory")
@@ -31,17 +32,34 @@ export const transferStatus = inventorySchema.enum(
 export const warehouses = inventorySchema.table("warehouses", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
+  primaryBranchId: uuid("primary_branch_id"),
   name: text("name").notNull(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
   unique("warehouses_tenant_id_id_key").on(table.tenantId, table.id),
+  unique("warehouses_tenant_legal_entity_id_key").on(
+    table.tenantId,
+    table.legalEntityId,
+    table.id,
+  ),
   unique("warehouses_tenant_name_key").on(table.tenantId, table.name),
   foreignKey({
     columns: [table.tenantId],
     foreignColumns: [tenants.id],
     name: "warehouses_tenant_id_fkey",
   }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "warehouses_tenant_legal_entity_fkey",
+  }),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId, table.primaryBranchId],
+    foreignColumns: [branches.tenantId, branches.legalEntityId, branches.id],
+    name: "warehouses_tenant_legal_entity_branch_fkey",
+  }),
 ])
 
 export const items = inventorySchema.table("items", {
@@ -91,6 +109,7 @@ export const stockBalances = inventorySchema.table("stock_balances", {
 export const stockTransfers = inventorySchema.table("stock_transfers", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
   sourceWarehouseId: uuid("source_warehouse_id").notNull(),
   destinationWarehouseId: uuid("destination_warehouse_id").notNull(),
   status: transferStatus("status").notNull().default("draft"),
@@ -101,14 +120,14 @@ export const stockTransfers = inventorySchema.table("stock_transfers", {
 }, (table) => [
   unique("stock_transfers_tenant_id_id_key").on(table.tenantId, table.id),
   foreignKey({
-    columns: [table.tenantId, table.sourceWarehouseId],
-    foreignColumns: [warehouses.tenantId, warehouses.id],
-    name: "stock_transfers_source_warehouse_fkey",
+    columns: [table.tenantId, table.legalEntityId, table.sourceWarehouseId],
+    foreignColumns: [warehouses.tenantId, warehouses.legalEntityId, warehouses.id],
+    name: "stock_transfers_source_warehouse_scope_fkey",
   }),
   foreignKey({
-    columns: [table.tenantId, table.destinationWarehouseId],
-    foreignColumns: [warehouses.tenantId, warehouses.id],
-    name: "stock_transfers_destination_warehouse_fkey",
+    columns: [table.tenantId, table.legalEntityId, table.destinationWarehouseId],
+    foreignColumns: [warehouses.tenantId, warehouses.legalEntityId, warehouses.id],
+    name: "stock_transfers_destination_warehouse_scope_fkey",
   }),
   check(
     "stock_transfers_distinct_warehouses_check",

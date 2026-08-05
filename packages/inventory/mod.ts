@@ -15,6 +15,7 @@ export {
   StockBalance,
   StockReservation,
   StockTransfer,
+  StockTransferDifferentLegalEntity,
   StockTransferDuplicateItem,
   StockTransferInvalidState,
   StockTransferItemNotFound,
@@ -26,6 +27,8 @@ export {
   StockUnavailable,
   Warehouse,
   WarehouseAlreadyExists,
+  WarehouseBranchNotFound,
+  WarehouseLegalEntityNotFound,
 } from "./src/service.ts"
 export type {
   InventoryService as InventoryServiceShape,

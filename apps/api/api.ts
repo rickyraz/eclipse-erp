@@ -165,7 +165,11 @@ const Sales = HttpApiGroup.make("Sales").add(
 const Inventory = HttpApiGroup.make("Inventory").add(
   HttpApiEndpoint.post("createWarehouse", "/inventory/warehouses", {
     headers: tenantHeaders,
-    payload: Schema.Struct({ name: Schema.String }),
+    payload: Schema.Struct({
+      legalEntityId: Schema.String,
+      primaryBranchId: Schema.optionalKey(Schema.String),
+      name: Schema.String,
+    }),
     success: CreatedWarehouse,
     error: errors,
   }).middleware(BearerAuth),
