@@ -7,7 +7,7 @@ export {
   makeAuthTestLayer,
   Principal,
   Session,
-  SessionIdentityNotFound,
+  SessionUserAccountNotFound,
   Tenant,
   TenantAlreadyExists,
 } from "./src/service.ts"

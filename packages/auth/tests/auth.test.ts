@@ -5,12 +5,12 @@ import {
   AuthService,
   InvalidSessionToken,
   makeAuthTestLayer,
-  SessionIdentityNotFound,
+  SessionUserAccountNotFound,
   TenantAlreadyExists,
 } from "../mod.ts"
 
 const withAuth = <A, E>(program: Effect.Effect<A, E, AuthService>) =>
-  Effect.provide(program, makeAuthTestLayer(new Set(["identity-1"])))
+  Effect.provide(program, makeAuthTestLayer(new Set(["user-account-1"])))
 
 describe("auth contract", () => {
   it.effect("creates tenants and rejects duplicate slugs", () =>
@@ -27,21 +27,21 @@ describe("auth contract", () => {
       )
     })))
 
-  it.effect("issues, authenticates, and revokes opaque sessions", () =>
+  it.effect("issues, authenticates, and revokes opaque user-account sessions", () =>
     withAuth(Effect.gen(function* () {
       const auth = yield* AuthService
-      const issued = yield* auth.issueSession({ identityId: "identity-1", ttlSeconds: 60 })
-      assert.strictEqual((yield* auth.authenticate(issued.token)).identityId, "identity-1")
+      const issued = yield* auth.issueSession({ userAccountId: "user-account-1", ttlSeconds: 60 })
+      assert.strictEqual((yield* auth.authenticate(issued.token)).userAccountId, "user-account-1")
       yield* auth.revoke(issued.session.id)
       assert.instanceOf(yield* Effect.flip(auth.authenticate(issued.token)), InvalidSessionToken)
     })))
 
-  it.effect("rejects sessions for unknown identities", () =>
+  it.effect("rejects sessions for unknown user accounts", () =>
     withAuth(Effect.gen(function* () {
       const auth = yield* AuthService
       assert.instanceOf(
-        yield* Effect.flip(auth.issueSession({ identityId: "missing", ttlSeconds: 60 })),
-        SessionIdentityNotFound,
+        yield* Effect.flip(auth.issueSession({ userAccountId: "missing", ttlSeconds: 60 })),
+        SessionUserAccountNotFound,
       )
     })))
 })

@@ -41,7 +41,7 @@ Structural `ast-grep` YAML rule tests remain on the `ast-grep` runner.
 
 ## Public Contract Tests
 
-The first public contract implementation is `packages/identity/mod.ts`, with
+The first public user-account contract implementation is `packages/identity/mod.ts`, with
 behavioral tests under `packages/identity/tests/`. Each exported domain contract
 must test:
 

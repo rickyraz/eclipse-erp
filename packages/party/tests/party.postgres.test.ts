@@ -2,18 +2,18 @@ import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
 import { makeAuthService } from "../../auth/mod.ts"
-import { makeIdentityService } from "../../identity/mod.ts"
+import { makeUserAccountService } from "../../identity/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 import {
   BranchAlreadyExists,
   ExternalIdentifierAlreadyAssigned,
-  IdentityPartyRepresentationAlreadyExists,
-  IdentityPartyRepresentationNotFound,
+  PartyRepresentationAlreadyExists,
+  PartyRepresentationNotFound,
   LegalEntityAlreadyExists,
   makePartyService,
-  OrganizationPartyRequired,
+  OrganizationRequired,
   PartyRelationshipAlreadyExists,
   PartyRelationshipRoleNotAssigned,
 } from "../mod.ts"
@@ -31,7 +31,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
         )
-        const principal = { identityId: "party-integration", sessionId: "session" }
+        const principal = { userAccountId: "party-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `party-${crypto.randomUUID()}` })
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -69,12 +69,12 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provide(
             makeAuthorizationTestLayer([
               {
-                identityId: principal.identityId,
+                userAccountId: principal.userAccountId,
                 tenantId: tenant.id,
                 capability: "party.create",
               },
               {
-                identityId: principal.identityId,
+                userAccountId: principal.userAccountId,
                 tenantId: tenant.id,
                 capability: "party.identifier.attach",
               },
@@ -95,39 +95,39 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
         )
-        const principal = { identityId: "scope-integration", sessionId: "session" }
+        const principal = { userAccountId: "scope-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({
           slug: `scope-${crypto.randomUUID()}`,
           timezone: "UTC",
         })
         const authorizationLayer = makeAuthorizationTestLayer([
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.create",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.legal_entity.create",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.branch.create",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.role.assign",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.relationship.create",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.identifier.attach",
           },
@@ -160,12 +160,12 @@ it.effect.skipIf(databaseUrl === undefined)(
           const legalEntity = yield* party.createLegalEntity({
             principal,
             tenantId: tenant.id,
-            organizationPartyId: organization.id,
+            organizationId: organization.id,
           })
           const secondLegalEntity = yield* party.createLegalEntity({
             principal,
             tenantId: tenant.id,
-            organizationPartyId: secondOrganization.id,
+            organizationId: secondOrganization.id,
           })
           const scopedIdentifier = {
             principal,
@@ -233,7 +233,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             yield* Effect.flip(party.createLegalEntity({
               principal,
               tenantId: tenant.id,
-              organizationPartyId: organization.id,
+              organizationId: organization.id,
             })),
             LegalEntityAlreadyExists,
           )
@@ -241,9 +241,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             yield* Effect.flip(party.createLegalEntity({
               principal,
               tenantId: tenant.id,
-              organizationPartyId: person.id,
+              organizationId: person.id,
             })),
-            OrganizationPartyRequired,
+            OrganizationRequired,
           )
           const branch = yield* party.createBranch({
             principal,
@@ -281,24 +281,24 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
         )
-        const identityService = yield* makeIdentityService.pipe(
+        const userAccountService = yield* makeUserAccountService.pipe(
           Effect.provideService(Database, database),
         )
-        const principal = { identityId: "representation-admin", sessionId: "session" }
+        const principal = { userAccountId: "representation-admin", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `representation-${crypto.randomUUID()}` })
-        const identity = yield* identityService.create({
+        const userAccount = yield* userAccountService.create({
           email: `representation-${crypto.randomUUID()}@example.test`,
         })
         const authorizationLayer = makeAuthorizationTestLayer([
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.create",
           },
           {
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.identity.represent",
+            capability: "party.representation.write",
           },
         ])
 
@@ -317,17 +317,17 @@ it.effect.skipIf(databaseUrl === undefined)(
           const input = {
             principal,
             tenantId: tenant.id,
-            identityId: identity.id,
+            userAccountId: userAccount.id,
             partyId: representedParty.id,
             kind: "representative",
           }
-          const representation = yield* party.createIdentityPartyRepresentation(input)
+          const representation = yield* party.createPartyRepresentation(input)
           assert.strictEqual(representation.active, true)
           assert.instanceOf(
-            yield* Effect.flip(party.createIdentityPartyRepresentation(input)),
-            IdentityPartyRepresentationAlreadyExists,
+            yield* Effect.flip(party.createPartyRepresentation(input)),
+            PartyRepresentationAlreadyExists,
           )
-          const inactive = yield* party.setIdentityPartyRepresentationActive({
+          const inactive = yield* party.setPartyRepresentationActive({
             principal,
             tenantId: tenant.id,
             representationId: representation.id,
@@ -335,13 +335,13 @@ it.effect.skipIf(databaseUrl === undefined)(
           })
           assert.strictEqual(inactive.active, false)
           assert.instanceOf(
-            yield* Effect.flip(party.setIdentityPartyRepresentationActive({
+            yield* Effect.flip(party.setPartyRepresentationActive({
               principal,
               tenantId: tenant.id,
               representationId: "00000000-0000-0000-0000-000000000000",
               active: true,
             })),
-            IdentityPartyRepresentationNotFound,
+            PartyRepresentationNotFound,
           )
         }).pipe(Effect.provide(authorizationLayer))
       })),

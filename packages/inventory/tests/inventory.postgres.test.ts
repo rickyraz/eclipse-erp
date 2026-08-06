@@ -16,7 +16,7 @@ import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "..
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
-const principal = { identityId: "inventory-transfer-integration", sessionId: "session" }
+const principal = { userAccountId: "inventory-transfer-integration", sessionId: "session" }
 const capabilities = [
   "party.create",
   "party.legal_entity.create",
@@ -56,7 +56,7 @@ const createLegalEntityScope = (tenantId: string, name: string) =>
     const legalEntity = yield* party.createLegalEntity({
       principal,
       tenantId,
-      organizationPartyId: organization.id,
+      organizationId: organization.id,
     })
     const branch = yield* party.createBranch({
       principal,
@@ -82,7 +82,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability,
           })),
@@ -236,7 +236,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability,
           })),
@@ -344,7 +344,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         const tenant = yield* auth.createTenant({ slug: `warehouse-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
-            identityId: principal.identityId,
+            userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability,
           })),

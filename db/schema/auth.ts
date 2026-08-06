@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm"
 import { check, foreignKey, pgSchema, text, timestamp, unique, uuid } from "drizzle-orm/pg-core"
 
-import { identities } from "./identity.ts"
+import { userAccounts } from "./identity.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
 
 export const authSchema = pgSchema("auth")
@@ -16,7 +16,7 @@ export const tenants = authSchema.table("tenants", {
 
 export const sessions = authSchema.table("sessions", {
   id: id(),
-  identityId: uuid("identity_id").notNull(),
+  userAccountId: uuid("user_account_id").notNull(),
   tokenHash: text("token_hash").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
@@ -25,9 +25,9 @@ export const sessions = authSchema.table("sessions", {
 }, (table) => [
   unique("sessions_token_hash_key").on(table.tokenHash),
   foreignKey({
-    columns: [table.identityId],
-    foreignColumns: [identities.id],
-    name: "sessions_identity_id_fkey",
+    columns: [table.userAccountId],
+    foreignColumns: [userAccounts.id],
+    name: "sessions_user_account_id_fkey",
   }).onDelete("cascade"),
   check("sessions_expiry_check", sql`${table.expiresAt} > ${table.createdAt}`),
 ])

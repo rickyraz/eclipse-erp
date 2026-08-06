@@ -10,15 +10,15 @@ export {
 export { authSchema, sessions, tenants } from "./auth.ts"
 export { authorizationSchema, memberships } from "./authorization.ts"
 export { createdAt, id, money, updatedAt, uuidv7 } from "./common.ts"
-export { identities, identitySchema } from "./identity.ts"
+export { identitySchema, userAccounts } from "./identity.ts"
 export {
   branches,
-  identityPartyRepresentations,
   legalEntities,
   parties,
   partyIdentifiers,
   partyKind,
   partyRelationships,
+  partyRepresentations,
   partyRole,
   partyRoles,
   partySchema,

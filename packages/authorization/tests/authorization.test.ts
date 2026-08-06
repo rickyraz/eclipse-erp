@@ -8,11 +8,11 @@ import {
   makeAuthorizationTestLayer,
 } from "../mod.ts"
 
-const principal = { identityId: "admin", sessionId: "session" }
+const principal = { userAccountId: "admin", sessionId: "session" }
 const initialGrant = {
-  identityId: principal.identityId,
+  userAccountId: principal.userAccountId,
   tenantId: "tenant-a",
-  capability: "identity.read" as const,
+  capability: "user_account.read" as const,
 }
 
 const withAuthorization = <A, E>(program: Effect.Effect<A, E, AuthorizationService>) =>
@@ -25,7 +25,7 @@ describe("authorization contract", () => {
       const decision = yield* service.authorize({
         principal,
         tenantId: "tenant-a",
-        capability: "identity.read",
+        capability: "user_account.read",
       })
       assert.strictEqual(decision.allowed, true)
       assert.strictEqual(decision.grant, "membership")
@@ -37,7 +37,7 @@ describe("authorization contract", () => {
       const error = yield* Effect.flip(service.authorize({
         principal,
         tenantId: "tenant-b",
-        capability: "identity.read",
+        capability: "user_account.read",
       }))
       assert.instanceOf(error, AuthorizationDenied)
     })))

@@ -5,7 +5,7 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 
 import { AuthService, InvalidSessionToken } from "../../packages/auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../packages/authorization/mod.ts"
-import { IdentityService } from "../../packages/identity/mod.ts"
+import { UserAccountService } from "../../packages/identity/mod.ts"
 import { DatabaseFailure } from "../../packages/kernel/mod.ts"
 import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
@@ -73,14 +73,14 @@ export const HealthHandlers = HttpApiBuilder.group(
   (handlers) => handlers.handle("health", () => Effect.succeed({ status: "ok" as const })),
 )
 
-export const IdentityHandlers = HttpApiBuilder.group(
+export const UserAccountHandlers = HttpApiBuilder.group(
   EclipseApi,
-  "Identities",
+  "UserAccounts",
   (handlers) =>
     handlers
       .handle(
         "create",
-        ({ payload }) => apiEffect(IdentityService.use((service) => service.create(payload))),
+        ({ payload }) => apiEffect(UserAccountService.use((service) => service.create(payload))),
       )
       .handle("list", ({ headers }) =>
         apiEffect(Effect.gen(function* () {
@@ -89,9 +89,9 @@ export const IdentityHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "identity.read",
+            capability: "user_account.read",
           })
-          return yield* IdentityService.use((service) => service.list())
+          return yield* UserAccountService.use((service) => service.list())
         })))
       .handle("get", ({ headers, params }) =>
         apiEffect(Effect.gen(function* () {
@@ -100,9 +100,9 @@ export const IdentityHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "identity.read",
+            capability: "user_account.read",
           })
-          return yield* IdentityService.use((service) => service.getById(params.id))
+          return yield* UserAccountService.use((service) => service.getById(params.id))
         })))
       .handle("update", ({ headers, params, payload }) =>
         apiEffect(Effect.gen(function* () {
@@ -111,9 +111,9 @@ export const IdentityHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "identity.write",
+            capability: "user_account.write",
           })
-          return yield* IdentityService.use((service) =>
+          return yield* UserAccountService.use((service) =>
             service.update({ id: params.id, email: payload.email })
           )
         })))
@@ -124,9 +124,9 @@ export const IdentityHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "identity.write",
+            capability: "user_account.write",
           })
-          yield* IdentityService.use((service) => service.remove(params.id))
+          yield* UserAccountService.use((service) => service.remove(params.id))
         }))),
 )
 
@@ -194,7 +194,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           capability: "auth.capability.grant",
         })
         yield* authorization.grant({
-          identityId: payload.identityId,
+          userAccountId: payload.userAccountId,
           tenantId: headers["x-tenant-id"],
           capability: payload.capability,
         })
@@ -364,7 +364,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
 
 export const ApiHandlers = Layer.mergeAll(
   HealthHandlers,
-  IdentityHandlers,
+  UserAccountHandlers,
   PartyHandlers,
   AuthorizationHandlers,
   SalesHandlers,

@@ -12,7 +12,7 @@ import {
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
-import { identities } from "./identity.ts"
+import { userAccounts } from "./identity.ts"
 
 export const partySchema = pgSchema("party")
 export const partyKind = partySchema.enum("party_kind", ["person", "organization"])
@@ -39,12 +39,12 @@ export const parties = partySchema.table("parties", {
   }).onDelete("cascade"),
 ])
 
-export const identityPartyRepresentations = partySchema.table(
-  "identity_party_representations",
+export const partyRepresentations = partySchema.table(
+  "party_representations",
   {
     id: id(),
     tenantId: uuid("tenant_id").notNull(),
-    identityId: uuid("identity_id").notNull(),
+    userAccountId: uuid("user_account_id").notNull(),
     partyId: uuid("party_id").notNull(),
     kind: text("kind").notNull(),
     active: boolean("active").notNull().default(true),
@@ -52,27 +52,27 @@ export const identityPartyRepresentations = partySchema.table(
     updatedAt: updatedAt(),
   },
   (table) => [
-    unique("identity_party_representations_tenant_id_id_key").on(table.tenantId, table.id),
-    unique("identity_party_representations_tenant_identity_party_kind_key").on(
+    unique("party_representations_tenant_id_id_key").on(table.tenantId, table.id),
+    unique("party_representations_tenant_user_account_party_kind_key").on(
       table.tenantId,
-      table.identityId,
+      table.userAccountId,
       table.partyId,
       table.kind,
     ),
     foreignKey({
       columns: [table.tenantId],
       foreignColumns: [tenants.id],
-      name: "identity_party_representations_tenant_fkey",
+      name: "party_representations_tenant_fkey",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.identityId],
-      foreignColumns: [identities.id],
-      name: "identity_party_representations_identity_fkey",
+      columns: [table.userAccountId],
+      foreignColumns: [userAccounts.id],
+      name: "party_representations_user_account_fkey",
     }).onDelete("cascade"),
     foreignKey({
       columns: [table.tenantId, table.partyId],
       foreignColumns: [parties.tenantId, parties.id],
-      name: "identity_party_representations_party_fkey",
+      name: "party_representations_party_fkey",
     }).onDelete("cascade"),
   ],
 )

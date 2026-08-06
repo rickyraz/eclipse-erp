@@ -17,7 +17,7 @@ export const CreateTenantInput = Schema.Struct({
   timezone: Schema.optionalKey(NonBlankString),
 })
 export const IssueSessionInput = Schema.Struct({
-  identityId: Schema.String,
+  userAccountId: Schema.String,
   ttlSeconds: PositiveSeconds,
 })
 
@@ -29,12 +29,12 @@ export const Tenant = Schema.Struct({
 
 export const Session = Schema.Struct({
   id: Schema.String,
-  identityId: Schema.String,
+  userAccountId: Schema.String,
   expiresAt: Schema.String,
 })
 
 export const Principal = Schema.Struct({
-  identityId: Schema.String,
+  userAccountId: Schema.String,
   sessionId: Schema.String,
 })
 
@@ -47,9 +47,9 @@ export class TenantAlreadyExists
     slug: Schema.String,
   }) {}
 
-export class SessionIdentityNotFound
-  extends Schema.TaggedErrorClass<SessionIdentityNotFound>()("SessionIdentityNotFound", {
-    identityId: Schema.String,
+export class SessionUserAccountNotFound
+  extends Schema.TaggedErrorClass<SessionUserAccountNotFound>()("SessionUserAccountNotFound", {
+    userAccountId: Schema.String,
   }) {}
 
 export class InvalidSessionToken
@@ -66,7 +66,10 @@ export interface AuthService {
   ) => Effect.Effect<Tenant, TenantAlreadyExists | DatabaseFailure | Schema.SchemaError>
   readonly issueSession: (
     input: unknown,
-  ) => Effect.Effect<IssuedSession, SessionIdentityNotFound | DatabaseFailure | Schema.SchemaError>
+  ) => Effect.Effect<
+    IssuedSession,
+    SessionUserAccountNotFound | DatabaseFailure | Schema.SchemaError
+  >
   readonly authenticate: (
     token: string,
   ) => Effect.Effect<Principal, InvalidSessionToken | DatabaseFailure>
@@ -94,8 +97,8 @@ const hashToken = (crypto: Crypto.Crypto, token: string) =>
     Effect.mapError((cause) => new DatabaseFailure({ operation: "session-token-hash", cause })),
   )
 
-const isMissingIdentity = (error: unknown) =>
-  isDatabaseConstraint(error, "sessions_identity_id_fkey", "23503")
+const isMissingUserAccount = (error: unknown) =>
+  isDatabaseConstraint(error, "sessions_user_account_id_fkey", "23503")
 
 export const makeAuthService = Effect.gen(function* () {
   const database = yield* Database
@@ -103,99 +106,99 @@ export const makeAuthService = Effect.gen(function* () {
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
-  createTenant: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
-      const slug = decoded.slug.trim().toLowerCase()
-      const timezone = decoded.timezone?.trim() ?? "UTC"
-      const rows = yield* database.query(
-        (db) =>
-          db.insert(tenants)
-            .values({ slug, timezone })
-            .returning({ id: tenants.id, slug: tenants.slug, timezone: tenants.timezone }),
-        "tenant.create",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDatabaseConstraint(error, "tenants_slug_key")
-            ? new TenantAlreadyExists({ slug })
-            : error
-        ),
-      )
-      return rows[0]!
-    }),
-  issueSession: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
-      const token = yield* makeToken(crypto)
-      const tokenHash = yield* hashToken(crypto, token)
-      const expiresAt = new Date(clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000)
-      const rows = yield* database.query(
-        (db) =>
-          db.insert(sessions)
-            .values({
-              identityId: decoded.identityId,
-              tokenHash,
-              expiresAt,
-            })
-            .returning({
-              id: sessions.id,
-              identityId: sessions.identityId,
-              expiresAt: sessions.expiresAt,
-            }),
-        "session.issue",
-      ).pipe(
-        Effect.mapError((error) =>
-          isMissingIdentity(error)
-            ? new SessionIdentityNotFound({ identityId: decoded.identityId })
-            : error
-        ),
-      )
-      const row = rows[0]!
-      return {
-        token,
-        session: {
-          id: row.id,
-          identityId: row.identityId,
-          expiresAt: row.expiresAt.toISOString(),
-        },
-      }
-    }),
-  authenticate: (token) =>
-    Effect.gen(function* () {
-      const tokenHash = yield* hashToken(crypto, token)
-      const rows = yield* database.query(
-        (db) =>
-          db.select({ id: sessions.id, identityId: sessions.identityId })
-            .from(sessions)
-            .where(
-              and(
-                eq(sessions.tokenHash, tokenHash),
-                isNull(sessions.revokedAt),
-                gt(sessions.expiresAt, now()),
+    createTenant: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
+        const slug = decoded.slug.trim().toLowerCase()
+        const timezone = decoded.timezone?.trim() ?? "UTC"
+        const rows = yield* database.query(
+          (db) =>
+            db.insert(tenants)
+              .values({ slug, timezone })
+              .returning({ id: tenants.id, slug: tenants.slug, timezone: tenants.timezone }),
+          "tenant.create",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(error, "tenants_slug_key")
+              ? new TenantAlreadyExists({ slug })
+              : error
+          ),
+        )
+        return rows[0]!
+      }),
+    issueSession: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
+        const token = yield* makeToken(crypto)
+        const tokenHash = yield* hashToken(crypto, token)
+        const expiresAt = new Date(clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000)
+        const rows = yield* database.query(
+          (db) =>
+            db.insert(sessions)
+              .values({
+                userAccountId: decoded.userAccountId,
+                tokenHash,
+                expiresAt,
+              })
+              .returning({
+                id: sessions.id,
+                userAccountId: sessions.userAccountId,
+                expiresAt: sessions.expiresAt,
+              }),
+          "session.issue",
+        ).pipe(
+          Effect.mapError((error) =>
+            isMissingUserAccount(error)
+              ? new SessionUserAccountNotFound({ userAccountId: decoded.userAccountId })
+              : error
+          ),
+        )
+        const row = rows[0]!
+        return {
+          token,
+          session: {
+            id: row.id,
+            userAccountId: row.userAccountId,
+            expiresAt: row.expiresAt.toISOString(),
+          },
+        }
+      }),
+    authenticate: (token) =>
+      Effect.gen(function* () {
+        const tokenHash = yield* hashToken(crypto, token)
+        const rows = yield* database.query(
+          (db) =>
+            db.select({ id: sessions.id, userAccountId: sessions.userAccountId })
+              .from(sessions)
+              .where(
+                and(
+                  eq(sessions.tokenHash, tokenHash),
+                  isNull(sessions.revokedAt),
+                  gt(sessions.expiresAt, now()),
+                ),
               ),
-            ),
-        "session.authenticate",
-      )
-      const row = rows[0]
-      if (row === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
-      return { identityId: row.identityId, sessionId: row.id }
-    }),
-  revoke: (sessionId) =>
-    Effect.gen(function* () {
-      const rows = yield* database.query(
-        (db) =>
-          db.update(sessions)
-            .set({ revokedAt: now(), updatedAt: now() })
-            .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)))
-            .returning({ id: sessions.id }),
-        "session.revoke",
-      )
-      if (rows[0] === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
-    }),
+          "session.authenticate",
+        )
+        const row = rows[0]
+        if (row === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
+        return { userAccountId: row.userAccountId, sessionId: row.id }
+      }),
+    revoke: (sessionId) =>
+      Effect.gen(function* () {
+        const rows = yield* database.query(
+          (db) =>
+            db.update(sessions)
+              .set({ revokedAt: now(), updatedAt: now() })
+              .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)))
+              .returning({ id: sessions.id }),
+          "session.revoke",
+        )
+        if (rows[0] === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
+      }),
   } satisfies AuthService
 })
 
-export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
+export const makeAuthTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
   Layer.effect(
     AuthService,
     Effect.gen(function* () {
@@ -203,7 +206,7 @@ export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
       const storedTenants = new Map<string, Tenant>()
       const storedSessions = new Map<
         string,
-        { identityId: string; sessionId: string; expiresAt: number }
+        { userAccountId: string; sessionId: string; expiresAt: number }
       >()
       let nextTenantId = 1
       let nextSessionId = 1
@@ -223,21 +226,28 @@ export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
         issueSession: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
-            if (validIdentityIds !== undefined && !validIdentityIds.has(decoded.identityId)) {
+            if (
+              validUserAccountIds !== undefined &&
+              !validUserAccountIds.has(decoded.userAccountId)
+            ) {
               return yield* Effect.fail(
-                new SessionIdentityNotFound({ identityId: decoded.identityId }),
+                new SessionUserAccountNotFound({ userAccountId: decoded.userAccountId }),
               )
             }
             const sequence = nextSessionId++
             const token = `test-token-${sequence}`
             const sessionId = `session-${sequence}`
             const expiresAt = clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000
-            storedSessions.set(token, { identityId: decoded.identityId, sessionId, expiresAt })
+            storedSessions.set(token, {
+              userAccountId: decoded.userAccountId,
+              sessionId,
+              expiresAt,
+            })
             return {
               token,
               session: {
                 id: sessionId,
-                identityId: decoded.identityId,
+                userAccountId: decoded.userAccountId,
                 expiresAt: new Date(expiresAt).toISOString(),
               },
             }
@@ -246,7 +256,10 @@ export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
           const session = storedSessions.get(token)
           return session === undefined || session.expiresAt <= clock.currentTimeMillisUnsafe()
             ? Effect.fail(new InvalidSessionToken({}))
-            : Effect.succeed({ identityId: session.identityId, sessionId: session.sessionId })
+            : Effect.succeed({
+              userAccountId: session.userAccountId,
+              sessionId: session.sessionId,
+            })
         },
         revoke: (sessionId) => {
           for (const [token, session] of storedSessions) {

@@ -10,7 +10,7 @@ import * as OpenApi from "effect/unstable/httpapi/OpenApi"
 
 import { Principal } from "../../packages/auth/mod.ts"
 import { Capability } from "../../packages/authorization/mod.ts"
-import { Identity } from "../../packages/identity/mod.ts"
+import { UserAccount } from "../../packages/identity/mod.ts"
 import {
   ExternalIdentifier,
   Party,
@@ -65,7 +65,7 @@ export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth, {
 
 const errors = [ApiUnauthorized, ApiForbidden, ApiNotFound, ApiConflict, ApiServiceUnavailable]
 const tenantHeaders = { "x-tenant-id": Schema.String }
-const CreatedIdentity = Identity.pipe(HttpApiSchema.status(201))
+const CreatedUserAccount = UserAccount.pipe(HttpApiSchema.status(201))
 const CreatedParty = Party.pipe(HttpApiSchema.status(201))
 const CreatedExternalIdentifier = ExternalIdentifier.pipe(HttpApiSchema.status(201))
 const CreatedPartyRelationship = PartyRelationship.pipe(HttpApiSchema.status(201))
@@ -86,31 +86,31 @@ const Health = HttpApiGroup.make("Health").add(
   }),
 )
 
-const Identities = HttpApiGroup.make("Identities").add(
-  HttpApiEndpoint.post("create", "/identities", {
+const UserAccounts = HttpApiGroup.make("UserAccounts").add(
+  HttpApiEndpoint.post("create", "/user-accounts", {
     payload: Schema.Struct({ email: Schema.String }),
-    success: CreatedIdentity,
+    success: CreatedUserAccount,
     error: errors,
   }),
-  HttpApiEndpoint.get("list", "/identities", {
+  HttpApiEndpoint.get("list", "/user-accounts", {
     headers: tenantHeaders,
-    success: Schema.Array(Identity),
+    success: Schema.Array(UserAccount),
     error: errors,
   }).middleware(BearerAuth),
-  HttpApiEndpoint.get("get", "/identities/:id", {
+  HttpApiEndpoint.get("get", "/user-accounts/:id", {
     params: { id: Schema.String },
     headers: tenantHeaders,
-    success: Identity,
+    success: UserAccount,
     error: errors,
   }).middleware(BearerAuth),
-  HttpApiEndpoint.patch("update", "/identities/:id", {
+  HttpApiEndpoint.patch("update", "/user-accounts/:id", {
     params: { id: Schema.String },
     headers: tenantHeaders,
     payload: Schema.Struct({ email: Schema.String }),
-    success: Identity,
+    success: UserAccount,
     error: errors,
   }).middleware(BearerAuth),
-  HttpApiEndpoint.delete("remove", "/identities/:id", {
+  HttpApiEndpoint.delete("remove", "/user-accounts/:id", {
     params: { id: Schema.String },
     headers: tenantHeaders,
     error: errors,
@@ -158,7 +158,7 @@ const Parties = HttpApiGroup.make("Parties").add(
 const Authorization = HttpApiGroup.make("Authorization").add(
   HttpApiEndpoint.post("grant", "/capabilities", {
     headers: tenantHeaders,
-    payload: Schema.Struct({ identityId: Schema.String, capability: Capability }),
+    payload: Schema.Struct({ userAccountId: Schema.String, capability: Capability }),
     error: errors,
   }).middleware(BearerAuth),
 )
@@ -281,7 +281,7 @@ const Accounting = HttpApiGroup.make("Accounting").add(
 )
 
 export const EclipseApi = HttpApi.make("EclipseERP")
-  .add(Health, Identities, Parties, Authorization, Sales, Inventory, Accounting)
+  .add(Health, UserAccounts, Parties, Authorization, Sales, Inventory, Accounting)
   .annotate(OpenApi.Title, "EclipseERP API")
   .annotate(OpenApi.Version, "0.1.0")
   .annotate(OpenApi.Description, "Typed modular-monolith ERP API")

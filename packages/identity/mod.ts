@@ -1,11 +1,11 @@
 export {
-  CreateIdentityInput,
-  Identity,
-  IdentityAlreadyExists,
-  IdentityNotFound,
-  IdentityService,
-  makeIdentityService,
-  makeIdentityTestLayer,
-  UpdateIdentityInput,
+  CreateUserAccountInput,
+  UserAccount,
+  UserAccountAlreadyExists,
+  UserAccountNotFound,
+  UserAccountService,
+  UpdateUserAccountInput,
+  makeUserAccountService,
+  makeUserAccountTestLayer,
 } from "./src/service.ts"
-export type { IdentityService as IdentityServiceShape } from "./src/service.ts"
+export type { UserAccountService as UserAccountServiceShape } from "./src/service.ts"

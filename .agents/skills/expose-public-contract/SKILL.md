@@ -89,5 +89,5 @@ Callers can perform the requested behavior through one typed public boundary; im
 - [Module contract](../../../docs/architecture/architecture-spec-v4.md)
 - [Testing strategy](../../../docs/development/testing.md)
 - [Architecture enforcement](../../../docs/architecture/architecture-enforcement.md)
-- [Identity public contract example](../../../packages/identity/mod.ts)
+- [UserAccount public contract example](../../../packages/identity/mod.ts)
 - [Party public contract example](../../../packages/party/mod.ts)

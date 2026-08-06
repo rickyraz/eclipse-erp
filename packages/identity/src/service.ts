@@ -5,182 +5,196 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-import { identities } from "../../../db/schema/identity.ts"
+import { userAccounts } from "../../../db/schema/identity.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
-export const CreateIdentityInput = Schema.Struct({
+export const CreateUserAccountInput = Schema.Struct({
   email: Schema.String,
 })
 
-export const UpdateIdentityInput = Schema.Struct({
+export const UpdateUserAccountInput = Schema.Struct({
   id: Schema.String,
   email: Schema.String,
 })
 
-export const Identity = Schema.Struct({
+export const UserAccount = Schema.Struct({
   id: Schema.String,
   email: Schema.String,
 })
 
-export type Identity = Schema.Schema.Type<typeof Identity>
+export type UserAccount = Schema.Schema.Type<typeof UserAccount>
 
-export class IdentityAlreadyExists
-  extends Schema.TaggedErrorClass<IdentityAlreadyExists>()("IdentityAlreadyExists", {
+export class UserAccountAlreadyExists
+  extends Schema.TaggedErrorClass<UserAccountAlreadyExists>()("UserAccountAlreadyExists", {
     email: Schema.String,
   }) {}
 
-export class IdentityNotFound
-  extends Schema.TaggedErrorClass<IdentityNotFound>()("IdentityNotFound", {
+export class UserAccountNotFound
+  extends Schema.TaggedErrorClass<UserAccountNotFound>()("UserAccountNotFound", {
     id: Schema.String,
   }) {}
 
-type IdentityWriteFailure =
-  | IdentityAlreadyExists
-  | IdentityNotFound
+type UserAccountWriteFailure =
+  | UserAccountAlreadyExists
+  | UserAccountNotFound
   | DatabaseFailure
   | Schema.SchemaError
 
-export interface IdentityService {
+export interface UserAccountService {
   readonly create: (
     input: unknown,
-  ) => Effect.Effect<Identity, IdentityAlreadyExists | DatabaseFailure | Schema.SchemaError>
+  ) => Effect.Effect<UserAccount, UserAccountAlreadyExists | DatabaseFailure | Schema.SchemaError>
   readonly getById: (
     id: string,
-  ) => Effect.Effect<Identity, IdentityNotFound | DatabaseFailure>
-  readonly list: () => Effect.Effect<readonly Identity[], DatabaseFailure>
-  readonly update: (input: unknown) => Effect.Effect<Identity, IdentityWriteFailure>
-  readonly remove: (id: string) => Effect.Effect<void, IdentityNotFound | DatabaseFailure>
+  ) => Effect.Effect<UserAccount, UserAccountNotFound | DatabaseFailure>
+  readonly list: () => Effect.Effect<readonly UserAccount[], DatabaseFailure>
+  readonly update: (input: unknown) => Effect.Effect<UserAccount, UserAccountWriteFailure>
+  readonly remove: (id: string) => Effect.Effect<void, UserAccountNotFound | DatabaseFailure>
 }
 
-export const IdentityService = Context.Service<IdentityService>("EclipseERP/IdentityService")
+export const UserAccountService = Context.Service<UserAccountService>(
+  "EclipseERP/UserAccountService",
+)
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()
-const isDuplicateEmail = (error: unknown) => isDatabaseConstraint(error, "identities_email_key")
+const isDuplicateEmail = (error: unknown) => isDatabaseConstraint(error, "user_accounts_email_key")
 
-const selectIdentity = {
-  id: identities.id,
-  email: identities.email,
+const selectUserAccount = {
+  id: userAccounts.id,
+  email: userAccounts.email,
 }
 
-export const makeIdentityService = Effect.gen(function* () {
+export const makeUserAccountService = Effect.gen(function* () {
   const database = yield* Database
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
-  create: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CreateIdentityInput)(input)
-      const email = normalizeEmail(decoded.email)
-      const rows = yield* database.query(
+    create: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(CreateUserAccountInput)(input)
+        const email = normalizeEmail(decoded.email)
+        const rows = yield* database.query(
+          (db) =>
+            db.insert(userAccounts)
+              .values({ email })
+              .returning(selectUserAccount),
+          "user-account.create",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDuplicateEmail(error) ? new UserAccountAlreadyExists({ email }) : error
+          ),
+        )
+        return rows[0]!
+      }),
+    getById: (id) =>
+      Effect.gen(function* () {
+        const rows = yield* database.query(
+          (db) => db.select(selectUserAccount).from(userAccounts).where(eq(userAccounts.id, id)),
+          "user-account.get",
+        )
+        const userAccount = rows[0]
+        if (userAccount === undefined) {
+          return yield* Effect.fail(new UserAccountNotFound({ id }))
+        }
+        return userAccount
+      }),
+    list: () =>
+      database.query(
         (db) =>
-          db.insert(identities)
-            .values({ email })
-            .returning(selectIdentity),
-        "identity.create",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDuplicateEmail(error) ? new IdentityAlreadyExists({ email }) : error
-        ),
-      )
-      return rows[0]!
-    }),
-  getById: (id) =>
-    Effect.gen(function* () {
-      const rows = yield* database.query(
-        (db) => db.select(selectIdentity).from(identities).where(eq(identities.id, id)),
-        "identity.get",
-      )
-      const identity = rows[0]
-      if (identity === undefined) return yield* Effect.fail(new IdentityNotFound({ id }))
-      return identity
-    }),
-  list: () =>
-    database.query(
-      (db) =>
-        db.select(selectIdentity).from(identities).orderBy(identities.createdAt, identities.id),
-      "identity.list",
-    ),
-  update: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(UpdateIdentityInput)(input)
-      const email = normalizeEmail(decoded.email)
-      const rows = yield* database.query(
-        (db) =>
-          db.update(identities)
-            .set({ email, updatedAt: now() })
-            .where(eq(identities.id, decoded.id))
-            .returning(selectIdentity),
-        "identity.update",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDuplicateEmail(error) ? new IdentityAlreadyExists({ email }) : error
-        ),
-      )
-      const identity = rows[0]
-      if (identity === undefined) {
-        return yield* Effect.fail(new IdentityNotFound({ id: decoded.id }))
-      }
-      return identity
-    }),
-  remove: (id) =>
-    Effect.gen(function* () {
-      const rows = yield* database.query(
-        (db) => db.delete(identities).where(eq(identities.id, id)).returning({ id: identities.id }),
-        "identity.remove",
-      )
-      if (rows[0] === undefined) return yield* Effect.fail(new IdentityNotFound({ id }))
-    }),
-  } satisfies IdentityService
+          db.select(selectUserAccount).from(userAccounts).orderBy(
+            userAccounts.createdAt,
+            userAccounts.id,
+          ),
+        "user-account.list",
+      ),
+    update: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(UpdateUserAccountInput)(input)
+        const email = normalizeEmail(decoded.email)
+        const rows = yield* database.query(
+          (db) =>
+            db.update(userAccounts)
+              .set({ email, updatedAt: now() })
+              .where(eq(userAccounts.id, decoded.id))
+              .returning(selectUserAccount),
+          "user-account.update",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDuplicateEmail(error) ? new UserAccountAlreadyExists({ email }) : error
+          ),
+        )
+        const userAccount = rows[0]
+        if (userAccount === undefined) {
+          return yield* Effect.fail(new UserAccountNotFound({ id: decoded.id }))
+        }
+        return userAccount
+      }),
+    remove: (id) =>
+      Effect.gen(function* () {
+        const rows = yield* database.query(
+          (db) =>
+            db.delete(userAccounts).where(eq(userAccounts.id, id)).returning({
+              id: userAccounts.id,
+            }),
+          "user-account.remove",
+        )
+        if (rows[0] === undefined) {
+          return yield* Effect.fail(new UserAccountNotFound({ id }))
+        }
+      }),
+  } satisfies UserAccountService
 })
 
-export const makeIdentityTestLayer = () => {
-  const stored = new Map<string, Identity>()
+export const makeUserAccountTestLayer = () => {
+  const stored = new Map<string, UserAccount>()
   const emails = new Set<string>()
   let nextId = 1
 
-  const service: IdentityService = {
+  const service: UserAccountService = {
     create: (input) =>
       Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(CreateIdentityInput)(input)
+        const decoded = yield* Schema.decodeUnknownEffect(CreateUserAccountInput)(input)
         const email = normalizeEmail(decoded.email)
-        if (emails.has(email)) return yield* Effect.fail(new IdentityAlreadyExists({ email }))
-        const identity = { id: String(nextId++), email }
+        if (emails.has(email)) {
+          return yield* Effect.fail(new UserAccountAlreadyExists({ email }))
+        }
+        const userAccount = { id: String(nextId++), email }
         emails.add(email)
-        stored.set(identity.id, identity)
-        return identity
+        stored.set(userAccount.id, userAccount)
+        return userAccount
       }),
     getById: (id) => {
-      const identity = stored.get(id)
-      return identity === undefined
-        ? Effect.fail(new IdentityNotFound({ id }))
-        : Effect.succeed(identity)
+      const userAccount = stored.get(id)
+      return userAccount === undefined
+        ? Effect.fail(new UserAccountNotFound({ id }))
+        : Effect.succeed(userAccount)
     },
     list: () => Effect.succeed([...stored.values()]),
     update: (input) =>
       Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(UpdateIdentityInput)(input)
+        const decoded = yield* Schema.decodeUnknownEffect(UpdateUserAccountInput)(input)
         const current = stored.get(decoded.id)
         if (current === undefined) {
-          return yield* Effect.fail(new IdentityNotFound({ id: decoded.id }))
+          return yield* Effect.fail(new UserAccountNotFound({ id: decoded.id }))
         }
         const email = normalizeEmail(decoded.email)
         if (email !== current.email && emails.has(email)) {
-          return yield* Effect.fail(new IdentityAlreadyExists({ email }))
+          return yield* Effect.fail(new UserAccountAlreadyExists({ email }))
         }
         emails.delete(current.email)
         emails.add(email)
-        const identity = { id: current.id, email }
-        stored.set(identity.id, identity)
-        return identity
+        const userAccount = { id: current.id, email }
+        stored.set(userAccount.id, userAccount)
+        return userAccount
       }),
     remove: (id) => {
-      const identity = stored.get(id)
-      if (identity === undefined) return Effect.fail(new IdentityNotFound({ id }))
+      const userAccount = stored.get(id)
+      if (userAccount === undefined) return Effect.fail(new UserAccountNotFound({ id }))
       stored.delete(id)
-      emails.delete(identity.email)
+      emails.delete(userAccount.email)
       return Effect.void
     },
   }
 
-  return Layer.succeed(IdentityService, service)
+  return Layer.succeed(UserAccountService, service)
 }

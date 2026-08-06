@@ -39,7 +39,7 @@ export const BootstrapTenantInput = Schema.Struct({
 
 export const BootstrapTenantResult = Schema.Struct({
   tenant: Tenant,
-  organizationParty: Party,
+  organization: Party,
   legalEntity: LegalEntity,
   branch: Branch,
   accountingConfiguration: AccountingConfiguration,
@@ -76,13 +76,13 @@ export const bootstrapTenant = (input: unknown) =>
 
     for (const capability of bootstrapCapabilities) {
       yield* authorization.grant({
-        identityId: decoded.principal.identityId,
+        userAccountId: decoded.principal.userAccountId,
         tenantId: tenant.id,
         capability,
       })
     }
 
-    const organizationParty = yield* party.create(
+    const organization = yield* party.create(
       {
         principal: decoded.principal,
         tenantId: tenant.id,
@@ -94,7 +94,7 @@ export const bootstrapTenant = (input: unknown) =>
       {
         principal: decoded.principal,
         tenantId: tenant.id,
-        organizationPartyId: organizationParty.id,
+        organizationId: organization.id,
       } satisfies Schema.Schema.Type<typeof CreateLegalEntityInput>,
     )
     const branch = yield* party.createBranch(
@@ -131,7 +131,7 @@ export const bootstrapTenant = (input: unknown) =>
 
     return {
       tenant,
-      organizationParty,
+      organization,
       legalEntity,
       branch,
       accountingConfiguration,

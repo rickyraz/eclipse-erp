@@ -51,5 +51,6 @@ current system; ADRs preserve decision history.
 | [`0026`](./0026-evaluate-celld-runtime-adapter.md) | Evaluate `celld` as the distributed runtime adapter | Proposed |
 | [`0027`](./0027-adopt-postgresql-first-replaceable-search.md) | Adopt PostgreSQL-first, replaceable search | Accepted |
 | [`0028`](./0028-complete-p0-identity-party-and-branch-metadata.md) | Complete P0 identity-party and branch metadata boundaries | Accepted |
+| [`0029`](./0029-rename-user-and-party-public-vocabulary.md) | Rename user and Party public vocabulary | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

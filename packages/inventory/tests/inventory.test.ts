@@ -14,7 +14,7 @@ import {
   StockUnavailable,
 } from "../mod.ts"
 
-const principal = { identityId: "keeper", sessionId: "session" }
+const principal = { userAccountId: "keeper", sessionId: "session" }
 const tenantId = "tenant-a"
 const legalEntityId = "legal-entity-a"
 const capabilities = [
@@ -36,7 +36,7 @@ const withInventory = <A, E>(
       Layer.provide(
         makeAuthorizationTestLayer(
         grantedCapabilities.map((capability) => ({
-          identityId: principal.identityId,
+          userAccountId: principal.userAccountId,
           tenantId,
           capability: capability as (typeof capabilities)[number],
         })),

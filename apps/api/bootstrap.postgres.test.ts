@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer"
 import { AuthService, makeAuthService, TenantAlreadyExists } from "../../packages/auth/mod.ts"
 import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
-import { makeIdentityService } from "../../packages/identity/mod.ts"
+import { makeUserAccountService } from "../../packages/identity/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import {
@@ -27,11 +27,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
         const databaseLayer = Layer.succeed(Database, database)
-        const identity = yield* Effect.provide(makeIdentityService, databaseLayer)
-        const identityRecord = yield* identity.create({
+        const userAccountService = yield* Effect.provide(makeUserAccountService, databaseLayer)
+        const userAccountRecord = yield* userAccountService.create({
           email: `bootstrap-${crypto.randomUUID()}@example.test`,
         })
-        const principal = { identityId: identityRecord.id, sessionId: "bootstrap-session" }
+        const principal = { userAccountId: userAccountRecord.id, sessionId: "bootstrap-session" }
         const authorization = yield* Effect.provide(makeAuthorizationService, databaseLayer)
         const authorizationLayer = Layer.succeed(AuthorizationService, authorization)
         const businessRequirements = Layer.merge(databaseLayer, authorizationLayer)
@@ -68,8 +68,8 @@ it.effect.skipIf(databaseUrl === undefined)(
         const result = yield* Effect.provide(bootstrapTenant(input), services)
 
         assert.strictEqual(result.tenant.slug, input.slug)
-        assert.strictEqual(result.organizationParty.kind, "organization")
-        assert.strictEqual(result.legalEntity.organizationPartyId, result.organizationParty.id)
+        assert.strictEqual(result.organization.kind, "organization")
+        assert.strictEqual(result.legalEntity.organizationId, result.organization.id)
         assert.strictEqual(result.branch.legalEntityId, result.legalEntity.id)
         assert.strictEqual(result.branch.localTaxRegistration, "TAX-MAIN-001")
         assert.strictEqual(result.branch.dedicatedJournalCode, "MAIN-OPS")

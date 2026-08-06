@@ -13,7 +13,7 @@ import {
   UnbalancedJournal,
 } from "../mod.ts"
 
-const principal = { identityId: "accountant", sessionId: "session" }
+const principal = { userAccountId: "accountant", sessionId: "session" }
 const tenantId = "tenant-a"
 const capabilities = [
   "accounting.legal_entity.configure",
@@ -31,7 +31,7 @@ const withAccounting = <A, E>(
       Layer.provide(
         makeAuthorizationTestLayer(
         grantedCapabilities.map((capability) => ({
-          identityId: principal.identityId,
+          userAccountId: principal.userAccountId,
           tenantId,
           capability: capability as (typeof capabilities)[number],
         })),

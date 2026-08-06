@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import type { Sql } from "postgres"
 
-import { identities } from "../../../db/schema/identity.ts"
+import { userAccounts } from "../../../db/schema/identity.ts"
 import {
   DatabaseFailure,
   isDatabaseConstraint,
@@ -40,22 +40,22 @@ describe("database service", () => {
       const database = makePostgresDatabase(client)
 
       const rows = yield* database.query((db) =>
-        db.select({ id: identities.id, email: identities.email }).from(identities)
+        db.select({ id: userAccounts.id, email: userAccounts.email }).from(userAccounts)
       )
 
       assert.strictEqual(rows[0]?.email, "typed@example.com")
-      assert.match(queries.at(-1)?.sql ?? "", /from "identity"\."identities"/i)
+      assert.match(queries.at(-1)?.sql ?? "", /from "identity"\."user_accounts"/i)
     }))
 
   it.effect("unwraps Drizzle failures when mapping constraints", () =>
     Effect.sync(() => {
-      const driverError = { code: "23505", constraint_name: "identities_email_key" }
+      const driverError = { code: "23505", constraint_name: "user_accounts_email_key" }
       const failure = new DatabaseFailure({
-        operation: "identity.create",
+        operation: "user-account.create",
         cause: new Error("query failed", { cause: driverError }),
       })
 
-      assert.strictEqual(isDatabaseConstraint(failure, "identities_email_key"), true)
+      assert.strictEqual(isDatabaseConstraint(failure, "user_accounts_email_key"), true)
     }))
 
   it.effect("rejects PostgreSQL versions below 19", () =>

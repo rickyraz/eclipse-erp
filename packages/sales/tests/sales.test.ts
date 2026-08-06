@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer"
 import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { CustomerAlreadyExists, makeSalesTestLayer, SalesService } from "../mod.ts"
 
-const principal = { identityId: "seller", sessionId: "session" }
+const principal = { userAccountId: "seller", sessionId: "session" }
 const tenantId = "tenant-a"
 const capabilities = [
   "sales.customer.create",
@@ -14,7 +14,7 @@ const capabilities = [
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
-  capabilities.map((capability) => ({ identityId: principal.identityId, tenantId, capability })),
+  capabilities.map((capability) => ({ userAccountId: principal.userAccountId, tenantId, capability })),
 )
 
 const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>

@@ -10,7 +10,7 @@ import postgres, { type Sql } from "postgres"
 
 import { AuthService, makeAuthService } from "../../packages/auth/mod.ts"
 import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
-import { IdentityService, makeIdentityService } from "../../packages/identity/mod.ts"
+import { makeUserAccountService, UserAccountService } from "../../packages/identity/mod.ts"
 import {
   type PostgresClient,
   PostgresDatabaseLive,
@@ -27,7 +27,9 @@ import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 const serviceLayers = (client: Sql) => {
   const database = PostgresDatabaseLive(client)
 
-  const identity = Layer.effect(IdentityService, makeIdentityService).pipe(Layer.provide(database))
+  const userAccount = Layer.effect(UserAccountService, makeUserAccountService).pipe(
+    Layer.provide(database),
+  )
 
   const auth = Layer.effect(AuthService, makeAuthService).pipe(
     Layer.provide(Layer.merge(database, WebCryptoLive)),
@@ -55,7 +57,7 @@ const serviceLayers = (client: Sql) => {
     Layer.provide(businessRequirements),
   )
 
-  return Layer.mergeAll(identity, auth, authorization, party, sales, inventory, accounting)
+  return Layer.mergeAll(userAccount, auth, authorization, party, sales, inventory, accounting)
 }
 
 export const makeApiLayer = (client: Sql, port = 8000) => {

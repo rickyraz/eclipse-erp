@@ -90,13 +90,15 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 
 ## Decision Order
 
-### P0 — Scope and Identity
+### P0 — Scope and User Accounts
 
-The initial scope and identity decisions are recorded in
+The initial scope and user-account decisions are recorded in
 [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md).
-The first implementation slice covers tenant timezone, Organization Party,
+Public user-account and Party vocabulary follows
+[`../decisions/0029-rename-user-and-party-public-vocabulary.md`](../decisions/0029-rename-user-and-party-public-vocabulary.md).
+The first implementation slice covers tenant timezone, Organization,
 Legal Entity, optional Branch, Warehouse and accounting Legal Entity scope,
-identity-party representation, scoped external identifiers, and the bootstrap
+PartyRepresentation, scoped external identifiers, and the bootstrap
 vertical slice. Advanced localization, journal policy, and legacy deployment
 upgrades remain bounded follow-up work.
 
@@ -128,10 +130,10 @@ schema or migration alone is not sufficient.
 
 | ID | Task | Required proof |
 |---|---|---|
-| `P0-01` | Freeze vocabulary and ownership for Tenant, Identity, Party, Organization Party, Legal Entity, Branch, Warehouse, currency, and timezone. | Ownership matrix, public terminology, and no unresolved P0 naming collision. |
+| `P0-01` | Freeze vocabulary and ownership for Tenant, UserAccount, Party, Organization, Legal Entity, Branch, Warehouse, currency, and timezone. | Ownership matrix, public terminology, and no unresolved P0 naming collision. |
 | `P0-02` | Harden tenant and legal-entity isolation. | Composite foreign keys, unique constraints, and negative tests reject cross-tenant and cross-legal-entity references. |
-| `P0-03` | Complete Identity membership and capability context. | One Identity can access multiple Tenants through separate memberships; Party representation never grants authorization by itself. |
-| `P0-04` | Implement Organization Party and Legal Entity lifecycle. | Owner-local commands, one-to-one Organization Party/Legal Entity constraint, tenant-scoped administration, and tagged failure tests. |
+| `P0-03` | Complete UserAccount membership and capability context. | One UserAccount can access multiple Tenants through separate memberships; PartyRepresentation never grants authorization by itself. |
+| `P0-04` | Implement Organization and Legal Entity lifecycle. | Owner-local commands, one-to-one Organization/Legal Entity constraint, tenant-scoped administration, and tagged failure tests. |
 | `P0-05` | Implement Branch scope and local metadata. | Branch is optional and operational/reporting scoped; timezone overrides, local tax registration, and dedicated journals are possible without creating an independent ledger, fiscal period, or base currency. |
 | `P0-06` | Bind Warehouse and stock ownership to Legal Entity. | A Warehouse has one authoritative Legal Entity owner, an optional primary Branch association, and stock cannot cross Legal Entity scope without an explicit transfer. |
 | `P0-07` | Complete Legal Entity accounting configuration. | Accounting owns base currency, precision, fiscal period, and posting configuration; Branch cannot override those authorities. |
@@ -145,7 +147,7 @@ owner or universal persistence model.
 
 Current implementation evidence: P0-01, P0-02, P0-04, P0-06, P0-07, P0-08,
 and P0-10 have owner-local contracts, constraints, and tests. P0-03 now has
-explicit identity-party representation persistence and capability checks. P0-05
+explicit PartyRepresentation persistence and capability checks. P0-05
 stores branch-local tax-registration and dedicated-journal metadata without
 moving tax or journal ownership into `party`. P0-09 has an explicit mapping
 backfill command. Legacy databases still require an operator-supplied mapping

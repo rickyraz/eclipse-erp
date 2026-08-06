@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema"
 
 import {
   branches,
-  identityPartyRepresentations,
+  partyRepresentations,
   legalEntities,
   parties,
   partyIdentifiers,
@@ -50,7 +50,7 @@ export const ExternalIdentifier = Schema.Struct({
 export const LegalEntity = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
-  organizationPartyId: Schema.String,
+  organizationId: Schema.String,
 })
 
 export const Branch = Schema.Struct({
@@ -63,14 +63,14 @@ export const Branch = Schema.Struct({
   dedicatedJournalCode: Schema.NullOr(Schema.String),
 })
 
-export const IdentityPartyRepresentationKind = NonBlankString
+export const PartyRepresentationKind = NonBlankString
 
-export const IdentityPartyRepresentation = Schema.Struct({
+export const PartyRepresentation = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
-  identityId: Schema.String,
+  userAccountId: Schema.String,
   partyId: Schema.String,
-  kind: IdentityPartyRepresentationKind,
+  kind: PartyRepresentationKind,
   active: Schema.Boolean,
 })
 
@@ -88,11 +88,9 @@ export type Party = Schema.Schema.Type<typeof Party>
 export type ExternalIdentifier = Schema.Schema.Type<typeof ExternalIdentifier>
 export type LegalEntity = Schema.Schema.Type<typeof LegalEntity>
 export type Branch = Schema.Schema.Type<typeof Branch>
-export type IdentityPartyRepresentation = Schema.Schema.Type<typeof IdentityPartyRepresentation>
+export type PartyRepresentation = Schema.Schema.Type<typeof PartyRepresentation>
 export type PartyRelationship = Schema.Schema.Type<typeof PartyRelationship>
-export type IdentityPartyRepresentationKind = Schema.Schema.Type<
-  typeof IdentityPartyRepresentationKind
->
+export type PartyRepresentationKind = Schema.Schema.Type<typeof PartyRepresentationKind>
 export type PartyRole = Schema.Schema.Type<typeof PartyRole>
 export type PartyRelationshipKind = Schema.Schema.Type<typeof PartyRelationshipKind>
 
@@ -129,7 +127,7 @@ export const AttachExternalIdentifierInput = Schema.Struct({
 
 export const CreateLegalEntityInput = Schema.Struct({
   ...ScopedInput,
-  organizationPartyId: Schema.String,
+  organizationId: Schema.String,
 })
 
 export const CreateBranchInput = Schema.Struct({
@@ -141,14 +139,14 @@ export const CreateBranchInput = Schema.Struct({
   dedicatedJournalCode: Schema.optionalKey(NonBlankString),
 })
 
-export const CreateIdentityPartyRepresentationInput = Schema.Struct({
+export const CreatePartyRepresentationInput = Schema.Struct({
   ...ScopedInput,
-  identityId: Schema.String,
+  userAccountId: Schema.String,
   partyId: Schema.String,
-  kind: IdentityPartyRepresentationKind,
+  kind: PartyRepresentationKind,
 })
 
-export const SetIdentityPartyRepresentationActiveInput = Schema.Struct({
+export const SetPartyRepresentationActiveInput = Schema.Struct({
   ...ScopedInput,
   representationId: Schema.String,
   active: Schema.Boolean,
@@ -200,8 +198,8 @@ export class ExternalIdentifierAlreadyAssigned
     },
   ) {}
 
-export class OrganizationPartyRequired
-  extends Schema.TaggedErrorClass<OrganizationPartyRequired>()("OrganizationPartyRequired", {
+export class OrganizationRequired
+  extends Schema.TaggedErrorClass<OrganizationRequired>()("OrganizationRequired", {
     tenantId: Schema.String,
     partyId: Schema.String,
   }) {}
@@ -209,7 +207,7 @@ export class OrganizationPartyRequired
 export class LegalEntityAlreadyExists
   extends Schema.TaggedErrorClass<LegalEntityAlreadyExists>()("LegalEntityAlreadyExists", {
     tenantId: Schema.String,
-    organizationPartyId: Schema.String,
+    organizationId: Schema.String,
   }) {}
 
 export class LegalEntityNotFound
@@ -225,29 +223,29 @@ export class BranchAlreadyExists
     name: Schema.String,
   }) {}
 
-export class IdentityPartyRepresentationIdentityNotFound
-  extends Schema.TaggedErrorClass<IdentityPartyRepresentationIdentityNotFound>()(
-    "IdentityPartyRepresentationIdentityNotFound",
+export class PartyRepresentationUserAccountNotFound
+  extends Schema.TaggedErrorClass<PartyRepresentationUserAccountNotFound>()(
+    "PartyRepresentationUserAccountNotFound",
     {
       tenantId: Schema.String,
-      identityId: Schema.String,
+      userAccountId: Schema.String,
     },
   ) {}
 
-export class IdentityPartyRepresentationAlreadyExists
-  extends Schema.TaggedErrorClass<IdentityPartyRepresentationAlreadyExists>()(
-    "IdentityPartyRepresentationAlreadyExists",
+export class PartyRepresentationAlreadyExists
+  extends Schema.TaggedErrorClass<PartyRepresentationAlreadyExists>()(
+    "PartyRepresentationAlreadyExists",
     {
       tenantId: Schema.String,
-      identityId: Schema.String,
+      userAccountId: Schema.String,
       partyId: Schema.String,
-      kind: IdentityPartyRepresentationKind,
+      kind: PartyRepresentationKind,
     },
   ) {}
 
-export class IdentityPartyRepresentationNotFound
-  extends Schema.TaggedErrorClass<IdentityPartyRepresentationNotFound>()(
-    "IdentityPartyRepresentationNotFound",
+export class PartyRepresentationNotFound
+  extends Schema.TaggedErrorClass<PartyRepresentationNotFound>()(
+    "PartyRepresentationNotFound",
     {
       tenantId: Schema.String,
       representationId: Schema.String,
@@ -263,27 +261,27 @@ export interface PartyService {
   ) => Effect.Effect<
     LegalEntity,
     | PartyNotFound
-    | OrganizationPartyRequired
+    | OrganizationRequired
     | LegalEntityAlreadyExists
     | CommonFailure
   >
   readonly createBranch: (
     input: unknown,
   ) => Effect.Effect<Branch, LegalEntityNotFound | BranchAlreadyExists | CommonFailure>
-  readonly createIdentityPartyRepresentation: (
+  readonly createPartyRepresentation: (
     input: unknown,
   ) => Effect.Effect<
-    IdentityPartyRepresentation,
-    | IdentityPartyRepresentationIdentityNotFound
-    | IdentityPartyRepresentationAlreadyExists
+    PartyRepresentation,
+    | PartyRepresentationUserAccountNotFound
+    | PartyRepresentationAlreadyExists
     | PartyNotFound
     | CommonFailure
   >
-  readonly setIdentityPartyRepresentationActive: (
+  readonly setPartyRepresentationActive: (
     input: unknown,
   ) => Effect.Effect<
-    IdentityPartyRepresentation,
-    IdentityPartyRepresentationNotFound | CommonFailure
+    PartyRepresentation,
+    PartyRepresentationNotFound | CommonFailure
   >
   readonly assignRole: (
     input: unknown,
@@ -332,7 +330,7 @@ const identifierSelection = {
 const legalEntitySelection = {
   id: legalEntities.id,
   tenantId: legalEntities.tenantId,
-  organizationPartyId: legalEntities.organizationPartyId,
+  organizationId: legalEntities.organizationPartyId,
 }
 
 const branchSelection = {
@@ -345,13 +343,13 @@ const branchSelection = {
   dedicatedJournalCode: branches.dedicatedJournalCode,
 }
 
-const identityPartyRepresentationSelection = {
-  id: identityPartyRepresentations.id,
-  tenantId: identityPartyRepresentations.tenantId,
-  identityId: identityPartyRepresentations.identityId,
-  partyId: identityPartyRepresentations.partyId,
-  kind: identityPartyRepresentations.kind,
-  active: identityPartyRepresentations.active,
+const partyRepresentationSelection = {
+  id: partyRepresentations.id,
+  tenantId: partyRepresentations.tenantId,
+  userAccountId: partyRepresentations.userAccountId,
+  partyId: partyRepresentations.partyId,
+  kind: partyRepresentations.kind,
+  active: partyRepresentations.active,
 }
 
 const relationshipSelection = {
@@ -399,7 +397,7 @@ export const makePartyService = Effect.gen(function* () {
             .where(
               and(
                 eq(parties.tenantId, decoded.tenantId),
-                eq(parties.id, decoded.organizationPartyId),
+                eq(parties.id, decoded.organizationId),
               ),
             ),
         "party.legal_entity.party.get",
@@ -407,14 +405,14 @@ export const makePartyService = Effect.gen(function* () {
       const party = partyRows[0]
       if (party === undefined) {
         return yield* Effect.fail(
-          new PartyNotFound({ tenantId: decoded.tenantId, partyId: decoded.organizationPartyId }),
+          new PartyNotFound({ tenantId: decoded.tenantId, partyId: decoded.organizationId }),
         )
       }
       if (party.kind !== "organization") {
         return yield* Effect.fail(
-          new OrganizationPartyRequired({
+          new OrganizationRequired({
             tenantId: decoded.tenantId,
-            partyId: decoded.organizationPartyId,
+            partyId: decoded.organizationId,
           }),
         )
       }
@@ -423,7 +421,7 @@ export const makePartyService = Effect.gen(function* () {
           db.insert(legalEntities)
             .values({
               tenantId: decoded.tenantId,
-              organizationPartyId: decoded.organizationPartyId,
+              organizationPartyId: decoded.organizationId,
             })
             .returning(legalEntitySelection),
         "party.legal_entity.create",
@@ -432,7 +430,7 @@ export const makePartyService = Effect.gen(function* () {
           isDatabaseConstraint(error, "legal_entities_tenant_organization_party_key")
             ? new LegalEntityAlreadyExists({
               tenantId: decoded.tenantId,
-              organizationPartyId: decoded.organizationPartyId,
+              organizationId: decoded.organizationId,
             })
             : error
         ),
@@ -497,44 +495,36 @@ export const makePartyService = Effect.gen(function* () {
       )
       return rows[0]!
     }),
-  createIdentityPartyRepresentation: (input) =>
+  createPartyRepresentation: (input) =>
     Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(
-        CreateIdentityPartyRepresentationInput,
-      )(input)
+      const decoded = yield* Schema.decodeUnknownEffect(CreatePartyRepresentationInput)(input)
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.identity.represent",
+        capability: "party.representation.write",
       })
       const kind = decoded.kind.trim()
       const rows = yield* database.query(
         (db) =>
-          db.insert(identityPartyRepresentations)
+          db.insert(partyRepresentations)
             .values({
               tenantId: decoded.tenantId,
-              identityId: decoded.identityId,
+              userAccountId: decoded.userAccountId,
               partyId: decoded.partyId,
               kind,
               active: true,
             })
-            .returning(identityPartyRepresentationSelection),
-        "party.identity.representation.create",
+            .returning(partyRepresentationSelection),
+        "party.representation.create",
       ).pipe(
         Effect.mapError((error) => {
-          if (
-            isDatabaseConstraint(
-              error,
-              "identity_party_representations_identity_fkey",
-              "23503",
-            )
-          ) {
-            return new IdentityPartyRepresentationIdentityNotFound({
+          if (isDatabaseConstraint(error, "party_representations_user_account_fkey", "23503")) {
+            return new PartyRepresentationUserAccountNotFound({
               tenantId: decoded.tenantId,
-              identityId: decoded.identityId,
+              userAccountId: decoded.userAccountId,
             })
           }
-          if (isDatabaseConstraint(error, "identity_party_representations_party_fkey", "23503")) {
+          if (isDatabaseConstraint(error, "party_representations_party_fkey", "23503")) {
             return new PartyNotFound({
               tenantId: decoded.tenantId,
               partyId: decoded.partyId,
@@ -543,12 +533,12 @@ export const makePartyService = Effect.gen(function* () {
           if (
             isDatabaseConstraint(
               error,
-              "identity_party_representations_tenant_identity_party_kind_key",
+              "party_representations_tenant_user_account_party_kind_key",
             )
           ) {
-            return new IdentityPartyRepresentationAlreadyExists({
+            return new PartyRepresentationAlreadyExists({
               tenantId: decoded.tenantId,
-              identityId: decoded.identityId,
+              userAccountId: decoded.userAccountId,
               partyId: decoded.partyId,
               kind,
             })
@@ -558,33 +548,31 @@ export const makePartyService = Effect.gen(function* () {
       )
       return rows[0]!
     }),
-  setIdentityPartyRepresentationActive: (input) =>
+  setPartyRepresentationActive: (input) =>
     Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(
-        SetIdentityPartyRepresentationActiveInput,
-      )(input)
+      const decoded = yield* Schema.decodeUnknownEffect(SetPartyRepresentationActiveInput)(input)
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.identity.represent",
+        capability: "party.representation.write",
       })
       const rows = yield* database.query(
         (db) =>
-          db.update(identityPartyRepresentations)
+          db.update(partyRepresentations)
             .set({ active: decoded.active })
             .where(
               and(
-                eq(identityPartyRepresentations.tenantId, decoded.tenantId),
-                eq(identityPartyRepresentations.id, decoded.representationId),
+                eq(partyRepresentations.tenantId, decoded.tenantId),
+                eq(partyRepresentations.id, decoded.representationId),
               ),
             )
-            .returning(identityPartyRepresentationSelection),
-        "party.identity.representation.set-active",
+            .returning(partyRepresentationSelection),
+        "party.representation.set-active",
       )
       const representation = rows[0]
       if (representation === undefined) {
         return yield* Effect.fail(
-          new IdentityPartyRepresentationNotFound({
+          new PartyRepresentationNotFound({
             tenantId: decoded.tenantId,
             representationId: decoded.representationId,
           }),
@@ -765,7 +753,7 @@ export const makePartyService = Effect.gen(function* () {
   } satisfies PartyService
 })
 
-export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
+export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
   Layer.effect(
     PartyService,
     Effect.gen(function* () {
@@ -776,7 +764,7 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
       const roles = new Set<string>()
       const relationships = new Map<string, PartyRelationship>()
       const identifiers = new Set<string>()
-      const representations = new Map<string, IdentityPartyRepresentation>()
+      const representations = new Map<string, PartyRepresentation>()
       let sequence = 1
       const nextId = () => `party-test-${sequence++}`
 
@@ -806,40 +794,40 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
           tenantId: decoded.tenantId,
           capability: "party.legal_entity.create",
         })
-        const party = stored.get(decoded.organizationPartyId)
+        const party = stored.get(decoded.organizationId)
         if (party === undefined || party.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(
             new PartyNotFound({
               tenantId: decoded.tenantId,
-              partyId: decoded.organizationPartyId,
+              partyId: decoded.organizationId,
             }),
           )
         }
         if (party.kind !== "organization") {
           return yield* Effect.fail(
-            new OrganizationPartyRequired({
+            new OrganizationRequired({
               tenantId: decoded.tenantId,
-              partyId: decoded.organizationPartyId,
+              partyId: decoded.organizationId,
             }),
           )
         }
         if (
           [...storedLegalEntities.values()].some((legalEntity) =>
             legalEntity.tenantId === decoded.tenantId &&
-            legalEntity.organizationPartyId === decoded.organizationPartyId
+            legalEntity.organizationId === decoded.organizationId
           )
         ) {
           return yield* Effect.fail(
             new LegalEntityAlreadyExists({
               tenantId: decoded.tenantId,
-              organizationPartyId: decoded.organizationPartyId,
+              organizationId: decoded.organizationId,
             }),
           )
         }
         const legalEntity = {
           id: nextId(),
           tenantId: decoded.tenantId,
-          organizationPartyId: decoded.organizationPartyId,
+          organizationId: decoded.organizationId,
         }
         storedLegalEntities.set(legalEntity.id, legalEntity)
         return legalEntity
@@ -889,21 +877,22 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
         storedBranches.set(branch.id, branch)
         return branch
       }),
-    createIdentityPartyRepresentation: (input) =>
+    createPartyRepresentation: (input) =>
       Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(
-          CreateIdentityPartyRepresentationInput,
-        )(input)
+        const decoded = yield* Schema.decodeUnknownEffect(CreatePartyRepresentationInput)(input)
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.identity.represent",
+          capability: "party.representation.write",
         })
-        if (validIdentityIds !== undefined && !validIdentityIds.has(decoded.identityId)) {
+        if (
+          validUserAccountIds !== undefined &&
+          !validUserAccountIds.has(decoded.userAccountId)
+        ) {
           return yield* Effect.fail(
-            new IdentityPartyRepresentationIdentityNotFound({
+            new PartyRepresentationUserAccountNotFound({
               tenantId: decoded.tenantId,
-              identityId: decoded.identityId,
+              userAccountId: decoded.userAccountId,
             }),
           )
         }
@@ -915,14 +904,14 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
         const kind = decoded.kind.trim()
         if ([...representations.values()].some((representation) =>
           representation.tenantId === decoded.tenantId &&
-          representation.identityId === decoded.identityId &&
+          representation.userAccountId === decoded.userAccountId &&
           representation.partyId === decoded.partyId &&
           representation.kind === kind
         )) {
           return yield* Effect.fail(
-            new IdentityPartyRepresentationAlreadyExists({
+            new PartyRepresentationAlreadyExists({
               tenantId: decoded.tenantId,
-              identityId: decoded.identityId,
+              userAccountId: decoded.userAccountId,
               partyId: decoded.partyId,
               kind,
             }),
@@ -931,7 +920,7 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
         const representation = {
           id: nextId(),
           tenantId: decoded.tenantId,
-          identityId: decoded.identityId,
+          userAccountId: decoded.userAccountId,
           partyId: decoded.partyId,
           kind,
           active: true,
@@ -939,20 +928,18 @@ export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
         representations.set(representation.id, representation)
         return representation
       }),
-    setIdentityPartyRepresentationActive: (input) =>
+    setPartyRepresentationActive: (input) =>
       Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(
-          SetIdentityPartyRepresentationActiveInput,
-        )(input)
+        const decoded = yield* Schema.decodeUnknownEffect(SetPartyRepresentationActiveInput)(input)
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.identity.represent",
+          capability: "party.representation.write",
         })
         const representation = representations.get(decoded.representationId)
         if (representation === undefined || representation.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(
-            new IdentityPartyRepresentationNotFound({
+            new PartyRepresentationNotFound({
               tenantId: decoded.tenantId,
               representationId: decoded.representationId,
             }),

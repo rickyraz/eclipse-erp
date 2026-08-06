@@ -22,7 +22,7 @@ import {
 } from "../../packages/inventory/mod.ts"
 import { bootstrapTenant } from "./bootstrap.ts"
 
-const principal = { identityId: "bootstrap-admin", sessionId: "session" }
+const principal = { userAccountId: "bootstrap-admin", sessionId: "session" }
 const input = {
   principal,
   slug: "acme",
@@ -64,8 +64,8 @@ it.effect("bootstraps the tenant scope vertical slice", () =>
 
     assert.strictEqual(result.tenant.slug, "acme")
     assert.strictEqual(result.tenant.timezone, "Asia/Jakarta")
-    assert.strictEqual(result.organizationParty.kind, "organization")
-    assert.strictEqual(result.legalEntity.organizationPartyId, result.organizationParty.id)
+    assert.strictEqual(result.organization.kind, "organization")
+    assert.strictEqual(result.legalEntity.organizationId, result.organization.id)
     assert.strictEqual(result.branch.legalEntityId, result.legalEntity.id)
     assert.strictEqual(result.branch.localTaxRegistration, "TAX-JKT-001")
     assert.strictEqual(result.branch.dedicatedJournalCode, "JKT-OPS")
@@ -90,7 +90,7 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
 
     assert.instanceOf(
       yield* Effect.flip(party.create({
-        principal: { identityId: "outsider", sessionId: "session" },
+        principal: { userAccountId: "outsider", sessionId: "session" },
         tenantId: result.tenant.id,
         kind: "organization",
         name: "Unauthorized",
@@ -100,7 +100,7 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
 
     const otherTenant = yield* auth.createTenant({ slug: "other" })
     yield* authorization.grant({
-      identityId: principal.identityId,
+      userAccountId: principal.userAccountId,
       tenantId: otherTenant.id,
       capability: "party.branch.create",
     })
@@ -115,14 +115,14 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
     )
 
     yield* authorization.grant({
-      identityId: principal.identityId,
+      userAccountId: principal.userAccountId,
       tenantId: result.tenant.id,
       capability: "party.identifier.attach",
     })
     const identifier = {
       principal,
       tenantId: result.tenant.id,
-      partyId: result.organizationParty.id,
+      partyId: result.organization.id,
       provider: "registry",
       scheme: "account",
       scope: "global",
@@ -135,7 +135,7 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
     )
 
     yield* authorization.grant({
-      identityId: principal.identityId,
+      userAccountId: principal.userAccountId,
       tenantId: result.tenant.id,
       capability: "inventory.stock.transfer.create",
     })

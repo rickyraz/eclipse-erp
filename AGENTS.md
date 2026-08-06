@@ -285,9 +285,9 @@ Keep failure types at the layer that owns and can act on them:
 Example:
 
 ```text
-IdentityAlreadyExists | DatabaseFailure | SchemaError       allowed
-IdentityAlreadyExists | UnsupportedPostgresVersion          forbidden
-IdentityAlreadyExists | PostgresError | DrizzleQueryError    forbidden
+UserAccountAlreadyExists | DatabaseFailure | SchemaError       allowed
+UserAccountAlreadyExists | UnsupportedPostgresVersion          forbidden
+UserAccountAlreadyExists | PostgresError | DrizzleQueryError    forbidden
 ```
 
 Add a contract or boundary regression test whenever a new error translation is

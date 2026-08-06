@@ -221,7 +221,7 @@ extensions require PostgreSQL 19 compatibility and the production gates defined 
 [`search-architecture.md`](./search-architecture.md) and
 [ADR-0027](../decisions/0027-adopt-postgresql-first-replaceable-search.md).
 
-## Scope and Identity Contract
+## Scope and User Account Contract
 
 The P0 scope model keeps tenant isolation, legal identity, operational structure,
 and financial configuration distinct:
@@ -233,10 +233,11 @@ Tenant
     └── Warehouse (inventory-owned; primary Branch association optional)
 ```
 
-- `auth` owns Tenant and its default timezone; one Identity may access multiple
+- `auth` owns Tenant and its default timezone; one UserAccount may access multiple
   tenants through separate scoped capabilities.
-- `party` owns Organization Party, one-to-one Legal Entity identity in P0,
-  optional Branches, PartyRole, and generic PartyRelationship records.
+- `identity` owns the UserAccount contract; `party` owns Organization, one-to-one
+  Legal Entity identity in P0, optional Branches, PartyRole, and scoped
+  PartyRelationship records.
 - `inventory` owns Warehouses and stock; a Warehouse is scoped to a Legal Entity.
 - `accounting` owns Legal Entity base currency, precision, fiscal period, and
   posting configuration.
@@ -244,8 +245,10 @@ Tenant
   themselves; owning domains enforce capabilities at runtime.
 
 The first implementation uses owner-local commands rather than a universal
-cross-domain provisioning command. Detailed rationale and deferred group,
-validity, delegation, and cross-domain configuration decisions are owned by
+cross-domain provisioning command. Public user-account and PartyRepresentation
+vocabulary is defined by [ADR-0029](../decisions/0029-rename-user-and-party-public-vocabulary.md).
+Detailed rationale and deferred group, validity, delegation, and cross-domain
+configuration decisions are owned by
 [ADR-0021](../decisions/0021-define-p0-scope-and-identity-model.md).
 
 ## Transaction Contract
