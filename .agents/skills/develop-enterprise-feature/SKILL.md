@@ -161,6 +161,7 @@ If repository evidence is insufficient and external domain research would change
 
 Load only the applicable implementation Skills:
 
+- Effect success/error/requirements flow or execution trace → [`design-effect-program`](../design-effect-program/SKILL.md);
 - new owner or package → [`create-domain-module`](../create-domain-module/SKILL.md);
 - owned tables, constraints, or migrations → [`change-owned-schema`](../change-owned-schema/SKILL.md);
 - public service, DTO, or tagged errors → [`expose-public-contract`](../expose-public-contract/SKILL.md);
@@ -262,6 +263,7 @@ Stop and report instead of implementing when:
 
 # Related Skills
 
+- [`design-effect-program`](../design-effect-program/SKILL.md)
 - [`create-domain-module`](../create-domain-module/SKILL.md)
 - [`change-owned-schema`](../change-owned-schema/SKILL.md)
 - [`expose-public-contract`](../expose-public-contract/SKILL.md)

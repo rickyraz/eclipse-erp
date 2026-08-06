@@ -62,6 +62,7 @@ several workflows.
 | Developer intent | Skill |
 |---|---|
 | Add or implement a business capability from a terse ERP request | [`develop-enterprise-feature`](./.agents/skills/develop-enterprise-feature/SKILL.md) |
+| Design or explain an Effect success/error/requirements flow or call graph | [`design-effect-program`](./.agents/skills/design-effect-program/SKILL.md) |
 | Add a new domain or schema owner | [`create-domain-module`](./.agents/skills/create-domain-module/SKILL.md) |
 | Change tables, constraints, triggers, RLS, or migrations | [`change-owned-schema`](./.agents/skills/change-owned-schema/SKILL.md) |
 | Add or change a package's public service, DTO, or tagged errors | [`expose-public-contract`](./.agents/skills/expose-public-contract/SKILL.md) |
