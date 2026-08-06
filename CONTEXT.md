@@ -52,6 +52,8 @@ Branch or Warehouse.
 - Legal Entity, Branch, Warehouse, and accounting configuration commands require tenant-scoped
   administrative capabilities.
 - A **Branch** may override the tenant timezone through `party`.
+- A **Branch** may store an opaque local tax registration and dedicated journal code; tax rules and
+  journal ownership remain outside the branch primitive.
 - A **Warehouse** may override the tenant timezone through `inventory`.
 - Timestamps are stored as UTC; timezone is used for display, scheduling, and business-date
   interpretation.
@@ -59,6 +61,8 @@ Branch or Warehouse.
   memberships.
 - An **Identity** may have explicit tenant-scoped representation relationships with multiple
   **Parties**.
+- Identity–Party representations have an opaque non-blank kind and an active flag; they never
+  grant authorization.
 - A **Party** may hold tenant-wide business roles such as customer, supplier, employee, or partner.
 - A scoped **PartyRelationship** connects a Party to a Legal Entity when company-specific business
   terms or eligibility are required.

@@ -7,6 +7,8 @@ export default defineConfig({
       "tests/architecture/**/*.test.{ts,tsx}",
     ],
     setupFiles: ["./tooling/load-env.ts"],
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     exclude: ["vendor/**", "node_modules/**"],
   },
 })

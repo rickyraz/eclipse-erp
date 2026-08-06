@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema"
 
 import {
   branches,
+  identityPartyRepresentations,
   legalEntities,
   parties,
   partyIdentifiers,
@@ -17,6 +18,7 @@ import { AuthorizationDenied, AuthorizationService } from "../../authorization/m
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isNonEmpty())
+const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
 
 export const PartyKind = Schema.Literals(["person", "organization"])
 export const PartyRole = Schema.Literals(["customer", "supplier", "employee", "partner"])
@@ -57,6 +59,19 @@ export const Branch = Schema.Struct({
   legalEntityId: Schema.String,
   name: Schema.String,
   timezone: Schema.NullOr(Schema.String),
+  localTaxRegistration: Schema.NullOr(Schema.String),
+  dedicatedJournalCode: Schema.NullOr(Schema.String),
+})
+
+export const IdentityPartyRepresentationKind = NonBlankString
+
+export const IdentityPartyRepresentation = Schema.Struct({
+  id: Schema.String,
+  tenantId: Schema.String,
+  identityId: Schema.String,
+  partyId: Schema.String,
+  kind: IdentityPartyRepresentationKind,
+  active: Schema.Boolean,
 })
 
 export const PartyRelationship = Schema.Struct({
@@ -73,7 +88,11 @@ export type Party = Schema.Schema.Type<typeof Party>
 export type ExternalIdentifier = Schema.Schema.Type<typeof ExternalIdentifier>
 export type LegalEntity = Schema.Schema.Type<typeof LegalEntity>
 export type Branch = Schema.Schema.Type<typeof Branch>
+export type IdentityPartyRepresentation = Schema.Schema.Type<typeof IdentityPartyRepresentation>
 export type PartyRelationship = Schema.Schema.Type<typeof PartyRelationship>
+export type IdentityPartyRepresentationKind = Schema.Schema.Type<
+  typeof IdentityPartyRepresentationKind
+>
 export type PartyRole = Schema.Schema.Type<typeof PartyRole>
 export type PartyRelationshipKind = Schema.Schema.Type<typeof PartyRelationshipKind>
 
@@ -118,6 +137,21 @@ export const CreateBranchInput = Schema.Struct({
   legalEntityId: Schema.String,
   name: NonEmptyString,
   timezone: Schema.optionalKey(NonEmptyString),
+  localTaxRegistration: Schema.optionalKey(NonBlankString),
+  dedicatedJournalCode: Schema.optionalKey(NonBlankString),
+})
+
+export const CreateIdentityPartyRepresentationInput = Schema.Struct({
+  ...ScopedInput,
+  identityId: Schema.String,
+  partyId: Schema.String,
+  kind: IdentityPartyRepresentationKind,
+})
+
+export const SetIdentityPartyRepresentationActiveInput = Schema.Struct({
+  ...ScopedInput,
+  representationId: Schema.String,
+  active: Schema.Boolean,
 })
 
 export class PartyNotFound extends Schema.TaggedErrorClass<PartyNotFound>()("PartyNotFound", {
@@ -191,6 +225,35 @@ export class BranchAlreadyExists
     name: Schema.String,
   }) {}
 
+export class IdentityPartyRepresentationIdentityNotFound
+  extends Schema.TaggedErrorClass<IdentityPartyRepresentationIdentityNotFound>()(
+    "IdentityPartyRepresentationIdentityNotFound",
+    {
+      tenantId: Schema.String,
+      identityId: Schema.String,
+    },
+  ) {}
+
+export class IdentityPartyRepresentationAlreadyExists
+  extends Schema.TaggedErrorClass<IdentityPartyRepresentationAlreadyExists>()(
+    "IdentityPartyRepresentationAlreadyExists",
+    {
+      tenantId: Schema.String,
+      identityId: Schema.String,
+      partyId: Schema.String,
+      kind: IdentityPartyRepresentationKind,
+    },
+  ) {}
+
+export class IdentityPartyRepresentationNotFound
+  extends Schema.TaggedErrorClass<IdentityPartyRepresentationNotFound>()(
+    "IdentityPartyRepresentationNotFound",
+    {
+      tenantId: Schema.String,
+      representationId: Schema.String,
+    },
+  ) {}
+
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
 export interface PartyService {
@@ -207,6 +270,21 @@ export interface PartyService {
   readonly createBranch: (
     input: unknown,
   ) => Effect.Effect<Branch, LegalEntityNotFound | BranchAlreadyExists | CommonFailure>
+  readonly createIdentityPartyRepresentation: (
+    input: unknown,
+  ) => Effect.Effect<
+    IdentityPartyRepresentation,
+    | IdentityPartyRepresentationIdentityNotFound
+    | IdentityPartyRepresentationAlreadyExists
+    | PartyNotFound
+    | CommonFailure
+  >
+  readonly setIdentityPartyRepresentationActive: (
+    input: unknown,
+  ) => Effect.Effect<
+    IdentityPartyRepresentation,
+    IdentityPartyRepresentationNotFound | CommonFailure
+  >
   readonly assignRole: (
     input: unknown,
   ) => Effect.Effect<void, PartyNotFound | PartyRoleAlreadyAssigned | CommonFailure>
@@ -263,6 +341,17 @@ const branchSelection = {
   legalEntityId: branches.legalEntityId,
   name: branches.name,
   timezone: branches.timezone,
+  localTaxRegistration: branches.localTaxRegistration,
+  dedicatedJournalCode: branches.dedicatedJournalCode,
+}
+
+const identityPartyRepresentationSelection = {
+  id: identityPartyRepresentations.id,
+  tenantId: identityPartyRepresentations.tenantId,
+  identityId: identityPartyRepresentations.identityId,
+  partyId: identityPartyRepresentations.partyId,
+  kind: identityPartyRepresentations.kind,
+  active: identityPartyRepresentations.active,
 }
 
 const relationshipSelection = {
@@ -380,6 +469,8 @@ export const makePartyService = Effect.gen(function* () {
       }
       const name = decoded.name.trim()
       const timezone = decoded.timezone?.trim() ?? null
+      const localTaxRegistration = decoded.localTaxRegistration?.trim() ?? null
+      const dedicatedJournalCode = decoded.dedicatedJournalCode?.trim() ?? null
       const rows = yield* database.query(
         (db) =>
           db.insert(branches)
@@ -388,6 +479,8 @@ export const makePartyService = Effect.gen(function* () {
               legalEntityId: decoded.legalEntityId,
               name,
               timezone,
+              localTaxRegistration,
+              dedicatedJournalCode,
             })
             .returning(branchSelection),
         "party.branch.create",
@@ -403,6 +496,101 @@ export const makePartyService = Effect.gen(function* () {
         ),
       )
       return rows[0]!
+    }),
+  createIdentityPartyRepresentation: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(
+        CreateIdentityPartyRepresentationInput,
+      )(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: "party.identity.represent",
+      })
+      const kind = decoded.kind.trim()
+      const rows = yield* database.query(
+        (db) =>
+          db.insert(identityPartyRepresentations)
+            .values({
+              tenantId: decoded.tenantId,
+              identityId: decoded.identityId,
+              partyId: decoded.partyId,
+              kind,
+              active: true,
+            })
+            .returning(identityPartyRepresentationSelection),
+        "party.identity.representation.create",
+      ).pipe(
+        Effect.mapError((error) => {
+          if (
+            isDatabaseConstraint(
+              error,
+              "identity_party_representations_identity_fkey",
+              "23503",
+            )
+          ) {
+            return new IdentityPartyRepresentationIdentityNotFound({
+              tenantId: decoded.tenantId,
+              identityId: decoded.identityId,
+            })
+          }
+          if (isDatabaseConstraint(error, "identity_party_representations_party_fkey", "23503")) {
+            return new PartyNotFound({
+              tenantId: decoded.tenantId,
+              partyId: decoded.partyId,
+            })
+          }
+          if (
+            isDatabaseConstraint(
+              error,
+              "identity_party_representations_tenant_identity_party_kind_key",
+            )
+          ) {
+            return new IdentityPartyRepresentationAlreadyExists({
+              tenantId: decoded.tenantId,
+              identityId: decoded.identityId,
+              partyId: decoded.partyId,
+              kind,
+            })
+          }
+          return error
+        }),
+      )
+      return rows[0]!
+    }),
+  setIdentityPartyRepresentationActive: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(
+        SetIdentityPartyRepresentationActiveInput,
+      )(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: "party.identity.represent",
+      })
+      const rows = yield* database.query(
+        (db) =>
+          db.update(identityPartyRepresentations)
+            .set({ active: decoded.active })
+            .where(
+              and(
+                eq(identityPartyRepresentations.tenantId, decoded.tenantId),
+                eq(identityPartyRepresentations.id, decoded.representationId),
+              ),
+            )
+            .returning(identityPartyRepresentationSelection),
+        "party.identity.representation.set-active",
+      )
+      const representation = rows[0]
+      if (representation === undefined) {
+        return yield* Effect.fail(
+          new IdentityPartyRepresentationNotFound({
+            tenantId: decoded.tenantId,
+            representationId: decoded.representationId,
+          }),
+        )
+      }
+      return representation
     }),
   assignRole: (input) =>
     Effect.gen(function* () {
@@ -577,7 +765,7 @@ export const makePartyService = Effect.gen(function* () {
   } satisfies PartyService
 })
 
-export const makePartyTestLayer = () =>
+export const makePartyTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
   Layer.effect(
     PartyService,
     Effect.gen(function* () {
@@ -588,6 +776,7 @@ export const makePartyTestLayer = () =>
       const roles = new Set<string>()
       const relationships = new Map<string, PartyRelationship>()
       const identifiers = new Set<string>()
+      const representations = new Map<string, IdentityPartyRepresentation>()
       let sequence = 1
       const nextId = () => `party-test-${sequence++}`
 
@@ -694,9 +883,84 @@ export const makePartyTestLayer = () =>
           legalEntityId: decoded.legalEntityId,
           name,
           timezone: decoded.timezone?.trim() ?? null,
+          localTaxRegistration: decoded.localTaxRegistration?.trim() ?? null,
+          dedicatedJournalCode: decoded.dedicatedJournalCode?.trim() ?? null,
         }
         storedBranches.set(branch.id, branch)
         return branch
+      }),
+    createIdentityPartyRepresentation: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(
+          CreateIdentityPartyRepresentationInput,
+        )(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: "party.identity.represent",
+        })
+        if (validIdentityIds !== undefined && !validIdentityIds.has(decoded.identityId)) {
+          return yield* Effect.fail(
+            new IdentityPartyRepresentationIdentityNotFound({
+              tenantId: decoded.tenantId,
+              identityId: decoded.identityId,
+            }),
+          )
+        }
+        if (stored.get(decoded.partyId)?.tenantId !== decoded.tenantId) {
+          return yield* Effect.fail(
+            new PartyNotFound({ tenantId: decoded.tenantId, partyId: decoded.partyId }),
+          )
+        }
+        const kind = decoded.kind.trim()
+        if ([...representations.values()].some((representation) =>
+          representation.tenantId === decoded.tenantId &&
+          representation.identityId === decoded.identityId &&
+          representation.partyId === decoded.partyId &&
+          representation.kind === kind
+        )) {
+          return yield* Effect.fail(
+            new IdentityPartyRepresentationAlreadyExists({
+              tenantId: decoded.tenantId,
+              identityId: decoded.identityId,
+              partyId: decoded.partyId,
+              kind,
+            }),
+          )
+        }
+        const representation = {
+          id: nextId(),
+          tenantId: decoded.tenantId,
+          identityId: decoded.identityId,
+          partyId: decoded.partyId,
+          kind,
+          active: true,
+        }
+        representations.set(representation.id, representation)
+        return representation
+      }),
+    setIdentityPartyRepresentationActive: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(
+          SetIdentityPartyRepresentationActiveInput,
+        )(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: "party.identity.represent",
+        })
+        const representation = representations.get(decoded.representationId)
+        if (representation === undefined || representation.tenantId !== decoded.tenantId) {
+          return yield* Effect.fail(
+            new IdentityPartyRepresentationNotFound({
+              tenantId: decoded.tenantId,
+              representationId: decoded.representationId,
+            }),
+          )
+        }
+        const updated = { ...representation, active: decoded.active }
+        representations.set(updated.id, updated)
+        return updated
       }),
     assignRole: (input) =>
       Effect.gen(function* () {

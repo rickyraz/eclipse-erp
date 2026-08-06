@@ -3,14 +3,11 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
 import { AuthService, makeAuthService, TenantAlreadyExists } from "../../packages/auth/mod.ts"
-import {
-  AuthorizationService,
-  makeAuthorizationService,
-} from "../../packages/authorization/mod.ts"
+import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
 import { makeIdentityService } from "../../packages/identity/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
-import { PartyService, makePartyService } from "../../packages/party/mod.ts"
+import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import {
   Database,
   makePostgresDatabase,
@@ -59,6 +56,8 @@ it.effect.skipIf(databaseUrl === undefined)(
           organizationName: "Bootstrap Organization",
           branchName: "Main Branch",
           branchTimezone: "UTC",
+          localTaxRegistration: "TAX-MAIN-001",
+          dedicatedJournalCode: "MAIN-OPS",
           warehouseName: "Main Warehouse",
           baseCurrency: "USD",
           precision: 2,
@@ -72,6 +71,8 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.strictEqual(result.organizationParty.kind, "organization")
         assert.strictEqual(result.legalEntity.organizationPartyId, result.organizationParty.id)
         assert.strictEqual(result.branch.legalEntityId, result.legalEntity.id)
+        assert.strictEqual(result.branch.localTaxRegistration, "TAX-MAIN-001")
+        assert.strictEqual(result.branch.dedicatedJournalCode, "MAIN-OPS")
         assert.strictEqual(result.accountingConfiguration.legalEntityId, result.legalEntity.id)
         assert.strictEqual(result.warehouse.legalEntityId, result.legalEntity.id)
         assert.strictEqual(result.warehouse.primaryBranchId, result.branch.id)

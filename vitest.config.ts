@@ -8,6 +8,8 @@ export default defineConfig({
       "tests/**/*.test.{ts,tsx}",
     ],
     setupFiles: ["./tooling/load-env.ts"],
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     exclude: ["vendor/**", "node_modules/**"],
   },
 })

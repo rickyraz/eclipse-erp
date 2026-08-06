@@ -95,8 +95,10 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 The initial scope and identity decisions are recorded in
 [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md).
 The first implementation slice covers tenant timezone, Organization Party,
-Legal Entity, and optional Branch. Warehouse and accounting Legal Entity scope
-remain follow-up work.
+Legal Entity, optional Branch, Warehouse and accounting Legal Entity scope,
+identity-party representation, scoped external identifiers, and the bootstrap
+vertical slice. Advanced localization, journal policy, and legacy deployment
+upgrades remain bounded follow-up work.
 
 Resolve before adding cross-domain business flows:
 
@@ -140,6 +142,15 @@ schema or migration alone is not sufficient.
 P0 is `READY` only when all ten tasks have executable proof. The bootstrap
 coordinator may compose owner-local commands but must not become a new domain
 owner or universal persistence model.
+
+Current implementation evidence: P0-01, P0-02, P0-04, P0-06, P0-07, P0-08,
+and P0-10 have owner-local contracts, constraints, and tests. P0-03 now has
+explicit identity-party representation persistence and capability checks. P0-05
+stores branch-local tax-registration and dedicated-journal metadata without
+moving tax or journal ownership into `party`. P0-09 has an explicit mapping
+backfill command. Legacy databases still require an operator-supplied mapping
+before the historical non-null scope migrations can be replayed; the command
+fails closed rather than inferring ownership.
 
 The `P0-06` migration does not infer Legal Entity ownership for existing
 warehouse or transfer rows. Deployments with existing inventory data need an

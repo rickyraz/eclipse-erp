@@ -12,6 +12,7 @@ import {
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, updatedAt } from "./common.ts"
+import { identities } from "./identity.ts"
 
 export const partySchema = pgSchema("party")
 export const partyKind = partySchema.enum("party_kind", ["person", "organization"])
@@ -38,6 +39,44 @@ export const parties = partySchema.table("parties", {
   }).onDelete("cascade"),
 ])
 
+export const identityPartyRepresentations = partySchema.table(
+  "identity_party_representations",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id").notNull(),
+    identityId: uuid("identity_id").notNull(),
+    partyId: uuid("party_id").notNull(),
+    kind: text("kind").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    unique("identity_party_representations_tenant_id_id_key").on(table.tenantId, table.id),
+    unique("identity_party_representations_tenant_identity_party_kind_key").on(
+      table.tenantId,
+      table.identityId,
+      table.partyId,
+      table.kind,
+    ),
+    foreignKey({
+      columns: [table.tenantId],
+      foreignColumns: [tenants.id],
+      name: "identity_party_representations_tenant_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.identityId],
+      foreignColumns: [identities.id],
+      name: "identity_party_representations_identity_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tenantId, table.partyId],
+      foreignColumns: [parties.tenantId, parties.id],
+      name: "identity_party_representations_party_fkey",
+    }).onDelete("cascade"),
+  ],
+)
+
 export const legalEntities = partySchema.table("legal_entities", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
@@ -63,6 +102,8 @@ export const branches = partySchema.table("branches", {
   legalEntityId: uuid("legal_entity_id").notNull(),
   name: text("name").notNull(),
   timezone: text("timezone"),
+  localTaxRegistration: text("local_tax_registration"),
+  dedicatedJournalCode: text("dedicated_journal_code"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [

@@ -1,12 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import {
-  AuthService,
-  CreateTenantInput,
-  Principal,
-  Tenant,
-} from "../../packages/auth/mod.ts"
+import { AuthService, CreateTenantInput, Principal, Tenant } from "../../packages/auth/mod.ts"
 import { AuthorizationService, Capability } from "../../packages/authorization/mod.ts"
 import {
   AccountingConfiguration,
@@ -22,11 +17,7 @@ import {
   Party,
   PartyService,
 } from "../../packages/party/mod.ts"
-import {
-  CreateWarehouseInput,
-  InventoryService,
-  Warehouse,
-} from "../../packages/inventory/mod.ts"
+import { CreateWarehouseInput, InventoryService, Warehouse } from "../../packages/inventory/mod.ts"
 
 const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
 
@@ -37,6 +28,8 @@ export const BootstrapTenantInput = Schema.Struct({
   organizationName: NonBlankString,
   branchName: NonBlankString,
   branchTimezone: Schema.optionalKey(NonBlankString),
+  localTaxRegistration: Schema.optionalKey(NonBlankString),
+  dedicatedJournalCode: Schema.optionalKey(NonBlankString),
   warehouseName: NonBlankString,
   baseCurrency: Schema.String,
   precision: Schema.Int,
@@ -111,6 +104,8 @@ export const bootstrapTenant = (input: unknown) =>
         legalEntityId: legalEntity.id,
         name: decoded.branchName,
         timezone: decoded.branchTimezone,
+        localTaxRegistration: decoded.localTaxRegistration,
+        dedicatedJournalCode: decoded.dedicatedJournalCode,
       } satisfies Schema.Schema.Type<typeof CreateBranchInput>,
     )
     const accountingConfiguration = yield* accounting.configureLegalEntity(

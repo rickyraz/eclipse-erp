@@ -13,6 +13,7 @@ export { createdAt, id, money, updatedAt, uuidv7 } from "./common.ts"
 export { identities, identitySchema } from "./identity.ts"
 export {
   branches,
+  identityPartyRepresentations,
   legalEntities,
   parties,
   partyIdentifiers,

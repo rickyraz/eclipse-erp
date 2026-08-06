@@ -2,13 +2,13 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
-import {
-  AuthorizationDenied,
-  makeAuthorizationTestLayer,
-} from "../../authorization/mod.ts"
+import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
   BranchAlreadyExists,
   ExternalIdentifierAlreadyAssigned,
+  IdentityPartyRepresentationAlreadyExists,
+  IdentityPartyRepresentationIdentityNotFound,
+  IdentityPartyRepresentationNotFound,
   LegalEntityAlreadyExists,
   LegalEntityNotFound,
   makePartyTestLayer,
@@ -28,6 +28,7 @@ const capabilities = [
   "party.role.assign",
   "party.relationship.create",
   "party.identifier.attach",
+  "party.identity.represent",
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
@@ -71,6 +72,8 @@ describe("party contract", () => {
         legalEntityId: legalEntity.id,
         name: " Jakarta ",
         timezone: " Asia/Jakarta ",
+        localTaxRegistration: " TAX-JKT-001 ",
+        dedicatedJournalCode: "JKT-OPS",
       })
       const relationship = yield* service.createRelationship({
         principal,
@@ -86,9 +89,67 @@ describe("party contract", () => {
       assert.strictEqual(legalEntity.organizationPartyId, party.id)
       assert.strictEqual(branch.name, "Jakarta")
       assert.strictEqual(branch.timezone, "Asia/Jakarta")
+      assert.strictEqual(branch.localTaxRegistration, "TAX-JKT-001")
+      assert.strictEqual(branch.dedicatedJournalCode, "JKT-OPS")
       assert.strictEqual(relationship.kind, "customer")
       assert.strictEqual(relationship.active, true)
     })))
+
+  it.effect("creates and deactivates an identity-party representation", () => {
+    const authorization = makeAuthorizationTestLayer([
+      { identityId: principal.identityId, tenantId, capability: "party.create" },
+      { identityId: principal.identityId, tenantId, capability: "party.identity.represent" },
+    ])
+    return Effect.provide(
+      Effect.gen(function* () {
+        const service = yield* PartyService
+        const party = yield* service.create({
+          principal,
+          tenantId,
+          kind: "organization",
+          name: "Represented Organization",
+        })
+        const input = {
+          principal,
+          tenantId,
+          identityId: "identity-1",
+          partyId: party.id,
+          kind: "representative",
+        }
+        const representation = yield* service.createIdentityPartyRepresentation(input)
+        assert.strictEqual(representation.active, true)
+        assert.strictEqual(representation.kind, "representative")
+        assert.instanceOf(
+          yield* Effect.flip(service.createIdentityPartyRepresentation(input)),
+          IdentityPartyRepresentationAlreadyExists,
+        )
+        const deactivated = yield* service.setIdentityPartyRepresentationActive({
+          principal,
+          tenantId,
+          representationId: representation.id,
+          active: false,
+        })
+        assert.strictEqual(deactivated.active, false)
+        assert.instanceOf(
+          yield* Effect.flip(service.setIdentityPartyRepresentationActive({
+            principal,
+            tenantId,
+            representationId: "missing",
+            active: true,
+          })),
+          IdentityPartyRepresentationNotFound,
+        )
+        assert.instanceOf(
+          yield* Effect.flip(service.createIdentityPartyRepresentation({
+            ...input,
+            identityId: "missing",
+          })),
+          IdentityPartyRepresentationIdentityNotFound,
+        )
+      }),
+      makePartyTestLayer(new Set(["identity-1"])).pipe(Layer.provide(authorization)),
+    )
+  })
 
   it.effect("rejects duplicate roles and identifiers in their declared scope", () =>
     withParty(Effect.gen(function* () {

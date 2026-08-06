@@ -2,12 +2,15 @@ import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
 import { makeAuthService } from "../../auth/mod.ts"
+import { makeIdentityService } from "../../identity/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 import {
   BranchAlreadyExists,
   ExternalIdentifierAlreadyAssigned,
+  IdentityPartyRepresentationAlreadyExists,
+  IdentityPartyRepresentationNotFound,
   LegalEntityAlreadyExists,
   makePartyService,
   OrganizationPartyRequired,
@@ -248,8 +251,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             legalEntityId: legalEntity.id,
             name: "Jakarta",
             timezone: "Asia/Jakarta",
+            localTaxRegistration: "TAX-JKT-001",
+            dedicatedJournalCode: "JKT-OPS",
           })
           assert.strictEqual(branch.timezone, "Asia/Jakarta")
+          assert.strictEqual(branch.localTaxRegistration, "TAX-JKT-001")
+          assert.strictEqual(branch.dedicatedJournalCode, "JKT-OPS")
           assert.instanceOf(
             yield* Effect.flip(party.createBranch({
               principal,
@@ -258,6 +265,83 @@ it.effect.skipIf(databaseUrl === undefined)(
               name: "Jakarta",
             })),
             BranchAlreadyExists,
+          )
+        }).pipe(Effect.provide(authorizationLayer))
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "enforces identity-party representation scope in PostgreSQL",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const database = makePostgresDatabase(client)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
+        const identityService = yield* makeIdentityService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const principal = { identityId: "representation-admin", sessionId: "session" }
+        const tenant = yield* auth.createTenant({ slug: `representation-${crypto.randomUUID()}` })
+        const identity = yield* identityService.create({
+          email: `representation-${crypto.randomUUID()}@example.test`,
+        })
+        const authorizationLayer = makeAuthorizationTestLayer([
+          {
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability: "party.create",
+          },
+          {
+            identityId: principal.identityId,
+            tenantId: tenant.id,
+            capability: "party.identity.represent",
+          },
+        ])
+
+        yield* Effect.gen(function* () {
+          const authorization = yield* AuthorizationService
+          const party = yield* makePartyService.pipe(
+            Effect.provideService(Database, database),
+            Effect.provideService(AuthorizationService, authorization),
+          )
+          const representedParty = yield* party.create({
+            principal,
+            tenantId: tenant.id,
+            kind: "organization",
+            name: "Represented Organization",
+          })
+          const input = {
+            principal,
+            tenantId: tenant.id,
+            identityId: identity.id,
+            partyId: representedParty.id,
+            kind: "representative",
+          }
+          const representation = yield* party.createIdentityPartyRepresentation(input)
+          assert.strictEqual(representation.active, true)
+          assert.instanceOf(
+            yield* Effect.flip(party.createIdentityPartyRepresentation(input)),
+            IdentityPartyRepresentationAlreadyExists,
+          )
+          const inactive = yield* party.setIdentityPartyRepresentationActive({
+            principal,
+            tenantId: tenant.id,
+            representationId: representation.id,
+            active: false,
+          })
+          assert.strictEqual(inactive.active, false)
+          assert.instanceOf(
+            yield* Effect.flip(party.setIdentityPartyRepresentationActive({
+              principal,
+              tenantId: tenant.id,
+              representationId: "00000000-0000-0000-0000-000000000000",
+              active: true,
+            })),
+            IdentityPartyRepresentationNotFound,
           )
         }).pipe(Effect.provide(authorizationLayer))
       })),

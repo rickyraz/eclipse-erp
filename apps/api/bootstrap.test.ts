@@ -30,6 +30,8 @@ const input = {
   organizationName: "ACME Indonesia",
   branchName: "Jakarta",
   branchTimezone: "Asia/Jakarta",
+  localTaxRegistration: "TAX-JKT-001",
+  dedicatedJournalCode: "JKT-OPS",
   warehouseName: "Jakarta Main",
   baseCurrency: "usd",
   precision: 2,
@@ -65,6 +67,8 @@ it.effect("bootstraps the tenant scope vertical slice", () =>
     assert.strictEqual(result.organizationParty.kind, "organization")
     assert.strictEqual(result.legalEntity.organizationPartyId, result.organizationParty.id)
     assert.strictEqual(result.branch.legalEntityId, result.legalEntity.id)
+    assert.strictEqual(result.branch.localTaxRegistration, "TAX-JKT-001")
+    assert.strictEqual(result.branch.dedicatedJournalCode, "JKT-OPS")
     assert.strictEqual(result.accountingConfiguration.legalEntityId, result.legalEntity.id)
     assert.strictEqual(result.accountingConfiguration.baseCurrency, "USD")
     assert.strictEqual(result.warehouse.legalEntityId, result.legalEntity.id)
