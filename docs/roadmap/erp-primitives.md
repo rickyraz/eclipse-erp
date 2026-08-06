@@ -161,6 +161,15 @@ existing identifier rows; it does not invent a provider or Legal Entity scope.
 Tenant-wide identifiers use a separate uniqueness path from Legal Entity-scoped
 identifiers.
 
+The `P0-10` bootstrap proof lives in the application composition layer. It is a
+trusted, non-self-service sequence that grants the bootstrap principal the
+minimum tenant capabilities and then invokes owner-local Party, Accounting, and
+Inventory commands. It does not write domain tables directly or expose a
+bootstrap HTTP endpoint. The current public services do not carry a reusable
+cross-domain transaction context, so this proof covers sequencing and typed
+failure boundaries; atomic rollback across domains remains a separate
+transaction-contract requirement.
+
 ### P1 — Product, Quantity, and Location
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:
