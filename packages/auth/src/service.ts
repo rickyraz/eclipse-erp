@@ -1,11 +1,13 @@
 import { and, eq, gt, isNull } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import { sessions, tenants } from "../../../db/schema/auth.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const PositiveSeconds = Schema.Int.check(Schema.isGreaterThan(0))
 const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
@@ -78,27 +80,29 @@ export const AuthService = Context.Service<AuthService>("EclipseERP/AuthService"
 const encodeToken = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")
 
-const makeToken = () => {
-  const bytes = new Uint8Array(32)
-  crypto.getRandomValues(bytes)
-  return encodeToken(bytes)
-}
+const makeToken = (crypto: Crypto.Crypto) =>
+  crypto.randomBytes(32).pipe(
+    Effect.map(encodeToken),
+    Effect.mapError((cause) => new DatabaseFailure({ operation: "session-token-generate", cause })),
+  )
 
-const hashToken = (token: string) =>
-  Effect.tryPromise({
-    try: async () => {
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))
-      return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(
-        "",
-      )
-    },
-    catch: (cause) => new DatabaseFailure({ operation: "session-token-hash", cause }),
-  })
+const hashToken = (crypto: Crypto.Crypto, token: string) =>
+  crypto.digest("SHA-256", new TextEncoder().encode(token)).pipe(
+    Effect.map((digest) =>
+      Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")
+    ),
+    Effect.mapError((cause) => new DatabaseFailure({ operation: "session-token-hash", cause })),
+  )
 
 const isMissingIdentity = (error: unknown) =>
   isDatabaseConstraint(error, "sessions_identity_id_fkey", "23503")
 
-export const makeAuthService = (database: DatabaseService): AuthService => ({
+export const makeAuthService = Effect.gen(function* () {
+  const database = yield* Database
+  const crypto = yield* Crypto.Crypto
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
+  return {
   createTenant: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
@@ -122,9 +126,9 @@ export const makeAuthService = (database: DatabaseService): AuthService => ({
   issueSession: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
-      const token = makeToken()
-      const tokenHash = yield* hashToken(token)
-      const expiresAt = new Date(Date.now() + decoded.ttlSeconds * 1000)
+      const token = yield* makeToken(crypto)
+      const tokenHash = yield* hashToken(crypto, token)
+      const expiresAt = new Date(clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000)
       const rows = yield* database.query(
         (db) =>
           db.insert(sessions)
@@ -158,7 +162,7 @@ export const makeAuthService = (database: DatabaseService): AuthService => ({
     }),
   authenticate: (token) =>
     Effect.gen(function* () {
-      const tokenHash = yield* hashToken(token)
+      const tokenHash = yield* hashToken(crypto, token)
       const rows = yield* database.query(
         (db) =>
           db.select({ id: sessions.id, identityId: sessions.identityId })
@@ -167,7 +171,7 @@ export const makeAuthService = (database: DatabaseService): AuthService => ({
               and(
                 eq(sessions.tokenHash, tokenHash),
                 isNull(sessions.revokedAt),
-                gt(sessions.expiresAt, new Date()),
+                gt(sessions.expiresAt, now()),
               ),
             ),
         "session.authenticate",
@@ -181,70 +185,79 @@ export const makeAuthService = (database: DatabaseService): AuthService => ({
       const rows = yield* database.query(
         (db) =>
           db.update(sessions)
-            .set({ revokedAt: new Date(), updatedAt: new Date() })
+            .set({ revokedAt: now(), updatedAt: now() })
             .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)))
             .returning({ id: sessions.id }),
         "session.revoke",
       )
       if (rows[0] === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
     }),
+  } satisfies AuthService
 })
 
-export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) => {
-  const storedTenants = new Map<string, Tenant>()
-  const storedSessions = new Map<
-    string,
-    { identityId: string; sessionId: string; expiresAt: number }
-  >()
-  const service: AuthService = {
-    createTenant: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
-        const slug = decoded.slug.trim().toLowerCase()
-        const timezone = decoded.timezone?.trim() ?? "UTC"
-        if ([...storedTenants.values()].some((tenant) => tenant.slug === slug)) {
-          return yield* Effect.fail(new TenantAlreadyExists({ slug }))
-        }
-        const tenant = { id: crypto.randomUUID(), slug, timezone }
-        storedTenants.set(tenant.id, tenant)
-        return tenant
-      }),
-    issueSession: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
-        if (validIdentityIds !== undefined && !validIdentityIds.has(decoded.identityId)) {
-          return yield* Effect.fail(
-            new SessionIdentityNotFound({ identityId: decoded.identityId }),
-          )
-        }
-        const token = makeToken()
-        const sessionId = crypto.randomUUID()
-        const expiresAt = Date.now() + decoded.ttlSeconds * 1000
-        storedSessions.set(token, { identityId: decoded.identityId, sessionId, expiresAt })
-        return {
-          token,
-          session: {
-            id: sessionId,
-            identityId: decoded.identityId,
-            expiresAt: new Date(expiresAt).toISOString(),
-          },
-        }
-      }),
-    authenticate: (token) => {
-      const session = storedSessions.get(token)
-      return session === undefined || session.expiresAt <= Date.now()
-        ? Effect.fail(new InvalidSessionToken({}))
-        : Effect.succeed({ identityId: session.identityId, sessionId: session.sessionId })
-    },
-    revoke: (sessionId) => {
-      for (const [token, session] of storedSessions) {
-        if (session.sessionId === sessionId) {
-          storedSessions.delete(token)
-          return Effect.void
-        }
+export const makeAuthTestLayer = (validIdentityIds?: ReadonlySet<string>) =>
+  Layer.effect(
+    AuthService,
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const storedTenants = new Map<string, Tenant>()
+      const storedSessions = new Map<
+        string,
+        { identityId: string; sessionId: string; expiresAt: number }
+      >()
+      let nextTenantId = 1
+      let nextSessionId = 1
+      const service: AuthService = {
+        createTenant: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CreateTenantInput)(input)
+            const slug = decoded.slug.trim().toLowerCase()
+            const timezone = decoded.timezone?.trim() ?? "UTC"
+            if ([...storedTenants.values()].some((tenant) => tenant.slug === slug)) {
+              return yield* Effect.fail(new TenantAlreadyExists({ slug }))
+            }
+            const tenant = { id: `tenant-${nextTenantId++}`, slug, timezone }
+            storedTenants.set(tenant.id, tenant)
+            return tenant
+          }),
+        issueSession: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
+            if (validIdentityIds !== undefined && !validIdentityIds.has(decoded.identityId)) {
+              return yield* Effect.fail(
+                new SessionIdentityNotFound({ identityId: decoded.identityId }),
+              )
+            }
+            const sequence = nextSessionId++
+            const token = `test-token-${sequence}`
+            const sessionId = `session-${sequence}`
+            const expiresAt = clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000
+            storedSessions.set(token, { identityId: decoded.identityId, sessionId, expiresAt })
+            return {
+              token,
+              session: {
+                id: sessionId,
+                identityId: decoded.identityId,
+                expiresAt: new Date(expiresAt).toISOString(),
+              },
+            }
+          }),
+        authenticate: (token) => {
+          const session = storedSessions.get(token)
+          return session === undefined || session.expiresAt <= clock.currentTimeMillisUnsafe()
+            ? Effect.fail(new InvalidSessionToken({}))
+            : Effect.succeed({ identityId: session.identityId, sessionId: session.sessionId })
+        },
+        revoke: (sessionId) => {
+          for (const [token, session] of storedSessions) {
+            if (session.sessionId === sessionId) {
+              storedSessions.delete(token)
+              return Effect.void
+            }
+          }
+          return Effect.fail(new InvalidSessionToken({}))
+        },
       }
-      return Effect.fail(new InvalidSessionToken({}))
-    },
-  }
-  return Layer.succeed(AuthService, service)
-}
+      return service
+    }),
+  )

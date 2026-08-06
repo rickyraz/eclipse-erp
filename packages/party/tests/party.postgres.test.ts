@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect"
 
 import { makeAuthService } from "../../auth/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 import {
   BranchAlreadyExists,
@@ -24,12 +24,18 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
-        const auth = makeAuthService(database)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
         const principal = { identityId: "party-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `party-${crypto.randomUUID()}` })
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const party = makePartyService(database, authorization)
+          const party = yield* makePartyService.pipe(
+            Effect.provideService(Database, database),
+            Effect.provideService(AuthorizationService, authorization),
+          )
           const first = yield* party.create({
             principal,
             tenantId: tenant.id,
@@ -82,7 +88,10 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
-        const auth = makeAuthService(database)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
         const principal = { identityId: "scope-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({
           slug: `scope-${crypto.randomUUID()}`,
@@ -123,7 +132,10 @@ it.effect.skipIf(databaseUrl === undefined)(
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const party = makePartyService(database, authorization)
+          const party = yield* makePartyService.pipe(
+            Effect.provideService(Database, database),
+            Effect.provideService(AuthorizationService, authorization),
+          )
           const organization = yield* party.create({
             principal,
             tenantId: tenant.id,

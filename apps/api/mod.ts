@@ -12,10 +12,10 @@ import { AuthService, makeAuthService } from "../../packages/auth/mod.ts"
 import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
 import { IdentityService, makeIdentityService } from "../../packages/identity/mod.ts"
 import {
-  Database,
   type PostgresClient,
   PostgresDatabaseLive,
   validatePostgresVersion,
+  WebCryptoLive,
 } from "../../packages/kernel/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
@@ -27,50 +27,33 @@ import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 const serviceLayers = (client: Sql) => {
   const database = PostgresDatabaseLive(client)
 
-  const identity = Layer.effect(
-    IdentityService,
-    Database.use((service) => Effect.succeed(makeIdentityService(service))),
-  ).pipe(Layer.provide(database))
+  const identity = Layer.effect(IdentityService, makeIdentityService).pipe(Layer.provide(database))
 
-  const auth = Layer.effect(
-    AuthService,
-    Database.use((service) => Effect.succeed(makeAuthService(service))),
-  ).pipe(Layer.provide(database))
+  const auth = Layer.effect(AuthService, makeAuthService).pipe(
+    Layer.provide(Layer.merge(database, WebCryptoLive)),
+  )
 
-  const authorization = Layer.effect(
-    AuthorizationService,
-    Database.use((service) => Effect.succeed(makeAuthorizationService(service))),
-  ).pipe(Layer.provide(database))
+  const authorization = Layer.effect(AuthorizationService, makeAuthorizationService).pipe(
+    Layer.provide(database),
+  )
 
   const businessRequirements = Layer.merge(database, authorization)
 
-  const party = Layer.effect(
-    PartyService,
-    Effect.gen(function* () {
-      return makePartyService(yield* Database, yield* AuthorizationService)
-    }),
-  ).pipe(Layer.provide(businessRequirements))
+  const party = Layer.effect(PartyService, makePartyService).pipe(
+    Layer.provide(businessRequirements),
+  )
 
-  const sales = Layer.effect(
-    SalesService,
-    Effect.gen(function* () {
-      return makeSalesService(yield* Database, yield* AuthorizationService)
-    }),
-  ).pipe(Layer.provide(businessRequirements))
+  const sales = Layer.effect(SalesService, makeSalesService).pipe(
+    Layer.provide(businessRequirements),
+  )
 
-  const inventory = Layer.effect(
-    InventoryService,
-    Effect.gen(function* () {
-      return makeInventoryService(yield* Database, yield* AuthorizationService)
-    }),
-  ).pipe(Layer.provide(businessRequirements))
+  const inventory = Layer.effect(InventoryService, makeInventoryService).pipe(
+    Layer.provide(businessRequirements),
+  )
 
-  const accounting = Layer.effect(
-    AccountingService,
-    Effect.gen(function* () {
-      return makeAccountingService(yield* Database, yield* AuthorizationService)
-    }),
-  ).pipe(Layer.provide(businessRequirements))
+  const accounting = Layer.effect(AccountingService, makeAccountingService).pipe(
+    Layer.provide(businessRequirements),
+  )
 
   return Layer.mergeAll(identity, auth, authorization, party, sales, inventory, accounting)
 }

@@ -1,9 +1,9 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 
 import {
   AuthorizationDenied,
-  AuthorizationService,
   makeAuthorizationTestLayer,
 } from "../../authorization/mod.ts"
 import {
@@ -35,10 +35,10 @@ const authorizationLayer = makeAuthorizationTestLayer(
 )
 
 const withParty = <A, E>(program: Effect.Effect<A, E, PartyService>) =>
-  Effect.gen(function* () {
-    const authorization = yield* AuthorizationService
-    return yield* Effect.provide(program, makePartyTestLayer(authorization))
-  }).pipe(Effect.provide(authorizationLayer))
+  Effect.provide(
+    program,
+    makePartyTestLayer().pipe(Layer.provide(authorizationLayer)),
+  )
 
 describe("party contract", () => {
   it.effect("creates a party with roles and a scoped external identifier", () =>
@@ -268,80 +268,70 @@ describe("party contract", () => {
       )
     })))
 
-  it.effect("denies legal entity creation without its capability", () =>
-    Effect.gen(function* () {
-      const authorization = yield* AuthorizationService
-      return yield* Effect.provide(
-        Effect.gen(function* () {
-          const service = yield* PartyService
-          const party = yield* service.create({
-            principal,
-            tenantId,
-            kind: "organization",
-            name: "No Legal Entity Capability",
-          })
-          assert.instanceOf(
-            yield* Effect.flip(service.createLegalEntity({
-              principal,
-              tenantId,
-              organizationPartyId: party.id,
-            })),
-            AuthorizationDenied,
-          )
-        }),
-        makePartyTestLayer(authorization),
-      )
-    }).pipe(
-      Effect.provide(
-        makeAuthorizationTestLayer([
-          { identityId: principal.identityId, tenantId, capability: "party.create" },
-        ]),
-      ),
-    ))
-
-  it.effect("denies relationship creation without its capability", () =>
-    Effect.gen(function* () {
-      const authorization = yield* AuthorizationService
-      return yield* Effect.provide(
-        Effect.gen(function* () {
-          const service = yield* PartyService
-          const party = yield* service.create({
-            principal,
-            tenantId,
-            kind: "organization",
-            name: "No Relationship Capability",
-          })
-          yield* service.assignRole({
-            principal,
-            tenantId,
-            partyId: party.id,
-            role: "supplier",
-          })
-          const legalEntity = yield* service.createLegalEntity({
+  it.effect("denies legal entity creation without its capability", () => {
+    const authorization = makeAuthorizationTestLayer([
+      { identityId: principal.identityId, tenantId, capability: "party.create" },
+    ])
+    return Effect.provide(
+      Effect.gen(function* () {
+        const service = yield* PartyService
+        const party = yield* service.create({
+          principal,
+          tenantId,
+          kind: "organization",
+          name: "No Legal Entity Capability",
+        })
+        assert.instanceOf(
+          yield* Effect.flip(service.createLegalEntity({
             principal,
             tenantId,
             organizationPartyId: party.id,
-          })
-          assert.instanceOf(
-            yield* Effect.flip(service.createRelationship({
-              principal,
-              tenantId,
-              partyId: party.id,
-              legalEntityId: legalEntity.id,
-              kind: "supplier",
-            })),
-            AuthorizationDenied,
-          )
-        }),
-        makePartyTestLayer(authorization),
-      )
-    }).pipe(
-      Effect.provide(
-        makeAuthorizationTestLayer([
-          { identityId: principal.identityId, tenantId, capability: "party.create" },
-          { identityId: principal.identityId, tenantId, capability: "party.role.assign" },
-          { identityId: principal.identityId, tenantId, capability: "party.legal_entity.create" },
-        ]),
-      ),
-    ))
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      makePartyTestLayer().pipe(Layer.provide(authorization)),
+    )
+  })
+
+  it.effect("denies relationship creation without its capability", () => {
+    const authorization = makeAuthorizationTestLayer([
+      { identityId: principal.identityId, tenantId, capability: "party.create" },
+      { identityId: principal.identityId, tenantId, capability: "party.role.assign" },
+      { identityId: principal.identityId, tenantId, capability: "party.legal_entity.create" },
+    ])
+    return Effect.provide(
+      Effect.gen(function* () {
+        const service = yield* PartyService
+        const party = yield* service.create({
+          principal,
+          tenantId,
+          kind: "organization",
+          name: "No Relationship Capability",
+        })
+        yield* service.assignRole({
+          principal,
+          tenantId,
+          partyId: party.id,
+          role: "supplier",
+        })
+        const legalEntity = yield* service.createLegalEntity({
+          principal,
+          tenantId,
+          organizationPartyId: party.id,
+        })
+        assert.instanceOf(
+          yield* Effect.flip(service.createRelationship({
+            principal,
+            tenantId,
+            partyId: party.id,
+            legalEntityId: legalEntity.id,
+            kind: "supplier",
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      makePartyTestLayer().pipe(Layer.provide(authorization)),
+    )
+  })
 })

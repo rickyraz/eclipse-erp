@@ -59,7 +59,7 @@ export class ApiServiceUnavailable
 export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth, {
   provides: CurrentPrincipal
 }>()("EclipseERP/Http/BearerAuth", {
-  error: ApiUnauthorized,
+  error: [ApiUnauthorized, ApiServiceUnavailable],
   security: { bearer: HttpApiSecurity.bearer },
 }) {}
 

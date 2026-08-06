@@ -7,6 +7,7 @@ export {
   UnsupportedPostgresVersion,
   validatePostgresVersion,
 } from "./database.ts"
+export { WebCryptoLive } from "./crypto.ts"
 export { MigrationFailure, runMigrations } from "./migrations.ts"
 export type {
   DatabaseService,

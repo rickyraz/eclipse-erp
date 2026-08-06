@@ -13,8 +13,8 @@ import {
   partyRoles,
 } from "../../../db/schema/party.ts"
 import { Principal } from "../../auth/mod.ts"
-import { AuthorizationDenied, type AuthorizationServiceShape } from "../../authorization/mod.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isNonEmpty())
 
@@ -274,10 +274,10 @@ const relationshipSelection = {
   active: partyRelationships.active,
 }
 
-export const makePartyService = (
-  database: DatabaseService,
-  authorization: AuthorizationServiceShape,
-): PartyService => ({
+export const makePartyService = Effect.gen(function* () {
+  const database = yield* Database
+  const authorization = yield* AuthorizationService
+  return {
   create: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreatePartyInput)(input)
@@ -574,17 +574,24 @@ export const makePartyService = (
       )
       return rows[0]!
     }),
+  } satisfies PartyService
 })
 
-export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => {
-  const stored = new Map<string, Party>()
-  const storedLegalEntities = new Map<string, LegalEntity>()
-  const storedBranches = new Map<string, Branch>()
-  const roles = new Set<string>()
-  const relationships = new Map<string, PartyRelationship>()
-  const identifiers = new Set<string>()
+export const makePartyTestLayer = () =>
+  Layer.effect(
+    PartyService,
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      const stored = new Map<string, Party>()
+      const storedLegalEntities = new Map<string, LegalEntity>()
+      const storedBranches = new Map<string, Branch>()
+      const roles = new Set<string>()
+      const relationships = new Map<string, PartyRelationship>()
+      const identifiers = new Set<string>()
+      let sequence = 1
+      const nextId = () => `party-test-${sequence++}`
 
-  const service: PartyService = {
+      const service: PartyService = {
     create: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreatePartyInput)(input)
@@ -594,7 +601,7 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           capability: "party.create",
         })
         const party = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           kind: decoded.kind,
           name: decoded.name.trim(),
@@ -641,7 +648,7 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         const legalEntity = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           organizationPartyId: decoded.organizationPartyId,
         }
@@ -682,7 +689,7 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         const branch = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           legalEntityId: decoded.legalEntityId,
           name,
@@ -754,7 +761,7 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         const relationship: PartyRelationship = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           partyId: decoded.partyId,
           legalEntityId: decoded.legalEntityId,
@@ -807,7 +814,7 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
         }
         identifiers.add(key)
         return {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           partyId: decoded.partyId,
           provider,
@@ -817,7 +824,8 @@ export const makePartyTestLayer = (authorization: AuthorizationServiceShape) => 
           value,
         }
       }),
-  }
+      }
 
-  return Layer.succeed(PartyService, service)
-}
+      return service
+    }),
+  )

@@ -1,7 +1,8 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { CustomerAlreadyExists, makeSalesTestLayer, SalesService } from "../mod.ts"
 
 const principal = { identityId: "seller", sessionId: "session" }
@@ -17,10 +18,10 @@ const authorizationLayer = makeAuthorizationTestLayer(
 )
 
 const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>
-  Effect.gen(function* () {
-    const authorization = yield* AuthorizationService
-    return yield* Effect.provide(program, makeSalesTestLayer(authorization))
-  }).pipe(Effect.provide(authorizationLayer))
+  Effect.provide(
+    program,
+    makeSalesTestLayer().pipe(Layer.provide(authorizationLayer)),
+  )
 
 describe("sales contract", () => {
   it.effect("creates customer, quotation, and order", () =>

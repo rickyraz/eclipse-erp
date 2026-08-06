@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import { identities } from "../../../db/schema/identity.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 export const CreateIdentityInput = Schema.Struct({
   email: Schema.String,
@@ -61,7 +62,11 @@ const selectIdentity = {
   email: identities.email,
 }
 
-export const makeIdentityService = (database: DatabaseService): IdentityService => ({
+export const makeIdentityService = Effect.gen(function* () {
+  const database = yield* Database
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
+  return {
   create: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateIdentityInput)(input)
@@ -102,7 +107,7 @@ export const makeIdentityService = (database: DatabaseService): IdentityService 
       const rows = yield* database.query(
         (db) =>
           db.update(identities)
-            .set({ email, updatedAt: new Date() })
+            .set({ email, updatedAt: now() })
             .where(eq(identities.id, decoded.id))
             .returning(selectIdentity),
         "identity.update",
@@ -125,6 +130,7 @@ export const makeIdentityService = (database: DatabaseService): IdentityService 
       )
       if (rows[0] === undefined) return yield* Effect.fail(new IdentityNotFound({ id }))
     }),
+  } satisfies IdentityService
 })
 
 export const makeIdentityTestLayer = () => {

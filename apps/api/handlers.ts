@@ -56,7 +56,11 @@ export const BearerAuthLive = Layer.effect(
           effect,
           CurrentPrincipal,
           auth.authenticate(Redacted.value(options.credential)).pipe(
-            Effect.mapError(() => new ApiUnauthorized({ code: "unauthorized" })),
+            Effect.mapError((error) =>
+              error instanceof DatabaseFailure
+                ? new ApiServiceUnavailable({ code: "service_unavailable" })
+                : new ApiUnauthorized({ code: "unauthorized" })
+            ),
           ),
         ),
     }

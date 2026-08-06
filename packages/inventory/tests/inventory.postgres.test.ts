@@ -1,21 +1,18 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import type { Sql } from "postgres"
 
 import { makeAuthService } from "../../auth/mod.ts"
-import {
-  AuthorizationService,
-  type AuthorizationServiceShape,
-  makeAuthorizationTestLayer,
-} from "../../authorization/mod.ts"
-import { makePartyService } from "../../party/mod.ts"
+import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { makePartyService, PartyService } from "../../party/mod.ts"
 import {
   makeInventoryService,
   StockTransferDifferentLegalEntity,
   StockUnavailable,
   WarehouseBranchNotFound,
 } from "../mod.ts"
-import { type DatabaseService, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -47,14 +44,9 @@ const readBalances = (client: Sql, tenantId: string) =>
     order by warehouse_id, item_id
   `
 
-const createLegalEntityScope = (
-  database: DatabaseService,
-  authorization: AuthorizationServiceShape,
-  tenantId: string,
-  name: string,
-) =>
+const createLegalEntityScope = (tenantId: string, name: string) =>
   Effect.gen(function* () {
-    const party = makePartyService(database, authorization)
+    const party = yield* PartyService
     const organization = yield* party.create({
       principal,
       tenantId,
@@ -83,7 +75,10 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
-        const auth = makeAuthService(database)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
@@ -94,13 +89,17 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const scope = yield* createLegalEntityScope(
-            database,
-            authorization,
-            tenant.id,
-            "Transfer",
+          const requirements = Layer.merge(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
           )
-          const inventory = makeInventoryService(database, authorization)
+          const party = yield* Effect.provide(makePartyService, requirements)
+          const scope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Transfer"),
+            PartyService,
+            party,
+          )
+          const inventory = yield* Effect.provide(makeInventoryService, requirements)
           const source = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
@@ -230,7 +229,10 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
-        const auth = makeAuthService(database)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
@@ -241,13 +243,17 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const scope = yield* createLegalEntityScope(
-            database,
-            authorization,
-            tenant.id,
-            "Rollback",
+          const requirements = Layer.merge(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
           )
-          const inventory = makeInventoryService(database, authorization)
+          const party = yield* Effect.provide(makePartyService, requirements)
+          const scope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Rollback"),
+            PartyService,
+            party,
+          )
+          const inventory = yield* Effect.provide(makeInventoryService, requirements)
           const source = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
@@ -331,7 +337,10 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
-        const auth = makeAuthService(database)
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+        )
         const tenant = yield* auth.createTenant({ slug: `warehouse-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
@@ -342,19 +351,22 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const sourceScope = yield* createLegalEntityScope(
-            database,
-            authorization,
-            tenant.id,
-            "Source",
+          const requirements = Layer.merge(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
           )
-          const destinationScope = yield* createLegalEntityScope(
-            database,
-            authorization,
-            tenant.id,
-            "Destination",
+          const party = yield* Effect.provide(makePartyService, requirements)
+          const sourceScope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Source"),
+            PartyService,
+            party,
           )
-          const inventory = makeInventoryService(database, authorization)
+          const destinationScope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Destination"),
+            PartyService,
+            party,
+          )
+          const inventory = yield* Effect.provide(makeInventoryService, requirements)
 
           const invalidWarehouse = yield* Effect.flip(inventory.createWarehouse({
             principal,

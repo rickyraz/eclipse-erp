@@ -2,15 +2,15 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import {
-  type AuthServiceShape,
+  AuthService,
   CreateTenantInput,
   Principal,
   Tenant,
 } from "../../packages/auth/mod.ts"
-import { type AuthorizationServiceShape, Capability } from "../../packages/authorization/mod.ts"
+import { AuthorizationService, Capability } from "../../packages/authorization/mod.ts"
 import {
   AccountingConfiguration,
-  type AccountingServiceShape,
+  AccountingService,
   ConfigureLegalEntityInput,
 } from "../../packages/accounting/mod.ts"
 import {
@@ -20,11 +20,11 @@ import {
   CreatePartyInput,
   LegalEntity,
   Party,
-  type PartyServiceShape,
+  PartyService,
 } from "../../packages/party/mod.ts"
 import {
   CreateWarehouseInput,
-  type InventoryServiceShape,
+  InventoryService,
   Warehouse,
 } from "../../packages/inventory/mod.ts"
 
@@ -56,14 +56,6 @@ export const BootstrapTenantResult = Schema.Struct({
 export type BootstrapTenantInput = Schema.Schema.Type<typeof BootstrapTenantInput>
 export type BootstrapTenantResult = Schema.Schema.Type<typeof BootstrapTenantResult>
 
-export interface BootstrapServices {
-  readonly auth: AuthServiceShape
-  readonly authorization: AuthorizationServiceShape
-  readonly party: PartyServiceShape
-  readonly accounting: AccountingServiceShape
-  readonly inventory: InventoryServiceShape
-}
-
 const bootstrapCapabilities = [
   "party.create",
   "party.legal_entity.create",
@@ -72,15 +64,17 @@ const bootstrapCapabilities = [
   "inventory.warehouse.create",
 ] as const satisfies readonly Capability[]
 
-export const bootstrapTenant = (
-  services: BootstrapServices,
-  input: unknown,
-) =>
+export const bootstrapTenant = (input: unknown) =>
   Effect.gen(function* () {
     const decoded = yield* Schema.decodeUnknownEffect(BootstrapTenantInput)(input)
+    const auth = yield* AuthService
+    const authorization = yield* AuthorizationService
+    const party = yield* PartyService
+    const accounting = yield* AccountingService
+    const inventory = yield* InventoryService
 
     // Tenant creation is a trusted bootstrap operation, not a self-service API command.
-    const tenant = yield* services.auth.createTenant(
+    const tenant = yield* auth.createTenant(
       {
         slug: decoded.slug,
         timezone: decoded.timezone,
@@ -88,14 +82,14 @@ export const bootstrapTenant = (
     )
 
     for (const capability of bootstrapCapabilities) {
-      yield* services.authorization.grant({
+      yield* authorization.grant({
         identityId: decoded.principal.identityId,
         tenantId: tenant.id,
         capability,
       })
     }
 
-    const organizationParty = yield* services.party.create(
+    const organizationParty = yield* party.create(
       {
         principal: decoded.principal,
         tenantId: tenant.id,
@@ -103,14 +97,14 @@ export const bootstrapTenant = (
         name: decoded.organizationName,
       } satisfies Schema.Schema.Type<typeof CreatePartyInput>,
     )
-    const legalEntity = yield* services.party.createLegalEntity(
+    const legalEntity = yield* party.createLegalEntity(
       {
         principal: decoded.principal,
         tenantId: tenant.id,
         organizationPartyId: organizationParty.id,
       } satisfies Schema.Schema.Type<typeof CreateLegalEntityInput>,
     )
-    const branch = yield* services.party.createBranch(
+    const branch = yield* party.createBranch(
       {
         principal: decoded.principal,
         tenantId: tenant.id,
@@ -119,7 +113,7 @@ export const bootstrapTenant = (
         timezone: decoded.branchTimezone,
       } satisfies Schema.Schema.Type<typeof CreateBranchInput>,
     )
-    const accountingConfiguration = yield* services.accounting.configureLegalEntity(
+    const accountingConfiguration = yield* accounting.configureLegalEntity(
       {
         principal: decoded.principal,
         tenantId: tenant.id,
@@ -130,7 +124,7 @@ export const bootstrapTenant = (
         postingEnabled: decoded.postingEnabled,
       } satisfies Schema.Schema.Type<typeof ConfigureLegalEntityInput>,
     )
-    const warehouse = yield* services.inventory.createWarehouse(
+    const warehouse = yield* inventory.createWarehouse(
       {
         principal: decoded.principal,
         tenantId: tenant.id,

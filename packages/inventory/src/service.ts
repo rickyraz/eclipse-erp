@@ -1,4 +1,5 @@
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -14,8 +15,8 @@ import {
   warehouses,
 } from "../../../db/schema/inventory.ts"
 import { Principal } from "../../auth/mod.ts"
-import { AuthorizationDenied, type AuthorizationServiceShape } from "../../authorization/mod.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 
@@ -280,10 +281,12 @@ const mapTransferCreateError = (
     })
     : error
 
-export const makeInventoryService = (
-  database: DatabaseService,
-  authorization: AuthorizationServiceShape,
-): InventoryService => ({
+export const makeInventoryService = Effect.gen(function* () {
+  const database = yield* Database
+  const authorization = yield* AuthorizationService
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
+  return {
   createWarehouse: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
@@ -384,7 +387,7 @@ export const makeInventoryService = (
               target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
               set: {
                 onHand: sql`${stockBalances.onHand} + ${decoded.quantity}`,
-                updatedAt: new Date(),
+                updatedAt: now(),
               },
             })
             .returning({
@@ -427,7 +430,7 @@ export const makeInventoryService = (
           const updated = await tx.update(stockBalances)
             .set({
               reserved: sql`${stockBalances.reserved} + ${decoded.quantity}`,
-              updatedAt: new Date(),
+              updatedAt: now(),
             })
             .where(
               and(
@@ -662,12 +665,12 @@ export const makeInventoryService = (
             }
           }
 
-          const now = new Date()
+          const timestamp = now()
           for (const line of lines) {
             await tx.update(stockBalances)
               .set({
                 onHand: sql`${stockBalances.onHand} - ${line.quantity}`,
-                updatedAt: now,
+                updatedAt: timestamp,
               })
               .where(
                 and(
@@ -690,7 +693,7 @@ export const makeInventoryService = (
             )
           }
           const [confirmed] = await tx.update(stockTransfers)
-            .set({ status: "confirmed", confirmedAt: now, updatedAt: now })
+            .set({ status: "confirmed", confirmedAt: timestamp, updatedAt: timestamp })
             .where(
               and(
                 eq(stockTransfers.tenantId, decoded.tenantId),
@@ -757,7 +760,7 @@ export const makeInventoryService = (
             return { _tag: "invalid-state" as const, status: row.status }
           }
 
-          const now = new Date()
+          const timestamp = now()
           for (const line of lines) {
             await tx.insert(stockBalances).values({
               tenantId: decoded.tenantId,
@@ -768,7 +771,7 @@ export const makeInventoryService = (
               target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
               set: {
                 onHand: sql`${stockBalances.onHand} + ${line.quantity}`,
-                updatedAt: now,
+                updatedAt: timestamp,
               },
             })
           }
@@ -785,7 +788,7 @@ export const makeInventoryService = (
             )
           }
           const [completed] = await tx.update(stockTransfers)
-            .set({ status: "completed", completedAt: now, updatedAt: now })
+            .set({ status: "completed", completedAt: timestamp, updatedAt: timestamp })
             .where(
               and(
                 eq(stockTransfers.tenantId, decoded.tenantId),
@@ -816,16 +819,25 @@ export const makeInventoryService = (
       }
       return result.transfer
     }),
+  } satisfies InventoryService
 })
 
-export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape) => {
-  const storedWarehouses = new Map<string, Warehouse>()
-  const storedItems = new Map<string, Item>()
-  const balances = new Map<string, { onHand: bigint; reserved: bigint }>()
-  const storedTransfers = new Map<string, StockTransfer>()
-  const authorize = (principal: unknown, tenantId: string, capability: string) =>
-    authorization.authorize({ principal, tenantId, capability })
-  const service: InventoryService = {
+export const makeInventoryTestLayer = () =>
+  Layer.effect(
+    InventoryService,
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      const clock = yield* Clock.Clock
+      const now = () => new Date(clock.currentTimeMillisUnsafe())
+      const storedWarehouses = new Map<string, Warehouse>()
+      const storedItems = new Map<string, Item>()
+      const balances = new Map<string, { onHand: bigint; reserved: bigint }>()
+      const storedTransfers = new Map<string, StockTransfer>()
+      let sequence = 1
+      const nextId = () => `inventory-test-${sequence++}`
+      const authorize = (principal: unknown, tenantId: string, capability: string) =>
+        authorization.authorize({ principal, tenantId, capability })
+      const service: InventoryService = {
     createWarehouse: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
@@ -841,7 +853,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
           )
         }
         const value = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           legalEntityId: decoded.legalEntityId,
           primaryBranchId: decoded.primaryBranchId ?? null,
@@ -863,7 +875,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
           return yield* Effect.fail(new ItemAlreadyExists({ tenantId: decoded.tenantId, sku }))
         }
         const value = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           sku,
           name: decoded.name.trim(),
@@ -914,7 +926,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
         }
         balance.reserved += quantity
         return {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           warehouseId: decoded.warehouseId,
           itemId: decoded.itemId,
@@ -990,7 +1002,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
           )
         }
         const transfer: StockTransfer = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           legalEntityId: sourceWarehouse.legalEntityId,
           sourceWarehouseId: decoded.sourceWarehouseId,
@@ -1048,7 +1060,7 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
         const confirmed: StockTransfer = {
           ...transfer,
           status: "confirmed",
-          confirmedAt: new Date().toISOString(),
+          confirmedAt: now().toISOString(),
         }
         storedTransfers.set(confirmed.id, confirmed)
         return confirmed
@@ -1090,11 +1102,12 @@ export const makeInventoryTestLayer = (authorization: AuthorizationServiceShape)
         const completed: StockTransfer = {
           ...transfer,
           status: "completed",
-          completedAt: new Date().toISOString(),
+          completedAt: now().toISOString(),
         }
         storedTransfers.set(completed.id, completed)
         return completed
       }),
-  }
-  return Layer.succeed(InventoryService, service)
-}
+      }
+      return service
+    }),
+  )

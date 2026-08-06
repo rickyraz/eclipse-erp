@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema"
 
 import { memberships } from "../../../db/schema/authorization.ts"
 import { Principal } from "../../auth/mod.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 export const Capability = Schema.Literals([
   "auth.capability.grant",
@@ -83,7 +83,9 @@ export const AuthorizationService = Context.Service<AuthorizationService>(
   "EclipseERP/AuthorizationService",
 )
 
-export const makeAuthorizationService = (database: DatabaseService): AuthorizationService => ({
+export const makeAuthorizationService = Effect.gen(function* () {
+  const database = yield* Database
+  return {
   authorize: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(AuthorizationInput)(input)
@@ -129,6 +131,7 @@ export const makeAuthorizationService = (database: DatabaseService): Authorizati
         ),
       )
     }),
+  } satisfies AuthorizationService
 })
 
 export const makeAuthorizationTestLayer = (

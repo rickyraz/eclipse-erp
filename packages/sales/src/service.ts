@@ -5,8 +5,8 @@ import * as Schema from "effect/Schema"
 
 import { customers, orders, quotations } from "../../../db/schema/sales.ts"
 import { Principal } from "../../auth/mod.ts"
-import { AuthorizationDenied, type AuthorizationServiceShape } from "../../authorization/mod.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 
@@ -117,10 +117,10 @@ const orderSelection = {
   total: orders.total,
 }
 
-export const makeSalesService = (
-  database: DatabaseService,
-  authorization: AuthorizationServiceShape,
-): SalesService => ({
+export const makeSalesService = Effect.gen(function* () {
+  const database = yield* Database
+  const authorization = yield* AuthorizationService
+  return {
   createCustomer: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateCustomerInput)(input)
@@ -213,12 +213,19 @@ export const makeSalesService = (
       )
       return rows[0]!
     }),
+  } satisfies SalesService
 })
 
-export const makeSalesTestLayer = (authorization: AuthorizationServiceShape) => {
-  const storedCustomers = new Map<string, Customer>()
-  const storedQuotations = new Map<string, Quotation>()
-  const service: SalesService = {
+export const makeSalesTestLayer = () =>
+  Layer.effect(
+    SalesService,
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      const storedCustomers = new Map<string, Customer>()
+      const storedQuotations = new Map<string, Quotation>()
+      let sequence = 1
+      const nextId = () => `sales-test-${sequence++}`
+      const service: SalesService = {
     createCustomer: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateCustomerInput)(input)
@@ -238,7 +245,7 @@ export const makeSalesTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         const customer = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           name: decoded.name.trim(),
           email,
@@ -260,7 +267,7 @@ export const makeSalesTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         const quotation: Quotation = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           customerId: decoded.customerId,
           status: "draft",
@@ -294,7 +301,7 @@ export const makeSalesTestLayer = (authorization: AuthorizationServiceShape) => 
           )
         }
         return {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           customerId: decoded.customerId,
           quotationId: decoded.quotationId ?? null,
@@ -302,6 +309,7 @@ export const makeSalesTestLayer = (authorization: AuthorizationServiceShape) => 
           total: decoded.total,
         }
       }),
-  }
-  return Layer.succeed(SalesService, service)
-}
+      }
+      return service
+    }),
+  )

@@ -1,9 +1,9 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 
 import {
   AuthorizationDenied,
-  AuthorizationService,
   makeAuthorizationTestLayer,
 } from "../../authorization/mod.ts"
 import {
@@ -25,17 +25,17 @@ const withAccounting = <A, E>(
   program: Effect.Effect<A, E, AccountingService>,
   grantedCapabilities: readonly string[] = capabilities,
 ) =>
-  Effect.gen(function* () {
-    const authorization = yield* AuthorizationService
-    return yield* Effect.provide(program, makeAccountingTestLayer(authorization))
-  }).pipe(
-    Effect.provide(
-      makeAuthorizationTestLayer(
+  Effect.provide(
+    program,
+    makeAccountingTestLayer().pipe(
+      Layer.provide(
+        makeAuthorizationTestLayer(
         grantedCapabilities.map((capability) => ({
           identityId: principal.identityId,
           tenantId,
           capability: capability as (typeof capabilities)[number],
         })),
+        ),
       ),
     ),
   )

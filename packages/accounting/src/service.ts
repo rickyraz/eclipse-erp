@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -11,8 +12,8 @@ import {
   legalEntityAccountingConfigurations,
 } from "../../../db/schema/accounting.ts"
 import { Principal } from "../../auth/mod.ts"
-import { AuthorizationDenied, type AuthorizationServiceShape } from "../../authorization/mod.ts"
-import { DatabaseFailure, type DatabaseService, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
@@ -171,10 +172,12 @@ const validateLines = (lines: readonly JournalLine[]) => {
     : new UnbalancedJournal({ debit: String(debit), credit: String(credit) })
 }
 
-export const makeAccountingService = (
-  database: DatabaseService,
-  authorization: AuthorizationServiceShape,
-): AccountingService => ({
+export const makeAccountingService = Effect.gen(function* () {
+  const database = yield* Database
+  const authorization = yield* AuthorizationService
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
+  return {
   configureLegalEntity: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
@@ -288,7 +291,7 @@ export const makeAccountingService = (
             })),
           )
 
-          const postedAt = new Date()
+          const postedAt = now()
           const posted = (await tx.update(journalEntries)
             .set({ status: "posted", postedAt, updatedAt: postedAt })
             .where(eq(journalEntries.id, entry.id))
@@ -325,13 +328,21 @@ export const makeAccountingService = (
         lines: result.lines,
       }
     }),
+  } satisfies AccountingService
 })
 
-export const makeAccountingTestLayer = (authorization: AuthorizationServiceShape) => {
-  const configurations = new Map<string, AccountingConfiguration>()
-  const storedAccounts = new Map<string, Account>()
-  const references = new Set<string>()
-  const service: AccountingService = {
+export const makeAccountingTestLayer = () =>
+  Layer.effect(
+    AccountingService,
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      const clock = yield* Clock.Clock
+      const configurations = new Map<string, AccountingConfiguration>()
+      const storedAccounts = new Map<string, Account>()
+      const references = new Set<string>()
+      let sequence = 1
+      const nextId = () => `accounting-test-${sequence++}`
+      const service: AccountingService = {
     configureLegalEntity: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
@@ -377,7 +388,7 @@ export const makeAccountingTestLayer = (authorization: AuthorizationServiceShape
           return yield* Effect.fail(new AccountAlreadyExists({ tenantId: decoded.tenantId, code }))
         }
         const account = {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           code,
           name: decoded.name.trim(),
@@ -414,14 +425,15 @@ export const makeAccountingTestLayer = (authorization: AuthorizationServiceShape
         }
         references.add(key)
         return {
-          id: crypto.randomUUID(),
+          id: nextId(),
           tenantId: decoded.tenantId,
           reference: decoded.reference.trim(),
           status: "posted" as const,
-          postedAt: new Date().toISOString(),
+          postedAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
           lines: decoded.lines,
         }
       }),
-  }
-  return Layer.succeed(AccountingService, service)
-}
+      }
+      return service
+    }),
+  )
