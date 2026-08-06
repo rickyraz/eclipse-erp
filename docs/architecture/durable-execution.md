@@ -5,6 +5,8 @@
 > **Related documents**
 >
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
+> - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
+> - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Process Studio semantics: [`./process-studio.md`](./process-studio.md)
 > - Capability release and runtime governance:
 >   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
@@ -29,7 +31,9 @@ pg_durable
 -> checkpointed multi-step workflow
 ```
 
-Effect fibers are not durable.
+Effect fibers are not durable. A Stateful Entity Runtime owns selected active
+entity state and serialization; it does not replace checkpointed multi-step
+workflow execution or durable accepted-work semantics.
 
 ## Compatibility Gate
 

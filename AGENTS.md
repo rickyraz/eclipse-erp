@@ -14,6 +14,8 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - Frontend architecture: [`./docs/architecture/frontend.md`](./docs/architecture/frontend.md)
 > - Process Studio architecture: [`./docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
 > - External integration surface: [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
+> - Stateful runtime: [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
+> - State and consistency: [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
 > - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
@@ -312,8 +314,18 @@ introduced.
   `snapshot.json`.
 - Never rewrite an applied migration. Add a new Drizzle migration.
 
-## Asynchronous Rules
+## Stateful Runtime and Asynchronous Rules
 
+- PostgreSQL remains canonical for business facts; runtime-local durability does
+  not transfer business authority.
+- Use the optional Stateful Entity Runtime only for an approved aggregate with a
+  documented address, state class, version, idempotency, recovery, reconciliation,
+  observability, and fallback path.
+- Domain packages must not import `celld`, Cloudflare Durable Object, fleet,
+  bucket, or ownership-protocol APIs; adapters stay behind EclipseERP-owned
+  runtime contracts.
+- Do not activate `celld` for production until ADR-0026's maturity gates pass and
+  a later accepted ADR approves production use.
 - Use a direct transaction for synchronous business invariants.
 - Use PgQue for committed facts and fan-out.
 - Use a job table for leased, scheduled, prioritized single-consumer work.

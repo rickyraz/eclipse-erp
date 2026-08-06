@@ -6,12 +6,14 @@
 >
 > - Full specification: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
+> - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
-- Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
-- Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
-- ADR index: [`../decisions/README.md`](../decisions/README.md)
+> - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
+> - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
+> - ADR index: [`../decisions/README.md`](../decisions/README.md)
 
 ## System Shape
 
@@ -22,9 +24,15 @@ Edge proxy
   |
 API / Worker / Event Relay / Migrator
   |
-PgBouncer
+Public domain contracts
   |
-PostgreSQL 19
+  +--> optional Stateful Entity Runtime --+
+  |                                        |
+  +----------------------------------------+
+                                           |
+                               PgBouncer / PostgreSQL services
+                                           |
+                                      PostgreSQL 19
   |-- transactional domain state
   |-- immutable accounting and inventory facts
   |-- authorization and audit
@@ -40,6 +48,7 @@ boundaries. They are not independent microservices.
 ## Runtime
 
 ```text
+Backend:
 TypeScript strict
 + Effect
 + Deno
@@ -48,8 +57,6 @@ TypeScript strict
 + postgres.js
 
 Frontend SPA:
-
-```text
 Vite
 + SolidJS 2.0
 + Solid Router or an adapted TanStack Solid Router
@@ -60,11 +67,13 @@ Vite
 + Effect Schema
 + Kobalte
 ```
-```
 
 Effect handles typed failures, dependency injection, lifecycle, concurrency,
 retry, streams, and telemetry. Drizzle handles typed schema and queries.
-PostgreSQL remains responsible for transactions and business invariants.
+PostgreSQL remains responsible for canonical transactions and business
+invariants. The optional Stateful Entity Runtime may own active serialization
+and hot state for explicitly approved aggregates; it does not become canonical
+business authority.
 
 ## Boundaries
 
@@ -77,6 +86,7 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 ## Consistency
 
 - Direct transaction: invariant required before request success.
+- Stateful Entity Runtime: optional active ownership and identity-local serialization.
 - PgQue: committed fact and fan-out.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.

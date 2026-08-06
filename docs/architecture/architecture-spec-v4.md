@@ -8,6 +8,8 @@
 >
 > - Summary: [`./overview.md`](./overview.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
+> - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
@@ -56,6 +58,7 @@ domain, ledger, audit, or transactional-integrity principles.
 | Database          | PostgreSQL 19+                                                          |
 | Query layer       | Drizzle ORM with `postgres.js`                                          |
 | Migrations        | Pinned Drizzle Kit graph with reviewed SQL                              |
+| Stateful ownership | Optional vendor-neutral Stateful Entity Runtime                         |
 | Native compute    | Optional Zig through `Deno.dlopen`                                      |
 | Frontend          | Vite-based SolidJS 2.0 SPA with a separate backend                      |
 | Contracts         | Effect Schema                                                           |
@@ -230,6 +233,24 @@ participate in the same PostgreSQL transaction through typed services.
 No module may mutate another module's tables directly. Sharing a transaction does not transfer
 semantic ownership; every invariant-sensitive mutation still passes through the owning domain's
 public typed service.
+
+## Stateful Entity Runtime Contract
+
+EclipseERP may route selected, approved aggregate categories through a
+vendor-neutral Stateful Entity Runtime for explicit active ownership,
+identity-local serialization, hot state, or object-local coordination.
+Stateless Effect services and direct PostgreSQL transactions remain the default.
+
+The runtime does not replace PostgreSQL, PgQue, the job table, the durable
+workflow engine, domain authorization, or public contracts. PostgreSQL remains
+canonical for business facts; runtime state is classified and reconciled under
+[`state-and-consistency.md`](./state-and-consistency.md).
+
+Domain packages must not depend directly on `celld`, Cloudflare Durable Objects,
+or another adapter. Runtime selection and topology remain infrastructure and
+composition-root concerns. Detailed routing, lifecycle, recovery, observability,
+and aggregate-selection rules are owned by
+[`runtime-architecture.md`](./runtime-architecture.md).
 
 ## Composite Process Contract
 

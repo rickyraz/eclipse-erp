@@ -17,6 +17,8 @@
 
 - [`./architecture/overview.md`](./architecture/overview.md)
 - [`./architecture/architecture-spec-v4.md`](./architecture/architecture-spec-v4.md)
+- [`./architecture/runtime-architecture.md`](./architecture/runtime-architecture.md)
+- [`./architecture/state-and-consistency.md`](./architecture/state-and-consistency.md)
 - [`./architecture/frontend.md`](./architecture/frontend.md)
 - [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md)
 - [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md)
@@ -38,6 +40,7 @@
 - [`./architecture/reference/erp-standards.md`](./architecture/reference/erp-standards.md)
 - [`./architecture/reference/sql-pgq-use-cases.md`](./architecture/reference/sql-pgq-use-cases.md)
 - [`./architecture/reference/ltree-notes.md`](./architecture/reference/ltree-notes.md)
+- [`./architecture/reference/erp-runtime-comparison.md`](./architecture/reference/erp-runtime-comparison.md)
 
 ## Roadmaps
 

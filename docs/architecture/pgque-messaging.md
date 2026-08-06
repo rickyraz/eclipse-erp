@@ -5,6 +5,8 @@
 > **Related documents**
 >
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
+> - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
+> - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 > - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
@@ -23,8 +25,8 @@ PgQue is the first-class PostgreSQL event stream for:
 - cache invalidation hints;
 - communication with extracted services.
 
-It is not the source of truth for business state and is not the only background
-work primitive.
+It is not the source of truth for business state, an active entity owner, or the
+only background work primitive.
 
 ## Event Versus Job
 
