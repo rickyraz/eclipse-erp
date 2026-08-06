@@ -50,6 +50,10 @@
 - [`./roadmap/integration-surface.md`](./roadmap/integration-surface.md)
 - [`./roadmap/process-studio.md`](./roadmap/process-studio.md)
 
+## Deployment Notes
+
+- [`./deployment/README.md`](./deployment/README.md)
+
 ## Documentation Governance
 
 - [`./documentation-boundaries.md`](./documentation-boundaries.md)
