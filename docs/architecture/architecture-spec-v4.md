@@ -165,8 +165,12 @@ exhaustively handled.
 Every business invariant has one owning domain capability. The owner defines its authoritative
 command path, validation, mutation rules, public contract, domain errors, and persistence
 constraints. Other domains may consume the contract and maintain derived projections, but must not
-become competing mutation authorities or independently redefine the invariant. Detailed rationale is
-owned by [ADR-0015](../decisions/0015-one-semantic-owner-per-invariant.md).
+become competing mutation authorities or independently redefine the invariant.
+
+Extension mechanisms, plugins, workflow runtimes, and nondeterministic agents are fallible. ERP
+invariants remain enforced by the owning domain, authorization boundary, transactional command path,
+and database constraints; they must not depend on extensions behaving correctly. Detailed rationale
+is owned by [ADR-0015](../decisions/0015-one-semantic-owner-per-invariant.md).
 
 ## Database Contract
 
