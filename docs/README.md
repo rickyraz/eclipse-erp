@@ -22,6 +22,7 @@
 - [`./architecture/frontend.md`](./architecture/frontend.md)
 - [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md)
 - [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md)
+- [`./architecture/search-architecture.md`](./architecture/search-architecture.md)
 - [`./architecture/authorization.md`](./architecture/authorization.md)
 - [`./architecture/durable-execution.md`](./architecture/durable-execution.md)
 - [`./architecture/process-studio.md`](./architecture/process-studio.md)

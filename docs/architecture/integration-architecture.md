@@ -15,6 +15,7 @@
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
 > - Plugin trust: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - External standards ADR: [`../decisions/0013-version-external-standard-adapters.md`](../decisions/0013-version-external-standard-adapters.md)
 > - Integration profile ADR: [`../decisions/0019-adopt-integration-surface-profile.md`](../decisions/0019-adopt-integration-surface-profile.md)
 > - Roadmap: [`../roadmap/README.md`](../roadmap/README.md)
@@ -27,6 +28,11 @@ integration canvas or exposing transport internals to business users.
 External developers receive familiar, machine-readable HTTP and event contracts.
 EclipseERP normalizes those contracts through a connector layer before Process
 Studio can compose them.
+
+External embedding, reranking, and model APIs are connector providers. Their credentials, data
+handling, timeouts, retries, and failures remain in the integration boundary. Domain transactions do
+not wait on them, and their output remains a rebuildable search projection governed by
+[`search-architecture.md`](./search-architecture.md).
 
 ```text
 External Developer / Third Party

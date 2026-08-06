@@ -11,6 +11,8 @@
 >   [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
 > - PostgreSQL architecture:
 >   [`../architecture/postgresql-19-architecture.md`](../architecture/postgresql-19-architecture.md)
+> - Search architecture:
+>   [`../architecture/search-architecture.md`](../architecture/search-architecture.md)
 > - Stateful runtime:
 >   [`../architecture/runtime-architecture.md`](../architecture/runtime-architecture.md)
 > - State and consistency:
@@ -49,7 +51,7 @@ topology.
 | Job workers                | Leased, scheduled, prioritized single-consumer work with retries and observable lifecycle                                            | Colocated workers or separate worker pools                                               |
 | Durable workflow           | Persisted checkpoints, retries, compensation, recovery, and audit correlation                                                        | Compatibility job layer or `pg_durable` after its production gates pass                  |
 | Cache                      | Disposable or rebuildable acceleration only; never the sole correctness, authorization, lock, balance, stock, or idempotency barrier | No cache, in-process cache, distributed cache, CDN cache, or browser query cache         |
-| Search index               | Rebuildable projection; never an authoritative mutation target                                                                       | PostgreSQL search initially or a separate search engine when measured need exists        |
+| Search index               | Exact and structured PostgreSQL first; ranked, vector, and external projections remain rebuildable and non-authoritative             | Primary, stale-tolerant replica, PostgreSQL extension, or external engine after gates    |
 | Analytics store            | Rebuildable projection of committed facts; no direct write-back into domain tables                                                   | PostgreSQL reporting, replicas, ClickHouse, warehouse, or another analytics engine       |
 | External connectors        | Typed, authenticated, idempotent boundary with timeout, retry, provider status, and recovery                                         | Colocated adapters or separately deployed connector workers                              |
 | Observability              | Correlation, metrics, logs, traces, and alerts without becoming business authority                                                   | Any approved telemetry backend or local tooling                                          |
@@ -74,6 +76,23 @@ A cache is an optimization layer, not an ERP authority.
 Redis or another distributed cache is therefore optional. It should be introduced only when a
 measured latency, throughput, or fan-out problem cannot be solved acceptably with bounded in-process
 caching, PostgreSQL indexes, or query improvements.
+
+## Search Deployment
+
+Search begins on PostgreSQL with exact indexes, structured filters, and built-in text search. A
+PostgreSQL-native BM25 or vector extension remains optional and must support PostgreSQL 19, the
+selected hosting profiles, safe migration and recovery, and bounded OLTP impact before production
+use.
+
+Search may move to a stale-tolerant PostgreSQL replica or external engine when measured isolation,
+scale, or feature requirements justify it. The query contract does not expose that move. Global
+search and embeddings remain rebuildable projections; current authorization and business actions
+return through the owning domain.
+
+Search connection pools, workers, replicas, and external nodes share explicit capacity and freshness
+budgets. They may fail or degrade without changing canonical facts or starving invariant-sensitive
+transactions. Detailed rules are owned by
+[`../architecture/search-architecture.md`](../architecture/search-architecture.md).
 
 ## Database Scaling
 

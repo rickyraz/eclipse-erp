@@ -5,6 +5,7 @@
 > **Related documents**
 >
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Authorization ADR: [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
 > - Plugin trust model: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
@@ -25,6 +26,11 @@ The authorization system must be:
 
 Authentication integrations may include OIDC, SAML, SCIM, LDAP, Active
 Directory, MFA, and passkeys. Authentication does not replace authorization.
+
+Search rank, projection membership, cached results, embeddings, and external search ACLs do not grant
+EclipseERP capabilities. Search returns candidates; current visibility and every business action are
+revalidated by the owning domain. Detailed search behavior is owned by
+[`search-architecture.md`](./search-architecture.md).
 
 ## Model
 

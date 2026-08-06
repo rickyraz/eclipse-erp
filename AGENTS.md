@@ -16,6 +16,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - External integration surface: [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
 > - Stateful runtime: [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
 > - State and consistency: [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
+> - Search architecture: [`./docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
 > - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
@@ -313,6 +314,27 @@ introduced.
 - Every migration requires owner, review-date, generator headers, and a sibling
   `snapshot.json`.
 - Never rewrite an applied migration. Add a new Drizzle migration.
+
+## Search Rules
+
+Before implementing exact, full-text, BM25, vector, hybrid, global, or external search, read
+[`docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md) and
+ADR-0027.
+
+- Start with exact and structured PostgreSQL queries; add ranked, vector, replica, or external search
+  only after measured need.
+- Domain-local search may query only owned tables. Cross-domain search consumes public facts or
+  committed events into a tenant-scoped, rebuildable projection.
+- Search results are candidates, not authorization evidence or current business facts. Sensitive use
+  and every command return through the owning public domain contract.
+- Embeddings are asynchronous, versioned, rebuildable, and never part of invariant enforcement.
+- Do not expose provider types, index names, model credentials, shards, replicas, or topology in
+  public contracts.
+- Do not require `pg_textsearch`, `pgvector`, `pgvectorscale`, or an external engine until PostgreSQL
+  19 compatibility and the documented production gates pass.
+- Unsupported extension DDL and indexes use reviewed Drizzle custom migrations; provider-specific raw
+  SQL must not enter domain packages.
+- Bound search connections, concurrency, top-k, candidates, statement time, and OLTP resource impact.
 
 ## Stateful Runtime and Asynchronous Rules
 

@@ -6,6 +6,7 @@
 >
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
@@ -67,6 +68,11 @@ payload
 ```
 
 Event names use past tense and payload versions are explicit.
+
+Cross-domain search and embedding consumers may build tenant-scoped, rebuildable projections from
+these committed events. They must preserve source and event versions, tolerate replay, and never use
+projection delivery as the authorization or invariant boundary. Detailed rules are owned by
+[`search-architecture.md`](./search-architecture.md).
 
 Process triggers and waits discover versioned event schemas through the Typed
 Event Catalog defined by [`process-studio.md`](./process-studio.md). External

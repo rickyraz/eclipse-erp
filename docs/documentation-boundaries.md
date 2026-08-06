@@ -42,6 +42,7 @@ create a second independent definition.
 | Canonical/runtime state classification and consistency protocol | [`./architecture/state-and-consistency.md`](./architecture/state-and-consistency.md) |
 | Frontend SPA, SolidJS 2.0, routing, and TanStack UI infrastructure | [`./architecture/frontend.md`](./architecture/frontend.md) |
 | PostgreSQL ownership and integrity | [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md) |
+| Search authority, projections, providers, and workload isolation | [`./architecture/search-architecture.md`](./architecture/search-architecture.md) |
 | Authorization | [`./architecture/authorization.md`](./architecture/authorization.md) |
 | Events and messaging | [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md) |
 | External integration surface and connector protocols | [`./architecture/integration-architecture.md`](./architecture/integration-architecture.md) |

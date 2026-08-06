@@ -49,5 +49,6 @@ current system; ADRs preserve decision history.
 | [`0024`](./0024-adopt-effect-schema-as-canonical-contract-schema.md) | Adopt Effect Schema as the canonical contract schema | Accepted |
 | [`0025`](./0025-introduce-stateful-entity-runtime.md) | Introduce a Stateful Entity Runtime | Accepted |
 | [`0026`](./0026-evaluate-celld-runtime-adapter.md) | Evaluate `celld` as the distributed runtime adapter | Proposed |
+| [`0027`](./0027-adopt-postgresql-first-replaceable-search.md) | Adopt PostgreSQL-first, replaceable search | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

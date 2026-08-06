@@ -8,6 +8,7 @@
 >
 > - Summary: [`./overview.md`](./overview.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
@@ -201,6 +202,24 @@ Detailed rationale and HTTP rules are owned by
 Financial ledger engine selection is an infrastructure decision owned by
 [ADR-0011](../decisions/0011-financial-ledger-engine.md), not by the orthogonal ledger domain
 primitives. PostgreSQL remains the initial authoritative ledger store.
+
+## Search Contract
+
+Search starts with exact and structured PostgreSQL queries. Ranked lexical, vector, hybrid, replica,
+or external search is introduced only after measured need and compatibility evidence.
+
+An owning domain may search its own data through a typed query. Cross-domain search consumes public
+facts or committed events into a tenant-scoped, rebuildable projection; it must not import private
+tables or repositories. Search results are candidate references, not authorization evidence or
+current business facts. Sensitive use and every business action return through the owning public
+domain contract.
+
+Embeddings and external search projections are asynchronous and rebuildable. They cannot participate
+in invariant enforcement or make domain writes depend on a model or search provider. Provider types,
+index names, shards, replicas, and topology remain private implementation details. PostgreSQL search
+extensions require PostgreSQL 19 compatibility and the production gates defined by
+[`search-architecture.md`](./search-architecture.md) and
+[ADR-0027](../decisions/0027-adopt-postgresql-first-replaceable-search.md).
 
 ## Scope and Identity Contract
 

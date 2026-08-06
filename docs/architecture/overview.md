@@ -6,6 +6,7 @@
 >
 > - Full specification: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
@@ -38,6 +39,7 @@ Public domain contracts
   |-- authorization and audit
   |-- PgQue
   |-- durable jobs and workflows
+  |-- rebuildable search projections
   `-- hierarchy and graph projections
 ```
 
@@ -91,6 +93,16 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.
 - ClickHouse, search indexes, and caches: rebuildable projections.
+
+## Search
+
+Exact and structured PostgreSQL queries remain the default. Domain-local search reads only owned
+data. Global search consumes published facts into a tenant-scoped, rebuildable projection and returns
+candidate references that are revalidated through the owning domain before sensitive use or action.
+PostgreSQL-native BM25 and vector search remain gated by PostgreSQL 19 compatibility and workload
+evidence; external search remains a later deployment optimization.
+
+See [`./search-architecture.md`](./search-architecture.md).
 
 ## External Integration Surface
 

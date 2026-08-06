@@ -5,6 +5,7 @@
 > **Related documents**
 >
 > - Active runtime: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Hierarchy and graph selection:
 >   [`./hierarchy-and-graph-selection.md`](./hierarchy-and-graph-selection.md)
 > - Transactional-truth ADR:
@@ -104,6 +105,12 @@ matching historical SQL text.
 
 Create projections only when measured read requirements justify them. Projections must be
 rebuildable from authoritative facts or have an explicit reconciliation process.
+
+Search indexes over canonical tables are physical access paths, not new business facts. Cross-domain
+search documents and embeddings are rebuildable projections governed by
+[`search-architecture.md`](./search-architecture.md). A PostgreSQL search extension must support the
+project's PostgreSQL 19 floor and pass installation, migration, recovery, replication, workload, and
+exit gates before production use.
 
 ## Operational Requirements
 

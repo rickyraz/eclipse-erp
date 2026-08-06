@@ -20,6 +20,7 @@ The authoritative architecture specification is:
 - Frontend: Vite + SolidJS 2.0
 - Contracts: Effect Schema
 - Stateful ownership: optional vendor-neutral Stateful Entity Runtime
+- Search: PostgreSQL-first, rebuildable, and provider-replaceable
 - Native compute: optional Zig through `Deno.dlopen`
 - Process composition target: typed catalogs, deterministic Process IR, and a
   governed Process Studio
@@ -32,6 +33,8 @@ The canonical Process Studio target and staged 0.8–1.0 roadmap are defined in
 [`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md).
 The external connector profile is defined in
 [`docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md).
+Search authority, projections, provider gates, and workload isolation are defined in
+[`docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md).
 
 ## Dependency Ownership
 

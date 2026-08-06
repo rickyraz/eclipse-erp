@@ -9,6 +9,7 @@
 >
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Messaging and outbox: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - PostgreSQL truth ADR:
@@ -53,7 +54,8 @@ Rules:
 ### Rebuildable
 
 The runtime value is derived from PostgreSQL facts and may be discarded. Examples include a hot
-inventory-position projection or current workflow read model.
+inventory-position projection, current workflow read model, cross-domain search document, or
+embedding projection.
 
 Rules:
 
@@ -77,8 +79,8 @@ Rules:
 
 ### Ephemeral
 
-The value is safe to lose, such as an in-memory memo, resident connection cache, or transient
-calculation.
+The value is safe to lose, such as an in-memory memo, resident connection cache, bounded search-result
+cache, or transient calculation.
 
 Rules:
 
