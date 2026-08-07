@@ -5,6 +5,7 @@ import {
   AuthService,
   InvalidSessionToken,
   makeAuthTestLayer,
+  SessionUserAccountDisabled,
   SessionUserAccountNotFound,
   TenantAlreadyExists,
 } from "../mod.ts"
@@ -44,4 +45,16 @@ describe("auth contract", () => {
         SessionUserAccountNotFound,
       )
     })))
+
+  it.effect("rejects sessions for disabled user accounts", () =>
+    Effect.provide(
+      Effect.gen(function* () {
+        const auth = yield* AuthService
+        assert.instanceOf(
+          yield* Effect.flip(auth.issueSession({ userAccountId: "disabled", ttlSeconds: 60 })),
+          SessionUserAccountDisabled,
+        )
+      }),
+      makeAuthTestLayer(new Set(["disabled"]), new Set(["disabled"])),
+    ))
 })

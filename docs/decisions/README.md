@@ -52,5 +52,6 @@ current system; ADRs preserve decision history.
 | [`0027`](./0027-adopt-postgresql-first-replaceable-search.md) | Adopt PostgreSQL-first, replaceable search | Accepted |
 | [`0028`](./0028-complete-p0-identity-party-and-branch-metadata.md) | Complete P0 identity-party and branch metadata boundaries | Accepted |
 | [`0029`](./0029-rename-user-and-party-public-vocabulary.md) | Rename user and Party public vocabulary | Accepted |
+| [`0030`](./0030-user-account-lifecycle-and-tenant-membership.md) | Separate UserAccount lifecycle from tenant membership | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

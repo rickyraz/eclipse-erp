@@ -34,6 +34,7 @@ import {
   JournalEntry,
   JournalLine,
 } from "../../packages/accounting/mod.ts"
+import { TenantMembership } from "../../packages/authorization/mod.ts"
 
 export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(
   "EclipseERP/Http/CurrentPrincipal",
@@ -79,6 +80,7 @@ const CreatedTransfer = StockTransfer.pipe(HttpApiSchema.status(201))
 const CreatedAccountingConfiguration = AccountingConfiguration.pipe(HttpApiSchema.status(201))
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
+const CreatedTenantMembership = TenantMembership.pipe(HttpApiSchema.status(201))
 
 const Health = HttpApiGroup.make("Health").add(
   HttpApiEndpoint.get("health", "/health", {
@@ -88,10 +90,11 @@ const Health = HttpApiGroup.make("Health").add(
 
 const UserAccounts = HttpApiGroup.make("UserAccounts").add(
   HttpApiEndpoint.post("create", "/user-accounts", {
+    headers: tenantHeaders,
     payload: Schema.Struct({ email: Schema.String }),
     success: CreatedUserAccount,
     error: errors,
-  }),
+  }).middleware(BearerAuth),
   HttpApiEndpoint.get("list", "/user-accounts", {
     headers: tenantHeaders,
     success: Schema.Array(UserAccount),
@@ -108,11 +111,6 @@ const UserAccounts = HttpApiGroup.make("UserAccounts").add(
     headers: tenantHeaders,
     payload: Schema.Struct({ email: Schema.String }),
     success: UserAccount,
-    error: errors,
-  }).middleware(BearerAuth),
-  HttpApiEndpoint.delete("remove", "/user-accounts/:id", {
-    params: { id: Schema.String },
-    headers: tenantHeaders,
     error: errors,
   }).middleware(BearerAuth),
 )
@@ -156,6 +154,34 @@ const Parties = HttpApiGroup.make("Parties").add(
 )
 
 const Authorization = HttpApiGroup.make("Authorization").add(
+  HttpApiEndpoint.post("addMember", "/tenant-memberships", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ userAccountId: Schema.String }),
+    success: CreatedTenantMembership,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.get("listMembers", "/tenant-memberships", {
+    headers: tenantHeaders,
+    success: Schema.Array(TenantMembership),
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("suspendMember", "/tenant-memberships/:userAccountId/suspend", {
+    params: { userAccountId: Schema.String },
+    headers: tenantHeaders,
+    success: TenantMembership,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("activateMember", "/tenant-memberships/:userAccountId/activate", {
+    params: { userAccountId: Schema.String },
+    headers: tenantHeaders,
+    success: TenantMembership,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.delete("removeMember", "/tenant-memberships/:userAccountId", {
+    params: { userAccountId: Schema.String },
+    headers: tenantHeaders,
+    error: errors,
+  }).middleware(BearerAuth),
   HttpApiEndpoint.post("grant", "/capabilities", {
     headers: tenantHeaders,
     payload: Schema.Struct({ userAccountId: Schema.String, capability: Capability }),

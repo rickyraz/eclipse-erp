@@ -6,6 +6,8 @@ import {
   AuthorizationService,
   CapabilityAlreadyGranted,
   makeAuthorizationTestLayer,
+  TenantMembershipAlreadyExists,
+  TenantMembershipNotFound,
 } from "../mod.ts"
 
 const principal = { userAccountId: "admin", sessionId: "session" }
@@ -48,4 +50,60 @@ describe("authorization contract", () => {
       const error = yield* Effect.flip(service.grant(initialGrant))
       assert.instanceOf(error, CapabilityAlreadyGranted)
     })))
+
+  it.effect("suspends tenant access without deleting the global account", () =>
+    withAuthorization(Effect.gen(function* () {
+      const service = yield* AuthorizationService
+      yield* service.suspendMember({
+        userAccountId: principal.userAccountId,
+        tenantId: "tenant-a",
+      })
+      assert.instanceOf(
+        yield* Effect.flip(service.authorize({
+          principal,
+          tenantId: "tenant-a",
+          capability: "user_account.read",
+        })),
+        AuthorizationDenied,
+      )
+      yield* service.activateMember({
+        userAccountId: principal.userAccountId,
+        tenantId: "tenant-a",
+      })
+      assert.strictEqual(
+        (yield* service.authorize({
+          principal,
+          tenantId: "tenant-a",
+          capability: "user_account.read",
+        })).allowed,
+        true,
+      )
+    })))
+
+  it.effect("manages membership lifecycle and rejects missing members", () =>
+    Effect.provide(
+      Effect.gen(function* () {
+        const service = yield* AuthorizationService
+        const added = yield* service.addMember({
+          userAccountId: "new-user",
+          tenantId: "tenant-a",
+        })
+        assert.strictEqual(added.status, "active")
+        assert.instanceOf(
+          yield* Effect.flip(service.addMember({
+            userAccountId: "new-user",
+            tenantId: "tenant-a",
+          })),
+          TenantMembershipAlreadyExists,
+        )
+        yield* service.removeMember({ userAccountId: "new-user", tenantId: "tenant-a" })
+        assert.instanceOf(
+          yield* Effect.flip(
+            service.getMember({ userAccountId: "new-user", tenantId: "tenant-a" }),
+          ),
+          TenantMembershipNotFound,
+        )
+      }),
+      makeAuthorizationTestLayer(),
+    ))
 })

@@ -16,6 +16,8 @@
     "db:generate": "deno run -A npm:drizzle-kit@1.0.0-rc.4 generate --config=drizzle.config.ts",
     "db:check": "deno run -A npm:drizzle-kit@1.0.0-rc.4 check --config=drizzle.config.ts",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.provider=v8",
+    "test:identity-coverage": "vitest run --coverage --coverage.provider=v8 --coverage.include=packages/identity/src/**/*.ts --coverage.thresholds.100 packages/identity/tests",
     "test:contract": "vitest run --config vitest.contract.config.ts",
     "skills:check": "deno run --allow-read tooling/check-agent-skills.ts",
     "callgraph:check": "deno run --allow-read --allow-run tooling/call-graph/check.ts",

@@ -8,6 +8,7 @@ import * as Schema from "effect/Schema"
 
 import { sessions, tenants } from "../../../db/schema/auth.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { UserAccountNotFound, UserAccountService } from "../../identity/mod.ts"
 
 const PositiveSeconds = Schema.Int.check(Schema.isGreaterThan(0))
 const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
@@ -52,6 +53,11 @@ export class SessionUserAccountNotFound
     userAccountId: Schema.String,
   }) {}
 
+export class SessionUserAccountDisabled
+  extends Schema.TaggedErrorClass<SessionUserAccountDisabled>()("SessionUserAccountDisabled", {
+    userAccountId: Schema.String,
+  }) {}
+
 export class InvalidSessionToken
   extends Schema.TaggedErrorClass<InvalidSessionToken>()("InvalidSessionToken", {}) {}
 
@@ -68,7 +74,10 @@ export interface AuthService {
     input: unknown,
   ) => Effect.Effect<
     IssuedSession,
-    SessionUserAccountNotFound | DatabaseFailure | Schema.SchemaError
+    | SessionUserAccountNotFound
+    | SessionUserAccountDisabled
+    | DatabaseFailure
+    | Schema.SchemaError
   >
   readonly authenticate: (
     token: string,
@@ -102,6 +111,7 @@ const isMissingUserAccount = (error: unknown) =>
 
 export const makeAuthService = Effect.gen(function* () {
   const database = yield* Database
+  const userAccounts = yield* UserAccountService
   const crypto = yield* Crypto.Crypto
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
@@ -129,6 +139,18 @@ export const makeAuthService = Effect.gen(function* () {
     issueSession: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(IssueSessionInput)(input)
+        const account = yield* userAccounts.getAuthenticationState(decoded.userAccountId).pipe(
+          Effect.mapError((error) =>
+            error instanceof UserAccountNotFound
+              ? new SessionUserAccountNotFound({ userAccountId: decoded.userAccountId })
+              : error
+          ),
+        )
+        if (account.status === "disabled") {
+          return yield* Effect.fail(
+            new SessionUserAccountDisabled({ userAccountId: decoded.userAccountId }),
+          )
+        }
         const token = yield* makeToken(crypto)
         const tokenHash = yield* hashToken(crypto, token)
         const expiresAt = new Date(clock.currentTimeMillisUnsafe() + decoded.ttlSeconds * 1000)
@@ -168,7 +190,11 @@ export const makeAuthService = Effect.gen(function* () {
         const tokenHash = yield* hashToken(crypto, token)
         const rows = yield* database.query(
           (db) =>
-            db.select({ id: sessions.id, userAccountId: sessions.userAccountId })
+            db.select({
+              id: sessions.id,
+              userAccountId: sessions.userAccountId,
+              createdAt: sessions.createdAt,
+            })
               .from(sessions)
               .where(
                 and(
@@ -181,6 +207,18 @@ export const makeAuthService = Effect.gen(function* () {
         )
         const row = rows[0]
         if (row === undefined) return yield* Effect.fail(new InvalidSessionToken({}))
+        const account = yield* userAccounts.getAuthenticationState(row.userAccountId).pipe(
+          Effect.mapError((error) =>
+            error instanceof UserAccountNotFound ? new InvalidSessionToken({}) : error
+          ),
+        )
+        if (
+          account.status === "disabled" ||
+          (account.sessionInvalidatedAt !== null &&
+            row.createdAt.getTime() <= Date.parse(account.sessionInvalidatedAt))
+        ) {
+          return yield* Effect.fail(new InvalidSessionToken({}))
+        }
         return { userAccountId: row.userAccountId, sessionId: row.id }
       }),
     revoke: (sessionId) =>
@@ -198,7 +236,10 @@ export const makeAuthService = Effect.gen(function* () {
   } satisfies AuthService
 })
 
-export const makeAuthTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
+export const makeAuthTestLayer = (
+  validUserAccountIds?: ReadonlySet<string>,
+  disabledUserAccountIds: ReadonlySet<string> = new Set(),
+) =>
   Layer.effect(
     AuthService,
     Effect.gen(function* () {
@@ -234,6 +275,11 @@ export const makeAuthTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
                 new SessionUserAccountNotFound({ userAccountId: decoded.userAccountId }),
               )
             }
+            if (disabledUserAccountIds.has(decoded.userAccountId)) {
+              return yield* Effect.fail(
+                new SessionUserAccountDisabled({ userAccountId: decoded.userAccountId }),
+              )
+            }
             const sequence = nextSessionId++
             const token = `test-token-${sequence}`
             const sessionId = `session-${sequence}`
@@ -254,7 +300,9 @@ export const makeAuthTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
           }),
         authenticate: (token) => {
           const session = storedSessions.get(token)
-          return session === undefined || session.expiresAt <= clock.currentTimeMillisUnsafe()
+          return session === undefined ||
+              session.expiresAt <= clock.currentTimeMillisUnsafe() ||
+              disabledUserAccountIds.has(session.userAccountId)
             ? Effect.fail(new InvalidSessionToken({}))
             : Effect.succeed({
               userAccountId: session.userAccountId,

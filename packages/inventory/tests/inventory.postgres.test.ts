@@ -6,6 +6,7 @@ import type { Sql } from "postgres"
 import { makeAuthService } from "../../auth/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { makePartyService, PartyService } from "../../party/mod.ts"
+import { makeUserAccountService, UserAccountService } from "../../identity/mod.ts"
 import {
   makeInventoryService,
   StockTransferDifferentLegalEntity,
@@ -75,9 +76,13 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
+        const userAccountService = yield* makeUserAccountService.pipe(
+          Effect.provideService(Database, database),
+        )
         const auth = yield* makeAuthService.pipe(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
+          Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
@@ -229,9 +234,13 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
+        const userAccountService = yield* makeUserAccountService.pipe(
+          Effect.provideService(Database, database),
+        )
         const auth = yield* makeAuthService.pipe(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
+          Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(
@@ -337,9 +346,13 @@ it.effect.skipIf(databaseUrl === undefined)(
       Effect.gen(function* () {
         yield* runMigrations(client)
         const database = makePostgresDatabase(client)
+        const userAccountService = yield* makeUserAccountService.pipe(
+          Effect.provideService(Database, database),
+        )
         const auth = yield* makeAuthService.pipe(
           Effect.provideService(Database, database),
           Effect.provide(WebCryptoLive),
+          Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `warehouse-${crypto.randomUUID()}` })
         const authorizationLayer = makeAuthorizationTestLayer(

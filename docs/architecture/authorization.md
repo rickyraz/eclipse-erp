@@ -7,6 +7,7 @@
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Authorization ADR: [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
+- User-account lifecycle and tenant membership: [`../decisions/0030-user-account-lifecycle-and-tenant-membership.md`](../decisions/0030-user-account-lifecycle-and-tenant-membership.md)
 > - Plugin trust model: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
 > - Process governance ADR: [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
@@ -38,11 +39,17 @@ EclipseERP combines:
 
 ```text
 RBAC
++ explicit tenant membership
 + scoped grants
 + constrained ABAC
 + relationship context
 + static and dynamic Separation of Duties
 ```
+
+Tenant membership is separate from capability grants. A membership may be
+`active` or `suspended`; only an active membership can authorize a capability.
+Removing a membership removes its tenant-scoped grants but does not delete the
+global UserAccount.
 
 Roles bundle permissions but do not directly make the final decision.
 

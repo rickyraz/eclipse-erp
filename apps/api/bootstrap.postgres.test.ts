@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer"
 import { AuthService, makeAuthService, TenantAlreadyExists } from "../../packages/auth/mod.ts"
 import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
-import { makeUserAccountService } from "../../packages/identity/mod.ts"
+import { makeUserAccountService, UserAccountService } from "../../packages/identity/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import {
@@ -37,7 +37,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         const businessRequirements = Layer.merge(databaseLayer, authorizationLayer)
         const auth = yield* Effect.provide(
           makeAuthService,
-          Layer.merge(databaseLayer, WebCryptoLive),
+          Layer.mergeAll(
+            databaseLayer,
+            WebCryptoLive,
+            Layer.succeed(UserAccountService, userAccountService),
+          ),
         )
         const party = yield* Effect.provide(makePartyService, businessRequirements)
         const accounting = yield* Effect.provide(makeAccountingService, businessRequirements)

@@ -99,6 +99,10 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
     )
 
     const otherTenant = yield* auth.createTenant({ slug: "other" })
+    yield* authorization.addMember({
+      userAccountId: principal.userAccountId,
+      tenantId: otherTenant.id,
+    })
     yield* authorization.grant({
       userAccountId: principal.userAccountId,
       tenantId: otherTenant.id,

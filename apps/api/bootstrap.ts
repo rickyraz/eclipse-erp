@@ -50,6 +50,10 @@ export type BootstrapTenantInput = Schema.Schema.Type<typeof BootstrapTenantInpu
 export type BootstrapTenantResult = Schema.Schema.Type<typeof BootstrapTenantResult>
 
 const bootstrapCapabilities = [
+  "auth.capability.grant",
+  "user_account.read",
+  "user_account.write",
+  "user_account.membership.manage",
   "party.create",
   "party.legal_entity.create",
   "party.branch.create",
@@ -73,6 +77,11 @@ export const bootstrapTenant = (input: unknown) =>
         timezone: decoded.timezone,
       } satisfies Schema.Schema.Type<typeof CreateTenantInput>,
     )
+
+    yield* authorization.addMember({
+      userAccountId: decoded.principal.userAccountId,
+      tenantId: tenant.id,
+    })
 
     for (const capability of bootstrapCapabilities) {
       yield* authorization.grant({

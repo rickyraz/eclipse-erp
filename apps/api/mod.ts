@@ -32,7 +32,7 @@ const serviceLayers = (client: Sql) => {
   )
 
   const auth = Layer.effect(AuthService, makeAuthService).pipe(
-    Layer.provide(Layer.merge(database, WebCryptoLive)),
+    Layer.provide(Layer.mergeAll(database, WebCryptoLive, userAccount)),
   )
 
   const authorization = Layer.effect(AuthorizationService, makeAuthorizationService).pipe(

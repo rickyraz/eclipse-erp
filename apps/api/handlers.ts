@@ -78,10 +78,22 @@ export const UserAccountHandlers = HttpApiBuilder.group(
   "UserAccounts",
   (handlers) =>
     handlers
-      .handle(
-        "create",
-        ({ payload }) => apiEffect(UserAccountService.use((service) => service.create(payload))),
-      )
+      .handle("create", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.write",
+          })
+          const userAccount = yield* UserAccountService.use((service) => service.create(payload))
+          yield* authorization.addMember({
+            userAccountId: userAccount.id,
+            tenantId: headers["x-tenant-id"],
+          })
+          return userAccount
+        })))
       .handle("list", ({ headers }) =>
         apiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
@@ -91,7 +103,10 @@ export const UserAccountHandlers = HttpApiBuilder.group(
             tenantId: headers["x-tenant-id"],
             capability: "user_account.read",
           })
-          return yield* UserAccountService.use((service) => service.list())
+          const members = yield* authorization.listMembers(headers["x-tenant-id"])
+          return yield* UserAccountService.use((service) =>
+            service.getByIds(members.map((member) => member.userAccountId))
+          )
         })))
       .handle("get", ({ headers, params }) =>
         apiEffect(Effect.gen(function* () {
@@ -101,6 +116,10 @@ export const UserAccountHandlers = HttpApiBuilder.group(
             principal,
             tenantId: headers["x-tenant-id"],
             capability: "user_account.read",
+          })
+          yield* authorization.getMember({
+            userAccountId: params.id,
+            tenantId: headers["x-tenant-id"],
           })
           return yield* UserAccountService.use((service) => service.getById(params.id))
         })))
@@ -113,20 +132,13 @@ export const UserAccountHandlers = HttpApiBuilder.group(
             tenantId: headers["x-tenant-id"],
             capability: "user_account.write",
           })
+          yield* authorization.getMember({
+            userAccountId: params.id,
+            tenantId: headers["x-tenant-id"],
+          })
           return yield* UserAccountService.use((service) =>
             service.update({ id: params.id, email: payload.email })
           )
-        })))
-      .handle("remove", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
-          const principal = yield* CurrentPrincipal
-          const authorization = yield* AuthorizationService
-          yield* authorization.authorize({
-            principal,
-            tenantId: headers["x-tenant-id"],
-            capability: "user_account.write",
-          })
-          yield* UserAccountService.use((service) => service.remove(params.id))
         }))),
 )
 
@@ -184,21 +196,89 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
   EclipseApi,
   "Authorization",
   (handlers) =>
-    handlers.handle("grant", ({ headers, payload }) =>
-      apiEffect(Effect.gen(function* () {
-        const principal = yield* CurrentPrincipal
-        const authorization = yield* AuthorizationService
-        yield* authorization.authorize({
-          principal,
-          tenantId: headers["x-tenant-id"],
-          capability: "auth.capability.grant",
-        })
-        yield* authorization.grant({
-          userAccountId: payload.userAccountId,
-          tenantId: headers["x-tenant-id"],
-          capability: payload.capability,
-        })
-      }))),
+    handlers
+      .handle("addMember", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.membership.manage",
+          })
+          return yield* authorization.addMember({
+            userAccountId: payload.userAccountId,
+            tenantId: headers["x-tenant-id"],
+          })
+        })))
+      .handle("listMembers", ({ headers }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.read",
+          })
+          return yield* authorization.listMembers(headers["x-tenant-id"])
+        })))
+      .handle("suspendMember", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.membership.manage",
+          })
+          return yield* authorization.suspendMember({
+            userAccountId: params.userAccountId,
+            tenantId: headers["x-tenant-id"],
+          })
+        })))
+      .handle("activateMember", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.membership.manage",
+          })
+          return yield* authorization.activateMember({
+            userAccountId: params.userAccountId,
+            tenantId: headers["x-tenant-id"],
+          })
+        })))
+      .handle("removeMember", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "user_account.membership.manage",
+          })
+          yield* authorization.removeMember({
+            userAccountId: params.userAccountId,
+            tenantId: headers["x-tenant-id"],
+          })
+        })))
+      .handle("grant", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          const authorization = yield* AuthorizationService
+          yield* authorization.authorize({
+            principal,
+            tenantId: headers["x-tenant-id"],
+            capability: "auth.capability.grant",
+          })
+          yield* authorization.grant({
+            userAccountId: payload.userAccountId,
+            tenantId: headers["x-tenant-id"],
+            capability: payload.capability,
+          })
+        }))),
 )
 
 export const SalesHandlers = HttpApiBuilder.group(EclipseApi, "Sales", (handlers) =>

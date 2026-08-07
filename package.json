@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.103",
+    "@vitest/coverage-v8": "4.1.10",
     "drizzle-kit": "1.0.0-rc.4",
     "vitest": "4.1.10"
   }

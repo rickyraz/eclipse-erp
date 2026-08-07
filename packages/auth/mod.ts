@@ -7,6 +7,7 @@ export {
   makeAuthTestLayer,
   Principal,
   Session,
+  SessionUserAccountDisabled,
   SessionUserAccountNotFound,
   Tenant,
   TenantAlreadyExists,
