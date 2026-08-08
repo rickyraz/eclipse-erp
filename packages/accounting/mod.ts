@@ -1,3 +1,5 @@
+export { AccountingCapabilities } from "./src/capabilities.ts"
+
 export {
   Account,
   AccountAlreadyExists,

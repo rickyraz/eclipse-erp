@@ -1,3 +1,5 @@
+export { SalesCapabilities } from "./src/capabilities.ts"
+
 export {
   CreateCustomerInput,
   CreateOrderInput,

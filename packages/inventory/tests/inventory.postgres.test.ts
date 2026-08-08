@@ -5,9 +5,10 @@ import type { Sql } from "postgres"
 
 import { makeAuthService } from "../../auth/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { makePartyService, PartyService } from "../../party/mod.ts"
+import { makePartyService, PartyCapabilities, PartyService } from "../../party/mod.ts"
 import { makeUserAccountService, UserAccountService } from "../../identity/mod.ts"
 import {
+  InventoryCapabilities,
   makeInventoryService,
   StockTransferDifferentLegalEntity,
   StockUnavailable,
@@ -19,15 +20,15 @@ import { withTemporaryDatabase } from "../../../tests/support/postgres-database.
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const principal = { userAccountId: "inventory-transfer-integration", sessionId: "session" }
 const capabilities = [
-  "party.create",
-  "party.legal_entity.create",
-  "party.branch.create",
-  "inventory.warehouse.create",
-  "inventory.item.create",
-  "inventory.stock.receive",
-  "inventory.stock.transfer.create",
-  "inventory.stock.transfer.confirm",
-  "inventory.stock.transfer.complete",
+  PartyCapabilities.partyCreate,
+  PartyCapabilities.legalEntityCreate,
+  PartyCapabilities.branchCreate,
+  InventoryCapabilities.warehouseCreate,
+  InventoryCapabilities.itemCreate,
+  InventoryCapabilities.stockReceive,
+  InventoryCapabilities.stockTransferCreate,
+  InventoryCapabilities.stockTransferConfirm,
+  InventoryCapabilities.stockTransferComplete,
 ] as const
 
 type BalanceRow = {

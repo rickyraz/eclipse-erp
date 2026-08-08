@@ -121,7 +121,7 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
     yield* authorization.grant({
       userAccountId: principal.userAccountId,
       tenantId: result.tenant.id,
-      capability: "party.identifier.attach",
+      capability: "party.party_identifier.attach",
     })
     const identifier = {
       principal,
@@ -141,7 +141,7 @@ it.effect("preserves typed failure boundaries around the bootstrap result", () =
     yield* authorization.grant({
       userAccountId: principal.userAccountId,
       tenantId: result.tenant.id,
-      capability: "inventory.stock.transfer.create",
+      capability: "inventory.stock_transfer.create",
     })
     const otherWarehouse = yield* inventory.createWarehouse({
       principal,

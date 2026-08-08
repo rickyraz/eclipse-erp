@@ -2,8 +2,13 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { AuthService, CreateTenantInput, Principal, Tenant } from "../../packages/auth/mod.ts"
-import { AuthorizationService, Capability } from "../../packages/authorization/mod.ts"
 import {
+  AuthorizationCapabilities,
+  AuthorizationService,
+  Capability,
+} from "../../packages/authorization/mod.ts"
+import {
+  AccountingCapabilities,
   AccountingConfiguration,
   AccountingService,
   ConfigureLegalEntityInput,
@@ -15,9 +20,16 @@ import {
   CreatePartyInput,
   LegalEntity,
   Party,
+  PartyCapabilities,
   PartyService,
 } from "../../packages/party/mod.ts"
-import { CreateWarehouseInput, InventoryService, Warehouse } from "../../packages/inventory/mod.ts"
+import {
+  CreateWarehouseInput,
+  InventoryCapabilities,
+  InventoryService,
+  Warehouse,
+} from "../../packages/inventory/mod.ts"
+import { IdentityCapabilities } from "../../packages/identity/mod.ts"
 
 const NonBlankString = Schema.String.check(Schema.isPattern(/\S/))
 
@@ -50,15 +62,20 @@ export type BootstrapTenantInput = Schema.Schema.Type<typeof BootstrapTenantInpu
 export type BootstrapTenantResult = Schema.Schema.Type<typeof BootstrapTenantResult>
 
 const bootstrapCapabilities = [
-  "auth.capability.grant",
-  "user_account.read",
-  "user_account.write",
-  "user_account.membership.manage",
-  "party.create",
-  "party.legal_entity.create",
-  "party.branch.create",
-  "accounting.legal_entity.configure",
-  "inventory.warehouse.create",
+  AuthorizationCapabilities.capabilityGrant,
+  IdentityCapabilities.userAccountCreate,
+  IdentityCapabilities.userAccountRead,
+  IdentityCapabilities.userAccountUpdate,
+  AuthorizationCapabilities.tenantMembershipAdd,
+  AuthorizationCapabilities.tenantMembershipRead,
+  AuthorizationCapabilities.tenantMembershipSuspend,
+  AuthorizationCapabilities.tenantMembershipActivate,
+  AuthorizationCapabilities.tenantMembershipRemove,
+  PartyCapabilities.partyCreate,
+  PartyCapabilities.legalEntityCreate,
+  PartyCapabilities.branchCreate,
+  AccountingCapabilities.legalEntityConfigure,
+  InventoryCapabilities.warehouseCreate,
 ] as const satisfies readonly Capability[]
 
 export const bootstrapTenant = (input: unknown) =>

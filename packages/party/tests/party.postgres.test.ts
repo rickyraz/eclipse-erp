@@ -12,6 +12,7 @@ import {
   LegalEntityAlreadyExists,
   makePartyService,
   OrganizationRequired,
+  PartyCapabilities,
   PartyRelationshipAlreadyExists,
   PartyRelationshipRoleNotAssigned,
   PartyRepresentationAlreadyExists,
@@ -80,7 +81,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               {
                 userAccountId: principal.userAccountId,
                 tenantId: tenant.id,
-                capability: "party.identifier.attach",
+                capability: "party.party_identifier.attach",
               },
             ]),
           ),
@@ -127,17 +128,17 @@ it.effect.skipIf(databaseUrl === undefined)(
           {
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.role.assign",
+            capability: "party.party_role.assign",
           },
           {
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.relationship.create",
+            capability: "party.party_relationship.create",
           },
           {
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.identifier.attach",
+            capability: "party.party_identifier.attach",
           },
         ])
 
@@ -302,12 +303,22 @@ it.effect.skipIf(databaseUrl === undefined)(
           {
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.create",
+            capability: PartyCapabilities.partyCreate,
           },
           {
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
-            capability: "party.representation.write",
+            capability: PartyCapabilities.partyRepresentationCreate,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRepresentationActivate,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRepresentationDeactivate,
           },
         ])
 

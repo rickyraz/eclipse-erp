@@ -16,6 +16,7 @@ import {
 } from "../../../db/schema/inventory.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { InventoryCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
@@ -293,7 +294,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.warehouse.create",
+        capability: InventoryCapabilities.warehouseCreate,
       })
       const name = decoded.name.trim()
       const primaryBranchId = decoded.primaryBranchId ?? null
@@ -344,7 +345,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.item.create",
+        capability: InventoryCapabilities.itemCreate,
       })
       const sku = decoded.sku.trim().toUpperCase()
       const rows = yield* database.query(
@@ -372,7 +373,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.stock.receive",
+        capability: InventoryCapabilities.stockReceive,
       })
       const balance = yield* database.transaction(
         async (tx) => {
@@ -423,7 +424,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.stock.reserve",
+        capability: InventoryCapabilities.stockReserve,
       })
       const reservation = yield* database.transaction(
         async (tx) => {
@@ -486,7 +487,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.stock.transfer.create",
+        capability: InventoryCapabilities.stockTransferCreate,
       })
       if (decoded.sourceWarehouseId === decoded.destinationWarehouseId) {
         return yield* Effect.fail(
@@ -607,7 +608,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.stock.transfer.confirm",
+        capability: InventoryCapabilities.stockTransferConfirm,
       })
       const result = yield* database.transaction(
         async (tx) => {
@@ -730,7 +731,7 @@ export const makeInventoryService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "inventory.stock.transfer.complete",
+        capability: InventoryCapabilities.stockTransferComplete,
       })
       const result = yield* database.transaction(
         async (tx) => {
@@ -841,7 +842,7 @@ export const makeInventoryTestLayer = () =>
     createWarehouse: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, "inventory.warehouse.create")
+        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.warehouseCreate)
         const name = decoded.name.trim()
         if (
           [...storedWarehouses.values()].some((value) =>
@@ -865,7 +866,7 @@ export const makeInventoryTestLayer = () =>
     createItem: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, "inventory.item.create")
+        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.itemCreate)
         const sku = decoded.sku.trim().toUpperCase()
         if (
           [...storedItems.values()].some((value) =>
@@ -886,7 +887,7 @@ export const makeInventoryTestLayer = () =>
     receiveStock: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ReceiveStockInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, "inventory.stock.receive")
+        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockReceive)
         if (
           storedWarehouses.get(decoded.warehouseId)?.tenantId !== decoded.tenantId ||
           storedItems.get(decoded.itemId)?.tenantId !== decoded.tenantId
@@ -910,7 +911,7 @@ export const makeInventoryTestLayer = () =>
     reserveStock: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, "inventory.stock.reserve")
+        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockReserve)
         const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
         const balance = balances.get(key)
         const quantity = BigInt(decoded.quantity)
@@ -940,7 +941,7 @@ export const makeInventoryTestLayer = () =>
         yield* authorize(
           decoded.principal,
           decoded.tenantId,
-          "inventory.stock.transfer.create",
+          InventoryCapabilities.stockTransferCreate,
         )
         if (decoded.sourceWarehouseId === decoded.destinationWarehouseId) {
           return yield* Effect.fail(
@@ -1021,7 +1022,7 @@ export const makeInventoryTestLayer = () =>
         yield* authorize(
           decoded.principal,
           decoded.tenantId,
-          "inventory.stock.transfer.confirm",
+          InventoryCapabilities.stockTransferConfirm,
         )
         const transfer = storedTransfers.get(decoded.transferId)
         if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {
@@ -1071,7 +1072,7 @@ export const makeInventoryTestLayer = () =>
         yield* authorize(
           decoded.principal,
           decoded.tenantId,
-          "inventory.stock.transfer.complete",
+          InventoryCapabilities.stockTransferComplete,
         )
         const transfer = storedTransfers.get(decoded.transferId)
         if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {

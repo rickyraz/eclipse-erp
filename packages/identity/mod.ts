@@ -1,3 +1,5 @@
+export { IdentityCapabilities } from "./src/capabilities.ts"
+
 export {
   CreateUserAccountInput,
   makeUserAccountService,

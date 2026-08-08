@@ -15,6 +15,7 @@ import {
 } from "../../../db/schema/party.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { PartyCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isNonEmpty())
@@ -371,7 +372,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.create",
+        capability: PartyCapabilities.partyCreate,
       })
       const rows = yield* database.query(
         (db) =>
@@ -388,7 +389,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.legal_entity.create",
+        capability: PartyCapabilities.legalEntityCreate,
       })
       const partyRows = yield* database.query(
         (db) =>
@@ -443,7 +444,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.branch.create",
+        capability: PartyCapabilities.branchCreate,
       })
       const legalEntityRows = yield* database.query(
         (db) =>
@@ -501,7 +502,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.representation.write",
+        capability: PartyCapabilities.partyRepresentationCreate,
       })
       const kind = decoded.kind.trim()
       const rows = yield* database.query(
@@ -554,7 +555,9 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.representation.write",
+        capability: decoded.active
+          ? PartyCapabilities.partyRepresentationActivate
+          : PartyCapabilities.partyRepresentationDeactivate,
       })
       const rows = yield* database.query(
         (db) =>
@@ -586,7 +589,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.role.assign",
+        capability: PartyCapabilities.partyRoleAssign,
       })
       yield* database.query(
         (db) =>
@@ -621,7 +624,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.relationship.create",
+        capability: PartyCapabilities.partyRelationshipCreate,
       })
       const rows = yield* database.query(
         (db) =>
@@ -684,7 +687,7 @@ export const makePartyService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "party.identifier.attach",
+        capability: PartyCapabilities.partyIdentifierAttach,
       })
       const provider = decoded.provider.trim().toUpperCase()
       const scheme = decoded.scheme.trim().toUpperCase()
@@ -775,7 +778,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.create",
+          capability: PartyCapabilities.partyCreate,
         })
         const party = {
           id: nextId(),
@@ -792,7 +795,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.legal_entity.create",
+          capability: PartyCapabilities.legalEntityCreate,
         })
         const party = stored.get(decoded.organizationId)
         if (party === undefined || party.tenantId !== decoded.tenantId) {
@@ -838,7 +841,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.branch.create",
+          capability: PartyCapabilities.branchCreate,
         })
         const legalEntity = storedLegalEntities.get(decoded.legalEntityId)
         if (legalEntity === undefined || legalEntity.tenantId !== decoded.tenantId) {
@@ -883,7 +886,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.representation.write",
+          capability: PartyCapabilities.partyRepresentationCreate,
         })
         if (
           validUserAccountIds !== undefined &&
@@ -934,7 +937,9 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.representation.write",
+          capability: decoded.active
+            ? PartyCapabilities.partyRepresentationActivate
+            : PartyCapabilities.partyRepresentationDeactivate,
         })
         const representation = representations.get(decoded.representationId)
         if (representation === undefined || representation.tenantId !== decoded.tenantId) {
@@ -955,7 +960,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.role.assign",
+          capability: PartyCapabilities.partyRoleAssign,
         })
         if (stored.get(decoded.partyId)?.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(
@@ -972,7 +977,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.relationship.create",
+          capability: PartyCapabilities.partyRelationshipCreate,
         })
         const party = stored.get(decoded.partyId)
         if (party === undefined || party.tenantId !== decoded.tenantId) {
@@ -1028,7 +1033,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "party.identifier.attach",
+          capability: PartyCapabilities.partyIdentifierAttach,
         })
         if (stored.get(decoded.partyId)?.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(

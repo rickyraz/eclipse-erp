@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
 import { makeAuthService } from "../../auth/mod.ts"
+import { IdentityCapabilities } from "../../identity/mod.ts"
 import {
   AuthorizationDenied,
   makeAuthorizationService,
@@ -34,7 +35,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         const authorization = yield* makeAuthorizationService.pipe(
           Effect.provideService(Database, database),
         )
-        const capability = "user_account.read" as const
+        const capability = IdentityCapabilities.userAccountRead
         const principal = { userAccountId: user.id, sessionId: "membership-session" }
 
         yield* authorization.addMember({ userAccountId: user.id, tenantId: tenant.id })

@@ -4,8 +4,12 @@ import * as Redacted from "effect/Redacted"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 
 import { AuthService, InvalidSessionToken } from "../../packages/auth/mod.ts"
-import { AuthorizationDenied, AuthorizationService } from "../../packages/authorization/mod.ts"
-import { UserAccountService } from "../../packages/identity/mod.ts"
+import {
+  AuthorizationCapabilities,
+  AuthorizationDenied,
+  AuthorizationService,
+} from "../../packages/authorization/mod.ts"
+import { IdentityCapabilities, UserAccountService } from "../../packages/identity/mod.ts"
 import { DatabaseFailure } from "../../packages/kernel/mod.ts"
 import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
@@ -85,7 +89,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.write",
+            capability: IdentityCapabilities.userAccountCreate,
           })
           const userAccount = yield* UserAccountService.use((service) => service.create(payload))
           yield* authorization.addMember({
@@ -101,7 +105,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.read",
+            capability: IdentityCapabilities.userAccountRead,
           })
           const members = yield* authorization.listMembers(headers["x-tenant-id"])
           return yield* UserAccountService.use((service) =>
@@ -115,7 +119,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.read",
+            capability: IdentityCapabilities.userAccountRead,
           })
           yield* authorization.getMember({
             userAccountId: params.id,
@@ -130,7 +134,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.write",
+            capability: IdentityCapabilities.userAccountUpdate,
           })
           yield* authorization.getMember({
             userAccountId: params.id,
@@ -204,7 +208,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.membership.manage",
+            capability: AuthorizationCapabilities.tenantMembershipAdd,
           })
           return yield* authorization.addMember({
             userAccountId: payload.userAccountId,
@@ -218,7 +222,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.read",
+            capability: AuthorizationCapabilities.tenantMembershipRead,
           })
           return yield* authorization.listMembers(headers["x-tenant-id"])
         })))
@@ -229,7 +233,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.membership.manage",
+            capability: AuthorizationCapabilities.tenantMembershipSuspend,
           })
           return yield* authorization.suspendMember({
             userAccountId: params.userAccountId,
@@ -243,7 +247,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.membership.manage",
+            capability: AuthorizationCapabilities.tenantMembershipActivate,
           })
           return yield* authorization.activateMember({
             userAccountId: params.userAccountId,
@@ -257,7 +261,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "user_account.membership.manage",
+            capability: AuthorizationCapabilities.tenantMembershipRemove,
           })
           yield* authorization.removeMember({
             userAccountId: params.userAccountId,
@@ -271,7 +275,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           yield* authorization.authorize({
             principal,
             tenantId: headers["x-tenant-id"],
-            capability: "auth.capability.grant",
+            capability: AuthorizationCapabilities.capabilityGrant,
           })
           yield* authorization.grant({
             userAccountId: payload.userAccountId,

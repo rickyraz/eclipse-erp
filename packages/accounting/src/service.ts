@@ -13,6 +13,7 @@ import {
 } from "../../../db/schema/accounting.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { AccountingCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
@@ -184,7 +185,7 @@ export const makeAccountingService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "accounting.legal_entity.configure",
+        capability: AccountingCapabilities.legalEntityConfigure,
       })
       const baseCurrency = decoded.baseCurrency.toUpperCase()
       const rows = yield* database.query(
@@ -236,7 +237,7 @@ export const makeAccountingService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "accounting.account.create",
+        capability: AccountingCapabilities.accountCreate,
       })
       const code = decoded.code.trim().toUpperCase()
       const rows = yield* database.query(
@@ -269,7 +270,7 @@ export const makeAccountingService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "accounting.journal.post",
+        capability: AccountingCapabilities.journalPost,
       })
       const lineError = validateLines(decoded.lines)
       if (lineError !== undefined) return yield* Effect.fail(lineError)
@@ -349,7 +350,7 @@ export const makeAccountingTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "accounting.legal_entity.configure",
+          capability: AccountingCapabilities.legalEntityConfigure,
         })
         const key = `${decoded.tenantId}:${decoded.legalEntityId}`
         if (configurations.has(key)) {
@@ -377,7 +378,7 @@ export const makeAccountingTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "accounting.account.create",
+          capability: AccountingCapabilities.accountCreate,
         })
         const code = decoded.code.trim().toUpperCase()
         if (
@@ -403,7 +404,7 @@ export const makeAccountingTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "accounting.journal.post",
+          capability: AccountingCapabilities.journalPost,
         })
         const error = validateLines(decoded.lines)
         if (error !== undefined) return yield* Effect.fail(error)

@@ -1,6 +1,7 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
+import { IdentityCapabilities } from "../../identity/mod.ts"
 import {
   AuthorizationDenied,
   AuthorizationService,
@@ -14,7 +15,7 @@ const principal = { userAccountId: "admin", sessionId: "session" }
 const initialGrant = {
   userAccountId: principal.userAccountId,
   tenantId: "tenant-a",
-  capability: "user_account.read" as const,
+  capability: IdentityCapabilities.userAccountRead,
 }
 
 const withAuthorization = <A, E>(program: Effect.Effect<A, E, AuthorizationService>) =>
@@ -27,7 +28,7 @@ describe("authorization contract", () => {
       const decision = yield* service.authorize({
         principal,
         tenantId: "tenant-a",
-        capability: "user_account.read",
+        capability: IdentityCapabilities.userAccountRead,
       })
       assert.strictEqual(decision.allowed, true)
       assert.strictEqual(decision.grant, "membership")
@@ -39,7 +40,7 @@ describe("authorization contract", () => {
       const error = yield* Effect.flip(service.authorize({
         principal,
         tenantId: "tenant-b",
-        capability: "user_account.read",
+        capability: IdentityCapabilities.userAccountRead,
       }))
       assert.instanceOf(error, AuthorizationDenied)
     })))
@@ -62,7 +63,7 @@ describe("authorization contract", () => {
         yield* Effect.flip(service.authorize({
           principal,
           tenantId: "tenant-a",
-          capability: "user_account.read",
+          capability: IdentityCapabilities.userAccountRead,
         })),
         AuthorizationDenied,
       )
@@ -74,7 +75,7 @@ describe("authorization contract", () => {
         (yield* service.authorize({
           principal,
           tenantId: "tenant-a",
-          capability: "user_account.read",
+          capability: IdentityCapabilities.userAccountRead,
         })).allowed,
         true,
       )

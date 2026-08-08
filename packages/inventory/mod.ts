@@ -1,3 +1,5 @@
+export { InventoryCapabilities } from "./src/capabilities.ts"
+
 export {
   CompleteStockTransferInput,
   ConfirmStockTransferInput,

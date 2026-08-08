@@ -7,6 +7,7 @@ import {
   makeAuthorizationTestLayer,
 } from "../../authorization/mod.ts"
 import {
+  InventoryCapabilities,
   InventoryService,
   makeInventoryTestLayer,
   StockTransferDifferentLegalEntity,
@@ -18,13 +19,13 @@ const principal = { userAccountId: "keeper", sessionId: "session" }
 const tenantId = "tenant-a"
 const legalEntityId = "legal-entity-a"
 const capabilities = [
-  "inventory.warehouse.create",
-  "inventory.item.create",
-  "inventory.stock.receive",
-  "inventory.stock.reserve",
-  "inventory.stock.transfer.create",
-  "inventory.stock.transfer.confirm",
-  "inventory.stock.transfer.complete",
+  InventoryCapabilities.warehouseCreate,
+  InventoryCapabilities.itemCreate,
+  InventoryCapabilities.stockReceive,
+  InventoryCapabilities.stockReserve,
+  InventoryCapabilities.stockTransferCreate,
+  InventoryCapabilities.stockTransferConfirm,
+  InventoryCapabilities.stockTransferComplete,
 ] as const
 const withInventory = <A, E>(
   program: Effect.Effect<A, E, InventoryService>,
@@ -293,7 +294,7 @@ describe("inventory contract", () => {
         }))
         assert.instanceOf(error, AuthorizationDenied)
       }),
-      capabilities.filter((capability) => capability !== "inventory.stock.transfer.confirm"),
+      capabilities.filter((capability) => capability !== InventoryCapabilities.stockTransferConfirm),
     ))
 
   it.effect("requires a separate capability to complete a transfer", () =>
@@ -340,6 +341,6 @@ describe("inventory contract", () => {
         }))
         assert.instanceOf(error, AuthorizationDenied)
       }),
-      capabilities.filter((capability) => capability !== "inventory.stock.transfer.complete"),
+      capabilities.filter((capability) => capability !== InventoryCapabilities.stockTransferComplete),
     ))
 })

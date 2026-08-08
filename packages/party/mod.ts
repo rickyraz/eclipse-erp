@@ -1,3 +1,5 @@
+export { PartyCapabilities } from "./src/capabilities.ts"
+
 export {
   AssignPartyRoleInput,
   AttachExternalIdentifierInput,

@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema"
 import { customers, orders, quotations } from "../../../db/schema/sales.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { SalesCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
@@ -127,7 +128,7 @@ export const makeSalesService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "sales.customer.create",
+        capability: SalesCapabilities.customerCreate,
       })
       const email = decoded.email.trim().toLowerCase()
       const rows = yield* database.query(
@@ -151,7 +152,7 @@ export const makeSalesService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "sales.quotation.create",
+        capability: SalesCapabilities.quotationCreate,
       })
       const rows = yield* database.query(
         (db) =>
@@ -178,7 +179,7 @@ export const makeSalesService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: decoded.principal,
         tenantId: decoded.tenantId,
-        capability: "sales.order.create",
+        capability: SalesCapabilities.orderCreate,
       })
       const rows = yield* database.query(
         (db) =>
@@ -232,7 +233,7 @@ export const makeSalesTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "sales.customer.create",
+          capability: SalesCapabilities.customerCreate,
         })
         const email = decoded.email.trim().toLowerCase()
         if (
@@ -259,7 +260,7 @@ export const makeSalesTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "sales.quotation.create",
+          capability: SalesCapabilities.quotationCreate,
         })
         if (storedCustomers.get(decoded.customerId)?.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(
@@ -282,7 +283,7 @@ export const makeSalesTestLayer = () =>
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
-          capability: "sales.order.create",
+          capability: SalesCapabilities.orderCreate,
         })
         if (storedCustomers.get(decoded.customerId)?.tenantId !== decoded.tenantId) {
           return yield* Effect.fail(
