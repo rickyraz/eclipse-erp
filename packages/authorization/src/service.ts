@@ -12,34 +12,9 @@ import {
   type DatabaseService,
   isDatabaseConstraint,
 } from "../../kernel/mod.ts"
+import { Capability as CapabilitySchema } from "./capabilities.ts"
 
-export const Capability = Schema.Literals([
-  "auth.capability.grant",
-  "user_account.read",
-  "user_account.write",
-  "user_account.membership.manage",
-  "party.create",
-  "party.legal_entity.create",
-  "party.branch.create",
-  "party.role.assign",
-  "party.relationship.create",
-  "party.identifier.attach",
-  "party.representation.write",
-  "sales.customer.create",
-  "sales.quotation.create",
-  "sales.order.create",
-  "inventory.warehouse.create",
-  "inventory.item.create",
-  "inventory.stock.receive",
-  "inventory.stock.reserve",
-  "inventory.stock.transfer.create",
-  "inventory.stock.transfer.confirm",
-  "inventory.stock.transfer.complete",
-  "accounting.legal_entity.configure",
-  "accounting.account.create",
-  "accounting.journal.post",
-])
-
+export const Capability = CapabilitySchema
 export type Capability = Schema.Schema.Type<typeof Capability>
 
 export const TenantMembershipStatus = Schema.Literals(["active", "suspended"])

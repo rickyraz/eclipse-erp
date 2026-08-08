@@ -1,4 +1,21 @@
 export {
+  AuthorizationCapabilities,
+  CapabilityCatalog,
+  CapabilityDefinition,
+  CapabilityDefinitions,
+  CapabilityId,
+  CapabilityIds,
+  CapabilityOwner,
+  CapabilityScope,
+  CapabilityStability,
+  getCapabilityDefinition,
+  isCapabilityIdShape,
+  isKnownCapability,
+  LegacyCapabilityIds,
+} from "./src/capabilities.ts"
+export type { CapabilityDefinition as CapabilityDefinitionType } from "./src/capabilities.ts"
+
+export {
   AddTenantMembershipInput,
   AuthorizationDecision,
   AuthorizationDenied,
