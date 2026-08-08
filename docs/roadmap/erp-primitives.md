@@ -83,7 +83,7 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 | Quantity and movement | Inventory balances, reservations, movements, and transfers exist | `PARTIAL` | Decide negative-stock policy, traceability, lot/serial scope, reservation semantics, movement correction, and valuation boundary |
 | Money and obligation | Accounting journals exist; billing is a scaffold | `PARTIAL` | Decide currency, precision, tax scope, payable, receivable, invoice, payment, settlement, and rounding ownership |
 | Fiscal period and close | Accounting domain exists; period-close behavior is not implemented | `UNKNOWN` | Decide open/closed period rules, posting eligibility, close/reopen policy, concurrency with posting, and audit requirements |
-| Policy and authorization | Capability-based authorization exists | `READY` for current actions | Define capability naming, scopes, approval/override semantics, and separation of duties for new irreversible actions |
+| Policy and authorization | Capability-based authorization and ADR-0031 capability naming are implemented for current actions | `READY` for current actions | Extend owner metadata, approval/override semantics, and separation of duties when new irreversible actions and Process Studio catalogs require them |
 | Audit and correlation | Architecture requires audit and event correlation | `PARTIAL` | Decide authoritative audit ownership, retention, actor, tenant, command, state change, correlation, and causation fields |
 | Typed actions and events | Process Studio architecture defines catalogs; domain registries do not yet exist | `UNKNOWN` | Decide registration, versioning, compatibility, contributor ownership, catalog discovery, and public-contract verification |
 | Compensation and recovery | Process Studio architecture defines explicit compensation/manual recovery | `DECIDED`, not implemented | Each committed action must declare a domain compensation command or explicit manual recovery |
@@ -149,7 +149,9 @@ Current implementation evidence: P0-01, P0-02, P0-03, P0-04, P0-06, P0-07,
 P0-08, and P0-10 have owner-local contracts, constraints, and tests. P0-03
 now has explicit UserAccount lifecycle, tenant membership persistence,
 membership-aware capability checks, PartyRepresentation persistence, and
-capability checks. P0-05
+capability checks. ADR-0031 is implemented for the current modules with a
+canonical catalog, owner declarations, validator, capability grant migration,
+and compatibility tests. P0-05
 stores branch-local tax-registration and dedicated-journal metadata without
 moving tax or journal ownership into `party`. P0-09 has an explicit mapping
 backfill command. Legacy databases still require an operator-supplied mapping
