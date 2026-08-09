@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm"
-import { check, foreignKey, pgSchema, text, unique, uuid } from "drizzle-orm/pg-core"
+import { check, foreignKey, pgSchema, text, timestamp, unique, uuid } from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, money, updatedAt } from "./common.ts"
@@ -60,6 +60,8 @@ export const orders = salesSchema.table("orders", {
   customerId: uuid("customer_id").notNull(),
   quotationId: uuid("quotation_id"),
   status: orderStatus("status").notNull().default("draft"),
+  confirmationIdempotencyKey: text("confirmation_idempotency_key"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   total: money("total"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -79,5 +81,15 @@ export const orders = salesSchema.table("orders", {
     foreignColumns: [quotations.tenantId, quotations.id],
     name: "orders_tenant_quotation_fkey",
   }),
+  unique("orders_tenant_confirmation_idempotency_key").on(
+    table.tenantId,
+    table.confirmationIdempotencyKey,
+  ),
   check("orders_total_check", sql`${table.total} >= 0`),
+  check(
+    "orders_confirmation_state_check",
+    sql`(${table.status} = 'draft' and ${table.confirmedAt} is null) or
+      (${table.status} = 'confirmed' and ${table.confirmedAt} is not null) or
+      (${table.status} = 'cancelled')`,
+  ),
 ])

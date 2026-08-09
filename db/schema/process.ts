@@ -1,0 +1,101 @@
+import {
+  foreignKey,
+  integer,
+  jsonb,
+  pgSchema,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
+
+import { tenants } from "./auth.ts"
+import { createdAt, id, updatedAt } from "./common.ts"
+
+export const processSchema = pgSchema("process")
+export const workflowRunStatus = processSchema.enum(
+  "workflow_run_status",
+  ["running", "succeeded", "manual_recovery"],
+)
+export const processJobStatus = processSchema.enum(
+  "process_job_status",
+  ["pending", "leased", "completed", "failed", "manual_recovery"],
+)
+
+export const workflowRuns = processSchema.table("workflow_runs", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  workflowType: text("workflow_type").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  aggregateId: uuid("aggregate_id").notNull(),
+  status: workflowRunStatus("status").notNull().default("running"),
+  payload: jsonb("payload").notNull(),
+  result: jsonb("result"),
+  recoveryReason: text("recovery_reason"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("workflow_runs_tenant_type_key").on(
+    table.tenantId,
+    table.workflowType,
+    table.idempotencyKey,
+  ),
+  foreignKey({
+    columns: [table.tenantId],
+    foreignColumns: [tenants.id],
+    name: "workflow_runs_tenant_id_fkey",
+  }).onDelete("cascade"),
+])
+
+export const eventOutbox = processSchema.table("event_outbox", {
+  id: id(),
+  eventType: text("event_type").notNull(),
+  eventVersion: integer("event_version").notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+  aggregateType: text("aggregate_type").notNull(),
+  aggregateId: uuid("aggregate_id").notNull(),
+  correlationId: text("correlation_id").notNull(),
+  causationId: text("causation_id"),
+  actorPrincipalId: text("actor_principal_id").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+  payload: jsonb("payload").notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: createdAt(),
+}, (table) => [
+  foreignKey({
+    columns: [table.tenantId],
+    foreignColumns: [tenants.id],
+    name: "event_outbox_tenant_id_fkey",
+  }).onDelete("cascade"),
+])
+
+export const processJobs = processSchema.table("jobs", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  jobType: text("job_type").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  priority: integer("priority").notNull().default(0),
+  status: processJobStatus("status").notNull().default("pending"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).defaultNow().notNull(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  payload: jsonb("payload").notNull(),
+  lastError: text("last_error"),
+  correlationId: text("correlation_id").notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("process_jobs_tenant_type_key").on(
+    table.tenantId,
+    table.jobType,
+    table.idempotencyKey,
+  ),
+  foreignKey({
+    columns: [table.tenantId],
+    foreignColumns: [tenants.id],
+    name: "process_jobs_tenant_id_fkey",
+  }).onDelete("cascade"),
+])

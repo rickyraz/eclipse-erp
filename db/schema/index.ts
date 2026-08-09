@@ -44,3 +44,11 @@ export {
   quotationStatus,
   salesSchema,
 } from "./sales.ts"
+export {
+  eventOutbox,
+  processJobs,
+  processJobStatus,
+  processSchema,
+  workflowRuns,
+  workflowRunStatus,
+} from "./process.ts"

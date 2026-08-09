@@ -21,6 +21,7 @@ import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
+import { makeProcessService, ProcessService } from "../../packages/process/mod.ts"
 import { EclipseApi } from "./api.ts"
 import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 
@@ -57,7 +58,20 @@ const serviceLayers = (client: Sql) => {
     Layer.provide(businessRequirements),
   )
 
-  return Layer.mergeAll(userAccount, auth, authorization, party, sales, inventory, accounting)
+  const process = Layer.effect(ProcessService, makeProcessService).pipe(
+    Layer.provide(Layer.mergeAll(businessRequirements, sales, inventory, accounting)),
+  )
+
+  return Layer.mergeAll(
+    userAccount,
+    auth,
+    authorization,
+    party,
+    sales,
+    inventory,
+    accounting,
+    process,
+  )
 }
 
 export const makeApiLayer = (client: Sql, port = 8000) => {

@@ -15,6 +15,7 @@ import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService } from "../../packages/inventory/mod.ts"
 import { AccountingService } from "../../packages/accounting/mod.ts"
+import { ProcessService, WorkflowOutcomeUnknown } from "../../packages/process/mod.ts"
 import {
   ApiConflict,
   ApiForbidden,
@@ -30,7 +31,7 @@ const tagOf = (error: unknown) =>
   typeof error === "object" && error !== null && "_tag" in error ? String(error._tag) : "Unknown"
 
 const toApiError = (error: unknown) => {
-  if (error instanceof DatabaseFailure) {
+  if (error instanceof DatabaseFailure || error instanceof WorkflowOutcomeUnknown) {
     return new ApiServiceUnavailable({ code: "service_unavailable" })
   }
   if (error instanceof InvalidSessionToken) {
@@ -405,6 +406,34 @@ export const InventoryHandlers = HttpApiBuilder.group(
         }))),
 )
 
+export const ProcessHandlers = HttpApiBuilder.group(
+  EclipseApi,
+  "Process",
+  (handlers) =>
+    handlers
+      .handle("confirmOrder", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* ProcessService.use((service) =>
+            service.confirmOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        })))
+      .handle("recoverOrder", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* ProcessService.use((service) =>
+            service.recoverOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        })))
+      .handle("manualRecovery", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* ProcessService.use((service) =>
+            service.markManualRecovery({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        }))),
+)
+
 export const AccountingHandlers = HttpApiBuilder.group(
   EclipseApi,
   "Accounting",
@@ -454,4 +483,5 @@ export const ApiHandlers = Layer.mergeAll(
   SalesHandlers,
   InventoryHandlers,
   AccountingHandlers,
+  ProcessHandlers,
 )

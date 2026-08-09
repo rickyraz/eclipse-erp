@@ -174,10 +174,12 @@ export const reservations = inventorySchema.table("reservations", {
   warehouseId: uuid("warehouse_id").notNull(),
   itemId: uuid("item_id").notNull(),
   quantity: bigint("quantity", { mode: "string" }).notNull(),
+  idempotencyKey: text("idempotency_key"),
   status: reservationStatus("status").notNull().default("active"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
+  unique("reservations_tenant_idempotency_key").on(table.tenantId, table.idempotencyKey),
   foreignKey({
     columns: [table.tenantId, table.warehouseId, table.itemId],
     foreignColumns: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],

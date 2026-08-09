@@ -1,3 +1,5 @@
+import { and, eq } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -32,6 +34,7 @@ export const SalesOrder = Schema.Struct({
   customerId: Schema.String,
   quotationId: Schema.NullOr(Schema.String),
   status: Schema.Literals(["draft", "confirmed", "cancelled"]),
+  confirmedAt: Schema.NullOr(Schema.String),
   total: Money,
 })
 
@@ -60,6 +63,12 @@ export const CreateOrderInput = Schema.Struct({
   total: Money,
 })
 
+export const ConfirmOrderInput = Schema.Struct({
+  ...ScopedInput,
+  orderId: Schema.String,
+  idempotencyKey: Schema.String.check(Schema.isPattern(/\S/)),
+})
+
 export class CustomerAlreadyExists
   extends Schema.TaggedErrorClass<CustomerAlreadyExists>()("CustomerAlreadyExists", {
     tenantId: Schema.String,
@@ -77,6 +86,26 @@ export class QuotationNotFound
     tenantId: Schema.String,
     quotationId: Schema.String,
   }) {}
+export class SalesOrderNotFound
+  extends Schema.TaggedErrorClass<SalesOrderNotFound>()("SalesOrderNotFound", {
+    tenantId: Schema.String,
+    orderId: Schema.String,
+  }) {}
+export class SalesOrderInvalidState
+  extends Schema.TaggedErrorClass<SalesOrderInvalidState>()("SalesOrderInvalidState", {
+    tenantId: Schema.String,
+    orderId: Schema.String,
+    status: Schema.Literals(["draft", "confirmed", "cancelled"]),
+  }) {}
+export class SalesOrderConfirmationIdempotencyConflict
+  extends Schema.TaggedErrorClass<SalesOrderConfirmationIdempotencyConflict>()(
+    "SalesOrderConfirmationIdempotencyConflict",
+    {
+      tenantId: Schema.String,
+      orderId: Schema.String,
+      idempotencyKey: Schema.String,
+    },
+  ) {}
 
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
@@ -90,6 +119,15 @@ export interface SalesService {
   readonly createOrder: (
     input: unknown,
   ) => Effect.Effect<SalesOrder, CustomerNotFound | QuotationNotFound | CommonFailure>
+  readonly confirmOrder: (
+    input: unknown,
+  ) => Effect.Effect<
+    SalesOrder,
+    | SalesOrderConfirmationIdempotencyConflict
+    | SalesOrderInvalidState
+    | SalesOrderNotFound
+    | CommonFailure
+  >
 }
 
 export const SalesService = Context.Service<SalesService>("EclipseERP/SalesService")
@@ -115,12 +153,33 @@ const orderSelection = {
   customerId: orders.customerId,
   quotationId: orders.quotationId,
   status: orders.status,
+  confirmedAt: orders.confirmedAt,
   total: orders.total,
 }
+
+const toSalesOrder = (row: {
+  readonly id: string
+  readonly tenantId: string
+  readonly customerId: string
+  readonly quotationId: string | null
+  readonly status: "draft" | "confirmed" | "cancelled"
+  readonly confirmedAt: Date | null
+  readonly total: string
+}): SalesOrder => ({
+  id: row.id,
+  tenantId: row.tenantId,
+  customerId: row.customerId,
+  quotationId: row.quotationId,
+  status: row.status,
+  confirmedAt: row.confirmedAt?.toISOString() ?? null,
+  total: row.total,
+})
 
 export const makeSalesService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
   createCustomer: (input) =>
     Effect.gen(function* () {
@@ -212,7 +271,94 @@ export const makeSalesService = Effect.gen(function* () {
           return error
         }),
       )
-      return rows[0]!
+      return toSalesOrder(rows[0]!)
+    }),
+  confirmOrder: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ConfirmOrderInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: SalesCapabilities.orderConfirm,
+      })
+      const result = yield* database.transaction(
+        async (tx) => {
+          const [row] = await tx.select({
+            ...orderSelection,
+            confirmationIdempotencyKey: orders.confirmationIdempotencyKey,
+          })
+            .from(orders)
+            .where(
+              and(
+                eq(orders.tenantId, decoded.tenantId),
+                eq(orders.id, decoded.orderId),
+              ),
+            )
+            .for("update")
+          if (row === undefined) return { _tag: "not-found" as const }
+          const current = toSalesOrder(row)
+          if (row.status === "confirmed") {
+            return row.confirmationIdempotencyKey === decoded.idempotencyKey
+              ? { _tag: "existing" as const, order: current }
+              : { _tag: "idempotency-conflict" as const }
+          }
+          if (row.status !== "draft") {
+            return { _tag: "invalid-state" as const, status: row.status }
+          }
+          const confirmedAt = now()
+          const [confirmed] = await tx.update(orders)
+            .set({
+              status: "confirmed",
+              confirmationIdempotencyKey: decoded.idempotencyKey,
+              confirmedAt,
+              updatedAt: confirmedAt,
+            })
+            .where(
+              and(
+                eq(orders.tenantId, decoded.tenantId),
+                eq(orders.id, decoded.orderId),
+                eq(orders.status, "draft"),
+              ),
+            )
+            .returning(orderSelection)
+          return { _tag: "confirmed" as const, order: toSalesOrder(confirmed!) }
+        },
+        "sales.order.confirm",
+      ).pipe(
+        Effect.mapError((error) =>
+          isDatabaseConstraint(error, "orders_tenant_confirmation_idempotency_key")
+            ? new SalesOrderConfirmationIdempotencyConflict({
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+              idempotencyKey: decoded.idempotencyKey,
+            })
+            : error
+        ),
+      )
+      if (result._tag === "not-found") {
+        return yield* Effect.fail(
+          new SalesOrderNotFound({ tenantId: decoded.tenantId, orderId: decoded.orderId }),
+        )
+      }
+      if (result._tag === "idempotency-conflict") {
+        return yield* Effect.fail(
+          new SalesOrderConfirmationIdempotencyConflict({
+            tenantId: decoded.tenantId,
+            orderId: decoded.orderId,
+            idempotencyKey: decoded.idempotencyKey,
+          }),
+        )
+      }
+      if (result._tag === "invalid-state") {
+        return yield* Effect.fail(
+          new SalesOrderInvalidState({
+            tenantId: decoded.tenantId,
+            orderId: decoded.orderId,
+            status: result.status,
+          }),
+        )
+      }
+      return result.order
     }),
   } satisfies SalesService
 })
@@ -224,6 +370,8 @@ export const makeSalesTestLayer = () =>
       const authorization = yield* AuthorizationService
       const storedCustomers = new Map<string, Customer>()
       const storedQuotations = new Map<string, Quotation>()
+      const storedOrders = new Map<string, SalesOrder>()
+      const confirmationKeys = new Map<string, string>()
       let sequence = 1
       const nextId = () => `sales-test-${sequence++}`
       const service: SalesService = {
@@ -301,14 +449,61 @@ export const makeSalesTestLayer = () =>
             }),
           )
         }
-        return {
+        const order: SalesOrder = {
           id: nextId(),
           tenantId: decoded.tenantId,
           customerId: decoded.customerId,
           quotationId: decoded.quotationId ?? null,
-          status: "draft" as const,
+          status: "draft",
+          confirmedAt: null,
           total: decoded.total,
         }
+        storedOrders.set(order.id, order)
+        return order
+      }),
+    confirmOrder: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ConfirmOrderInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: SalesCapabilities.orderConfirm,
+        })
+        const order = storedOrders.get(decoded.orderId)
+        if (order?.tenantId !== decoded.tenantId) {
+          return yield* Effect.fail(
+            new SalesOrderNotFound({ tenantId: decoded.tenantId, orderId: decoded.orderId }),
+          )
+        }
+        if (order.status === "confirmed") {
+          if (confirmationKeys.get(order.id) !== decoded.idempotencyKey) {
+            return yield* Effect.fail(
+              new SalesOrderConfirmationIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                orderId: decoded.orderId,
+                idempotencyKey: decoded.idempotencyKey,
+              }),
+            )
+          }
+          return order
+        }
+        if (order.status !== "draft") {
+          return yield* Effect.fail(
+            new SalesOrderInvalidState({
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+              status: order.status,
+            }),
+          )
+        }
+        const confirmed: SalesOrder = {
+          ...order,
+          status: "confirmed",
+          confirmedAt: new Date().toISOString(),
+        }
+        storedOrders.set(order.id, confirmed)
+        confirmationKeys.set(order.id, decoded.idempotencyKey)
+        return confirmed
       }),
       }
       return service

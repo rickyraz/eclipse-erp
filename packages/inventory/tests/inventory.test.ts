@@ -11,6 +11,7 @@ import {
   InventoryService,
   makeInventoryTestLayer,
   StockTransferDifferentLegalEntity,
+  StockReservationIdempotencyConflict,
   StockTransferInvalidState,
   StockUnavailable,
 } from "../mod.ts"
@@ -75,10 +76,64 @@ describe("inventory contract", () => {
         warehouseId: warehouse.id,
         itemId: item.id,
         quantity: "4",
+        idempotencyKey: "reservation-1",
+      })
+      const repeated = yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "4",
+        idempotencyKey: "reservation-1",
       })
 
       assert.strictEqual(balance.onHand, "10")
       assert.strictEqual(reservation.quantity, "4")
+      assert.strictEqual(reservation.idempotencyKey, "reservation-1")
+      assert.strictEqual(reservation.id, repeated.id)
+    })))
+
+  it.effect("rejects an idempotency key reused for different stock", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Main",
+      })
+      const item = yield* inventory.createItem({
+        principal,
+        tenantId,
+        sku: "sku-key",
+        name: "Widget",
+      })
+      yield* inventory.receiveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "10",
+      })
+      yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "4",
+        idempotencyKey: "reservation-conflict",
+      })
+      assert.instanceOf(
+        yield* Effect.flip(inventory.reserveStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          quantity: "5",
+          idempotencyKey: "reservation-conflict",
+        })),
+        StockReservationIdempotencyConflict,
+      )
     })))
 
   it.effect("rejects reservations above available stock", () =>

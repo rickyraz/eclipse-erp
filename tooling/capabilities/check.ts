@@ -12,6 +12,7 @@ const ownerDeclarations = [
   ["sales", "packages/sales/src/capabilities.ts"],
   ["inventory", "packages/inventory/src/capabilities.ts"],
   ["accounting", "packages/accounting/src/capabilities.ts"],
+  ["process", "packages/process/src/capabilities.ts"],
 ] as const
 
 const sourceRoots = ["apps", "packages", "tests"] as const

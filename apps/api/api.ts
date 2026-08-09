@@ -21,6 +21,11 @@ import {
 } from "../../packages/party/mod.ts"
 import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
 import {
+  OrderConfirmationPayload,
+  OrderConfirmationResult,
+  WorkflowRun,
+} from "../../packages/process/mod.ts"
+import {
   Item,
   StockBalance,
   StockReservation,
@@ -81,6 +86,7 @@ const CreatedAccountingConfiguration = AccountingConfiguration.pipe(HttpApiSchem
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
 const CreatedTenantMembership = TenantMembership.pipe(HttpApiSchema.status(201))
+const CreatedOrderConfirmation = OrderConfirmationResult.pipe(HttpApiSchema.status(201))
 
 const Health = HttpApiGroup.make("Health").add(
   HttpApiEndpoint.get("health", "/health", {
@@ -275,6 +281,27 @@ const Inventory = HttpApiGroup.make("Inventory").add(
   }).middleware(BearerAuth),
 )
 
+const Process = HttpApiGroup.make("Process").add(
+  HttpApiEndpoint.post("confirmOrder", "/process/order-confirmations", {
+    headers: tenantHeaders,
+    payload: OrderConfirmationPayload,
+    success: CreatedOrderConfirmation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("recoverOrder", "/process/order-confirmations/recover", {
+    headers: tenantHeaders,
+    payload: OrderConfirmationPayload,
+    success: OrderConfirmationResult,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("manualRecovery", "/process/order-confirmations/manual-recovery", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ idempotencyKey: Schema.String, reason: Schema.String }),
+    success: WorkflowRun,
+    error: errors,
+  }).middleware(BearerAuth),
+)
+
 const Accounting = HttpApiGroup.make("Accounting").add(
   HttpApiEndpoint.post("configureLegalEntity", "/accounting/legal-entities/:id/configuration", {
     params: { id: Schema.String },
@@ -307,7 +334,7 @@ const Accounting = HttpApiGroup.make("Accounting").add(
 )
 
 export const EclipseApi = HttpApi.make("EclipseERP")
-  .add(Health, UserAccounts, Parties, Authorization, Sales, Inventory, Accounting)
+  .add(Health, UserAccounts, Parties, Authorization, Sales, Inventory, Accounting, Process)
   .annotate(OpenApi.Title, "EclipseERP API")
   .annotate(OpenApi.Version, "0.1.0")
   .annotate(OpenApi.Description, "Typed modular-monolith ERP API")

@@ -9,6 +9,7 @@ import {
 import {
   AccountingConfigurationAlreadyExists,
   AccountingService,
+  JournalIdempotencyConflict,
   makeAccountingTestLayer,
   UnbalancedJournal,
 } from "../mod.ts"
@@ -117,6 +118,28 @@ describe("accounting contract", () => {
 
       assert.strictEqual(journal.status, "posted")
       assert.strictEqual(journal.lines.length, 2)
+      const repeated = yield* accounting.postJournal({
+        principal,
+        tenantId,
+        reference: "SALE-1",
+        lines: [
+          { accountId: cash.id, debit: "125.00", credit: "0" },
+          { accountId: revenue.id, debit: "0", credit: "125.00" },
+        ],
+      })
+      assert.strictEqual(repeated.id, journal.id)
+      assert.instanceOf(
+        yield* Effect.flip(accounting.postJournal({
+          principal,
+          tenantId,
+          reference: "SALE-1",
+          lines: [
+            { accountId: cash.id, debit: "124.00", credit: "0" },
+            { accountId: revenue.id, debit: "0", credit: "124.00" },
+          ],
+        })),
+        JournalIdempotencyConflict,
+      )
     })))
 
   it.effect("rejects an unbalanced journal", () =>

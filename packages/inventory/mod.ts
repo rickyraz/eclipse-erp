@@ -16,6 +16,8 @@ export {
   ReserveStockInput,
   StockBalance,
   StockReservation,
+  StockReservationIdempotencyConflict,
+  StockReservationStatus,
   StockTransfer,
   StockTransferDifferentLegalEntity,
   StockTransferDuplicateItem,

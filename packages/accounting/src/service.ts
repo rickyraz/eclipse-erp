@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
 import {
@@ -114,6 +115,11 @@ export class JournalReferenceAlreadyExists
       reference: Schema.String,
     },
   ) {}
+export class JournalIdempotencyConflict
+  extends Schema.TaggedErrorClass<JournalIdempotencyConflict>()("JournalIdempotencyConflict", {
+    tenantId: Schema.String,
+    reference: Schema.String,
+  }) {}
 export class InvalidJournalLine
   extends Schema.TaggedErrorClass<InvalidJournalLine>()("InvalidJournalLine", {
     index: Schema.Int,
@@ -141,6 +147,7 @@ export interface AccountingService {
   ) => Effect.Effect<
     JournalEntry,
     | AccountNotFound
+    | JournalIdempotencyConflict
     | JournalReferenceAlreadyExists
     | InvalidJournalLine
     | UnbalancedJournal
@@ -156,6 +163,23 @@ const toMinor = (value: string) => {
   const [whole, fraction = ""] = value.split(".")
   return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"))
 }
+
+const journalEntrySelection = {
+  id: journalEntries.id,
+  tenantId: journalEntries.tenantId,
+  reference: journalEntries.reference,
+  status: journalEntries.status,
+  postedAt: journalEntries.postedAt,
+}
+
+const journalLineSelection = {
+  accountId: journalLines.accountId,
+  debit: journalLines.debit,
+  credit: journalLines.credit,
+}
+
+const normalizeLines = (lines: readonly JournalLine[]) =>
+  lines.map((line) => `${line.accountId}:${line.debit}:${line.credit}`).toSorted()
 
 const validateLines = (lines: readonly JournalLine[]) => {
   if (lines.length < 2) return new UnbalancedJournal({ debit: "0", credit: "0" })
@@ -274,12 +298,120 @@ export const makeAccountingService = Effect.gen(function* () {
       })
       const lineError = validateLines(decoded.lines)
       if (lineError !== undefined) return yield* Effect.fail(lineError)
+      const reference = decoded.reference.trim()
+
+      const loadExisting = () =>
+        Effect.gen(function* () {
+          const entries = yield* database.query(
+            (db) =>
+              db.select(journalEntrySelection)
+                .from(journalEntries)
+                .where(
+                  and(
+                    eq(journalEntries.tenantId, decoded.tenantId),
+                    eq(journalEntries.reference, reference),
+                  ),
+                ),
+            "accounting.journal.lookup",
+          )
+          const entry = entries[0]
+          if (entry === undefined || entry.status !== "posted" || entry.postedAt === null) {
+            return yield* Effect.fail(
+              new JournalReferenceAlreadyExists({
+                tenantId: decoded.tenantId,
+                reference,
+              }),
+            )
+          }
+          const lines = yield* database.query(
+            (db) =>
+              db.select(journalLineSelection)
+                .from(journalLines)
+                .where(
+                  and(
+                    eq(journalLines.tenantId, decoded.tenantId),
+                    eq(journalLines.entryId, entry.id),
+                  ),
+                ),
+            "accounting.journal.lines.lookup",
+          )
+          const storedLines = lines.map((line) => ({
+            accountId: line.accountId,
+            debit: String(line.debit ?? "0"),
+            credit: String(line.credit ?? "0"),
+          }))
+          if (
+            JSON.stringify(normalizeLines(storedLines)) !==
+              JSON.stringify(normalizeLines(decoded.lines))
+          ) {
+            return yield* Effect.fail(
+              new JournalIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                reference,
+              }),
+            )
+          }
+          return {
+            id: entry.id,
+            tenantId: entry.tenantId,
+            reference: entry.reference,
+            status: "posted" as const,
+            postedAt: entry.postedAt.toISOString(),
+            lines: decoded.lines,
+          }
+        })
 
       const result = yield* database.transaction(
         async (tx) => {
+          const existingEntries = await tx.select(journalEntrySelection)
+            .from(journalEntries)
+            .where(
+              and(
+                eq(journalEntries.tenantId, decoded.tenantId),
+                eq(journalEntries.reference, reference),
+              ),
+            )
+            .for("update")
+          const existing = existingEntries[0]
+          if (existing !== undefined) {
+            if (existing.status !== "posted" || existing.postedAt === null) {
+              return { _tag: "idempotency-conflict" as const }
+            }
+            const lines = await tx.select(journalLineSelection)
+              .from(journalLines)
+              .where(
+                and(
+                  eq(journalLines.tenantId, decoded.tenantId),
+                  eq(journalLines.entryId, existing.id),
+                ),
+              )
+            const storedLines = lines.map((line) => ({
+              accountId: line.accountId,
+              debit: String(line.debit ?? "0"),
+              credit: String(line.credit ?? "0"),
+            }))
+            if (
+              JSON.stringify(normalizeLines(storedLines)) !==
+                JSON.stringify(normalizeLines(decoded.lines))
+            ) {
+              return { _tag: "idempotency-conflict" as const }
+            }
+            return {
+              _tag: "existing" as const,
+              journal: {
+                id: existing.id,
+                tenantId: existing.tenantId,
+                reference: existing.reference,
+                status: "posted" as const,
+                postedAt: existing.postedAt.toISOString(),
+                lines: decoded.lines,
+              },
+            }
+          }
+
           const entry = (await tx.insert(journalEntries).values({
             tenantId: decoded.tenantId,
-            reference: decoded.reference.trim(),
+            reference,
           }).returning({ id: journalEntries.id }))[0]!
 
           await tx.insert(journalLines).values(
@@ -296,14 +428,18 @@ export const makeAccountingService = Effect.gen(function* () {
           const posted = (await tx.update(journalEntries)
             .set({ status: "posted", postedAt, updatedAt: postedAt })
             .where(eq(journalEntries.id, entry.id))
-            .returning({
-              id: journalEntries.id,
-              tenantId: journalEntries.tenantId,
-              reference: journalEntries.reference,
-              status: journalEntries.status,
-              postedAt: journalEntries.postedAt,
-            }))[0]!
-          return { ...posted, lines: decoded.lines }
+            .returning(journalEntrySelection))[0]!
+          return {
+            _tag: "created" as const,
+            journal: {
+              id: posted.id,
+              tenantId: posted.tenantId,
+              reference: posted.reference,
+              status: "posted" as const,
+              postedAt: posted.postedAt!.toISOString(),
+              lines: decoded.lines,
+            },
+          }
         },
         "accounting.journal.post",
       ).pipe(
@@ -314,20 +450,24 @@ export const makeAccountingService = Effect.gen(function* () {
           if (isDatabaseConstraint(error, "journal_entries_reference_key")) {
             return new JournalReferenceAlreadyExists({
               tenantId: decoded.tenantId,
-              reference: decoded.reference.trim(),
+              reference,
             })
           }
           return error
         }),
+        Effect.result,
       )
-      return {
-        id: result.id,
-        tenantId: result.tenantId,
-        reference: result.reference,
-        status: "posted" as const,
-        postedAt: result.postedAt!.toISOString(),
-        lines: result.lines,
+      if (Result.isFailure(result)) {
+        if (result.failure instanceof JournalReferenceAlreadyExists) return yield* loadExisting()
+        return yield* Effect.fail(result.failure)
       }
+      if (result.success._tag === "idempotency-conflict") {
+        return yield* Effect.fail(new JournalIdempotencyConflict({
+          tenantId: decoded.tenantId,
+          reference,
+        }))
+      }
+      return result.success.journal
     }),
   } satisfies AccountingService
 })
@@ -340,7 +480,7 @@ export const makeAccountingTestLayer = () =>
       const clock = yield* Clock.Clock
       const configurations = new Map<string, AccountingConfiguration>()
       const storedAccounts = new Map<string, Account>()
-      const references = new Set<string>()
+      const storedJournals = new Map<string, JournalEntry>()
       let sequence = 1
       const nextId = () => `accounting-test-${sequence++}`
       const service: AccountingService = {
@@ -415,24 +555,30 @@ export const makeAccountingTestLayer = () =>
         ) {
           return yield* Effect.fail(new AccountNotFound({ tenantId: decoded.tenantId }))
         }
-        const key = `${decoded.tenantId}:${decoded.reference.trim()}`
-        if (references.has(key)) {
-          return yield* Effect.fail(
-            new JournalReferenceAlreadyExists({
-              tenantId: decoded.tenantId,
-              reference: decoded.reference.trim(),
-            }),
-          )
+        const reference = decoded.reference.trim()
+        const key = `${decoded.tenantId}:${reference}`
+        const existing = storedJournals.get(key)
+        if (existing !== undefined) {
+          if (JSON.stringify(normalizeLines(existing.lines)) !== JSON.stringify(normalizeLines(decoded.lines))) {
+            return yield* Effect.fail(
+              new JournalIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                reference,
+              }),
+            )
+          }
+          return existing
         }
-        references.add(key)
-        return {
+        const journal: JournalEntry = {
           id: nextId(),
           tenantId: decoded.tenantId,
-          reference: decoded.reference.trim(),
-          status: "posted" as const,
+          reference,
+          status: "posted",
           postedAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
           lines: decoded.lines,
         }
+        storedJournals.set(key, journal)
+        return journal
       }),
       }
       return service

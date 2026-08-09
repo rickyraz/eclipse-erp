@@ -12,6 +12,7 @@ export {
   CreateAccountInput,
   InvalidJournalLine,
   JournalEntry,
+  JournalIdempotencyConflict,
   JournalLine,
   JournalReferenceAlreadyExists,
   makeAccountingService,

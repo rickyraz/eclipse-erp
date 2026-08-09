@@ -1,6 +1,7 @@
 export { SalesCapabilities } from "./src/capabilities.ts"
 
 export {
+  ConfirmOrderInput,
   CreateCustomerInput,
   CreateOrderInput,
   CreateQuotationInput,
@@ -12,6 +13,9 @@ export {
   Quotation,
   QuotationNotFound,
   SalesOrder,
+  SalesOrderConfirmationIdempotencyConflict,
+  SalesOrderInvalidState,
+  SalesOrderNotFound,
   SalesService,
 } from "./src/service.ts"
 export type {

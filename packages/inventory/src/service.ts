@@ -41,13 +41,15 @@ export const StockBalance = Schema.Struct({
   onHand: Schema.String,
   reserved: Schema.String,
 })
+export const StockReservationStatus = Schema.Literals(["active", "released", "fulfilled"])
 export const StockReservation = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
   warehouseId: Schema.String,
   itemId: Schema.String,
   quantity: Quantity,
-  status: Schema.Literal("active"),
+  idempotencyKey: Schema.NullOr(Schema.String),
+  status: StockReservationStatus,
 })
 export const StockTransferStatus = Schema.Literals(["draft", "confirmed", "completed"])
 export const StockTransferLine = Schema.Struct({
@@ -92,7 +94,13 @@ export const ReceiveStockInput = Schema.Struct({
   itemId: Schema.String,
   quantity: Quantity,
 })
-export const ReserveStockInput = ReceiveStockInput
+export const ReserveStockInput = Schema.Struct({
+  ...ScopedInput,
+  warehouseId: Schema.String,
+  itemId: Schema.String,
+  quantity: Quantity,
+  idempotencyKey: Schema.optionalKey(Schema.String.check(Schema.isPattern(/\S/))),
+})
 export const CreateStockTransferInput = Schema.Struct({
   ...ScopedInput,
   sourceWarehouseId: Schema.String,
@@ -139,6 +147,14 @@ export class StockUnavailable
     itemId: Schema.String,
     requested: Schema.String,
   }) {}
+export class StockReservationIdempotencyConflict
+  extends Schema.TaggedErrorClass<StockReservationIdempotencyConflict>()(
+    "StockReservationIdempotencyConflict",
+    {
+      tenantId: Schema.String,
+      idempotencyKey: Schema.String,
+    },
+  ) {}
 export class StockTransferNotFound
   extends Schema.TaggedErrorClass<StockTransferNotFound>()("StockTransferNotFound", {
     tenantId: Schema.String,
@@ -196,7 +212,10 @@ export interface InventoryService {
   ) => Effect.Effect<StockBalance, InventoryReferenceNotFound | CommonFailure>
   readonly reserveStock: (
     input: unknown,
-  ) => Effect.Effect<StockReservation, StockUnavailable | CommonFailure>
+  ) => Effect.Effect<
+    StockReservation,
+    StockReservationIdempotencyConflict | StockUnavailable | CommonFailure
+  >
   readonly createTransfer: (
     input: unknown,
   ) => Effect.Effect<
@@ -428,6 +447,37 @@ export const makeInventoryService = Effect.gen(function* () {
       })
       const reservation = yield* database.transaction(
         async (tx) => {
+          if (decoded.idempotencyKey !== undefined) {
+            const existingRows = await tx.select({
+              id: reservations.id,
+              tenantId: reservations.tenantId,
+              warehouseId: reservations.warehouseId,
+              itemId: reservations.itemId,
+              quantity: reservations.quantity,
+              idempotencyKey: reservations.idempotencyKey,
+              status: reservations.status,
+            })
+              .from(reservations)
+              .where(
+                and(
+                  eq(reservations.tenantId, decoded.tenantId),
+                  eq(reservations.idempotencyKey, decoded.idempotencyKey),
+                ),
+              )
+              .for("update")
+            const existing = existingRows[0]
+            if (existing !== undefined) {
+              if (
+                existing.warehouseId !== decoded.warehouseId ||
+                existing.itemId !== decoded.itemId ||
+                existing.quantity !== decoded.quantity
+              ) {
+                return { _tag: "idempotency-conflict" as const }
+              }
+              return { _tag: "existing" as const, reservation: existing }
+            }
+          }
+
           const updated = await tx.update(stockBalances)
             .set({
               reserved: sql`${stockBalances.reserved} + ${decoded.quantity}`,
@@ -442,19 +492,22 @@ export const makeInventoryService = Effect.gen(function* () {
               ),
             )
             .returning({ itemId: stockBalances.itemId })
-          if (updated[0] === undefined) return undefined
+          if (updated[0] === undefined) return { _tag: "unavailable" as const }
 
           const rows = await tx.insert(reservations).values({
             tenantId: decoded.tenantId,
             warehouseId: decoded.warehouseId,
             itemId: decoded.itemId,
             quantity: decoded.quantity,
+            idempotencyKey: decoded.idempotencyKey ?? null,
           }).returning({
             id: reservations.id,
             tenantId: reservations.tenantId,
             warehouseId: reservations.warehouseId,
             itemId: reservations.itemId,
             quantity: reservations.quantity,
+            idempotencyKey: reservations.idempotencyKey,
+            status: reservations.status,
           })
           const row = rows[0]!
           await tx.insert(movements).values({
@@ -465,21 +518,39 @@ export const makeInventoryService = Effect.gen(function* () {
             kind: "reservation",
             referenceId: row.id,
           })
-          return { ...row, status: "active" as const }
+          return { _tag: "created" as const, reservation: row }
         },
         "inventory.stock.reserve",
+      ).pipe(
+        Effect.mapError((error) =>
+          isDatabaseConstraint(error, "reservations_tenant_idempotency_key") &&
+              decoded.idempotencyKey !== undefined
+            ? new StockReservationIdempotencyConflict({
+              tenantId: decoded.tenantId,
+              idempotencyKey: decoded.idempotencyKey,
+            })
+            : error
+        ),
       )
-      if (reservation === undefined) {
+      if (reservation._tag === "idempotency-conflict") {
         return yield* Effect.fail(
-          new StockUnavailable({
+          new StockReservationIdempotencyConflict({
             tenantId: decoded.tenantId,
-            warehouseId: decoded.warehouseId,
-            itemId: decoded.itemId,
-            requested: decoded.quantity,
+            idempotencyKey: decoded.idempotencyKey!,
           }),
         )
       }
-      return reservation
+      if (reservation._tag === "existing" || reservation._tag === "created") {
+        return reservation.reservation
+      }
+      return yield* Effect.fail(
+        new StockUnavailable({
+          tenantId: decoded.tenantId,
+          warehouseId: decoded.warehouseId,
+          itemId: decoded.itemId,
+          requested: decoded.quantity,
+        }),
+      )
     }),
   createTransfer: (input) =>
     Effect.gen(function* () {
@@ -834,6 +905,7 @@ export const makeInventoryTestLayer = () =>
       const storedItems = new Map<string, Item>()
       const balances = new Map<string, { onHand: bigint; reserved: bigint }>()
       const storedTransfers = new Map<string, StockTransfer>()
+      const storedReservations = new Map<string, StockReservation>()
       let sequence = 1
       const nextId = () => `inventory-test-${sequence++}`
       const authorize = (principal: unknown, tenantId: string, capability: string) =>
@@ -912,6 +984,27 @@ export const makeInventoryTestLayer = () =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
         yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockReserve)
+        const idempotencyKey = decoded.idempotencyKey === undefined
+          ? undefined
+          : `${decoded.tenantId}:${decoded.idempotencyKey}`
+        const existing = idempotencyKey === undefined
+          ? undefined
+          : storedReservations.get(idempotencyKey)
+        if (existing !== undefined) {
+          if (
+            existing.warehouseId !== decoded.warehouseId ||
+            existing.itemId !== decoded.itemId ||
+            existing.quantity !== decoded.quantity
+          ) {
+            return yield* Effect.fail(
+              new StockReservationIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                idempotencyKey: decoded.idempotencyKey!,
+              }),
+            )
+          }
+          return existing
+        }
         const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
         const balance = balances.get(key)
         const quantity = BigInt(decoded.quantity)
@@ -926,14 +1019,17 @@ export const makeInventoryTestLayer = () =>
           )
         }
         balance.reserved += quantity
-        return {
+        const reservation: StockReservation = {
           id: nextId(),
           tenantId: decoded.tenantId,
           warehouseId: decoded.warehouseId,
           itemId: decoded.itemId,
           quantity: decoded.quantity,
-          status: "active" as const,
+          idempotencyKey: decoded.idempotencyKey ?? null,
+          status: "active",
         }
+        if (idempotencyKey !== undefined) storedReservations.set(idempotencyKey, reservation)
+        return reservation
       }),
     createTransfer: (input) =>
       Effect.gen(function* () {

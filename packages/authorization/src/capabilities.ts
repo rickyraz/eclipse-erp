@@ -22,6 +22,9 @@ export const CapabilityIds = [
   "sales.customer.create",
   "sales.quotation.create",
   "sales.order.create",
+  "sales.order.confirm",
+  "process.order_confirmation.recover",
+  "process.order_confirmation.manual_recovery",
   "inventory.warehouse.create",
   "inventory.item.create",
   "inventory.stock.receive",
@@ -81,6 +84,7 @@ export const CapabilityOwner = Schema.Literals([
   "sales",
   "inventory",
   "accounting",
+  "process",
 ])
 export type CapabilityOwner = Schema.Schema.Type<typeof CapabilityOwner>
 
@@ -189,6 +193,19 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
   definition("sales.customer.create", "sales", "customer", "create"),
   definition("sales.quotation.create", "sales", "quotation", "create"),
   definition("sales.order.create", "sales", "order", "create"),
+  definition("sales.order.confirm", "sales", "order", "confirm"),
+  definition(
+    "process.order_confirmation.recover",
+    "process",
+    "order_confirmation",
+    "recover",
+  ),
+  definition(
+    "process.order_confirmation.manual_recovery",
+    "process",
+    "order_confirmation",
+    "manual_recovery",
+  ),
   definition("inventory.warehouse.create", "inventory", "warehouse", "create"),
   definition("inventory.item.create", "inventory", "item", "create"),
   definition("inventory.stock.receive", "inventory", "stock", "receive"),

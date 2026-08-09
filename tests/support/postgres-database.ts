@@ -15,7 +15,7 @@ export const withTemporaryDatabase = <A, E, R>(
       Effect.acquireUseRelease(
         Effect.promise(async () => {
           await admin.unsafe(`create database "${databaseName}"`)
-          return postgres(targetUrl.toString(), { max: 1 })
+          return postgres(targetUrl.toString(), { max: 4 })
         }),
         use,
         (client) => Effect.promise(() => client.end()),

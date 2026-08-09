@@ -16,7 +16,7 @@ const withPreviousMigrations = <A, E, R>(
     Effect.promise(async () => {
       const directory = await Deno.makeTempDir({ prefix: "eclipse-erp-migrations-" })
       for await (const entry of Deno.readDir("db/migrations")) {
-        if (!entry.isDirectory || entry.name === latestMigration) continue
+        if (!entry.isDirectory || entry.name >= latestMigration) continue
         const source = `db/migrations/${entry.name}`
         const target = `${directory}/${entry.name}`
         await Deno.mkdir(target, { recursive: true })
