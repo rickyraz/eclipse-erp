@@ -84,9 +84,9 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 | Money and obligation | Accounting journals exist; billing is a scaffold | `PARTIAL` | Decide currency, precision, tax scope, payable, receivable, invoice, payment, settlement, and rounding ownership |
 | Fiscal period and close | Accounting domain exists; period-close behavior is not implemented | `UNKNOWN` | Decide open/closed period rules, posting eligibility, close/reopen policy, concurrency with posting, and audit requirements |
 | Policy and authorization | Capability-based authorization and ADR-0031 capability naming are implemented for current actions | `READY` for current actions | Extend owner metadata, approval/override semantics, and separation of duties when new irreversible actions and Process Studio catalogs require them |
-| Audit and correlation | Architecture requires audit and event correlation | `PARTIAL` | Decide authoritative audit ownership, retention, actor, tenant, command, state change, correlation, and causation fields |
-| Typed actions and events | Process Studio architecture defines catalogs; domain registries do not yet exist | `UNKNOWN` | Decide registration, versioning, compatibility, contributor ownership, catalog discovery, and public-contract verification |
-| Compensation and recovery | Process Studio architecture defines explicit compensation/manual recovery | `DECIDED`, not implemented | Each committed action must declare a domain compensation command or explicit manual recovery |
+| Audit and correlation | Process workflow events/jobs carry tenant, actor, aggregate, correlation, and causation fields | `PARTIAL` | Decide authoritative audit ownership, retention, and delivery/consumer observability |
+| Typed actions and events | Process package exposes versioned event and job contracts; full catalogs remain planned | `PARTIAL` | Add catalog registration, compatibility, contributor ownership, and public-contract verification |
+| Compensation and recovery | Order confirmation has idempotent replay and explicit manual-recovery state | `PARTIAL` | Add domain compensation commands for future non-atomic or external effects |
 
 ## Decision Order
 

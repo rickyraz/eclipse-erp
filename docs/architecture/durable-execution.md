@@ -44,7 +44,9 @@ workflow execution or durable accepted-work semantics.
 - provides observable workflow state;
 - demonstrates safe migration and upgrade behavior.
 
-Until then, a compatibility job layer remains available.
+Until then, a compatibility job layer remains available. The first bounded implementation is the
+`packages/process` coordination owner and its PostgreSQL workflow-run, event-outbox, and job tables;
+it does not claim that a worker or `pg_durable` is authoritative.
 
 ## Direct Transaction Examples
 

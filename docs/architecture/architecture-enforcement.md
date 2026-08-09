@@ -126,8 +126,8 @@ auth = "packages/authorization"
 sales = "packages/sales"
 inventory = "packages/inventory"
 accounting = "packages/accounting"
+process = "packages/process"
 billing = "packages/billing"
-workflow = "packages/workflow"
 integration = "packages/integrations"
 audit = "packages/audit"
 ```
@@ -190,8 +190,8 @@ and runs through `deno task boundary:lint` locally and in CI.
 
 ## Public Call Graph
 
-The repository records a conservative static call graph for `apps/` and
-`packages/`. It tracks:
+The repository records a conservative static call graph for `apps/`,
+`packages/`, `tests/`, and `tooling/`. It tracks:
 
 - direct calls between locally defined functions;
 - calls to callable names imported through another package's public `mod.ts`;

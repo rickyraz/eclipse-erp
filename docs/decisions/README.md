@@ -54,5 +54,6 @@ current system; ADRs preserve decision history.
 | [`0029`](./0029-rename-user-and-party-public-vocabulary.md) | Rename user and Party public vocabulary | Accepted |
 | [`0030`](./0030-user-account-lifecycle-and-tenant-membership.md) | Separate UserAccount lifecycle from tenant membership | Accepted |
 | [`0031`](./0031-capability-naming-and-business-verb-conventions.md) | Define capability naming and business verb conventions | Accepted |
+| [`0032`](./0032-order-confirmation-cross-domain-workflow.md) | Define atomic Sales + Inventory + Accounting order confirmation | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

@@ -44,6 +44,8 @@
 > - Typed Process Studio:
 >   [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
+> - Atomic order confirmation workflow:
+>   [`../decisions/0032-order-confirmation-cross-domain-workflow.md`](../decisions/0032-order-confirmation-cross-domain-workflow.md)
 
 ## Decision
 
@@ -133,6 +135,7 @@ eclipse-erp/
 │   ├── procurement/
 │   ├── inventory/
 │   ├── accounting/
+│   ├── process/
 │   ├── billing/
 │   └── integrations/
 ├── native/eclipse-calc/
