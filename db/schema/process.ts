@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm"
 import {
+  check,
   foreignKey,
   integer,
   jsonb,
@@ -46,6 +48,12 @@ export const workflowRuns = processSchema.table("workflow_runs", {
     foreignColumns: [tenants.id],
     name: "workflow_runs_tenant_id_fkey",
   }).onDelete("cascade"),
+  check(
+    "workflow_runs_state_check",
+    sql`(${table.status} = 'running' and ${table.result} is null and ${table.completedAt} is null) or
+      (${table.status} = 'succeeded' and ${table.result} is not null and ${table.completedAt} is not null) or
+      (${table.status} = 'manual_recovery' and ${table.recoveryReason} is not null)`,
+  ),
 ])
 
 export const eventOutbox = processSchema.table("event_outbox", {
@@ -69,6 +77,8 @@ export const eventOutbox = processSchema.table("event_outbox", {
     foreignColumns: [tenants.id],
     name: "event_outbox_tenant_id_fkey",
   }).onDelete("cascade"),
+  check("event_outbox_event_version_check", sql`${table.eventVersion} > 0`),
+  check("event_outbox_attempts_check", sql`${table.attempts} >= 0`),
 ])
 
 export const processJobs = processSchema.table("jobs", {
@@ -98,4 +108,5 @@ export const processJobs = processSchema.table("jobs", {
     foreignColumns: [tenants.id],
     name: "process_jobs_tenant_id_fkey",
   }).onDelete("cascade"),
+  check("process_jobs_attempts_check", sql`${table.attempts} >= 0`),
 ])
