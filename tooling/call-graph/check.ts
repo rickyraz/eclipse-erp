@@ -56,7 +56,7 @@ interface ResolvedImport {
   readonly packageName: string
 }
 
-const sourceRoots = ["apps", "packages"] as const
+const sourceRoots = ["apps", "packages", "tests", "tooling"] as const
 const simpleName = /^[A-Za-z_$][\w$]*$/
 const memberName = /^([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/
 
@@ -327,21 +327,39 @@ export const checkCallGraph = async (): Promise<CallGraphResult> => {
     "--type",
     "function",
   ])
-  const callOutput = await runAstGrep([
-    "run",
-    "-l",
-    "ts",
-    "-p",
-    "$F($$$ARGS)",
-    ...paths,
-    "--json=stream",
+  const [callOutput, serviceAccessOutput] = await Promise.all([
+    runAstGrep([
+      "run",
+      "-l",
+      "ts",
+      "-p",
+      "$F($$$ARGS)",
+      ...paths,
+      "--json=stream",
+    ]),
+    runAstGrep([
+      "run",
+      "-l",
+      "ts",
+      "-p",
+      "yield* $F",
+      ...paths,
+      "--json=stream",
+    ]),
   ])
   const outlines = parseJsonLines<OutlineFile>(outlineOutput)
-  const rawCalls = parseJsonLines<{
-    readonly file: string
-    readonly range: { readonly byteOffset: ByteRange }
-    readonly metaVariables?: { readonly single?: { readonly F?: { readonly text?: string } } }
-  }>(callOutput)
+  const rawCalls = [
+    ...parseJsonLines<{
+      readonly file: string
+      readonly range: { readonly byteOffset: ByteRange }
+      readonly metaVariables?: { readonly single?: { readonly F?: { readonly text?: string } } }
+    }>(callOutput),
+    ...parseJsonLines<{
+      readonly file: string
+      readonly range: { readonly byteOffset: ByteRange }
+      readonly metaVariables?: { readonly single?: { readonly F?: { readonly text?: string } } }
+    }>(serviceAccessOutput),
+  ]
   const calls: CallMatch[] = rawCalls.flatMap((match) => {
     const callee = match.metaVariables?.single?.F?.text
     return callee !== undefined && (simpleName.test(callee) || memberName.test(callee))

@@ -87,33 +87,48 @@ export const checkOwnership = async (): Promise<readonly string[]> => {
 
   await checkMigrations("db/migrations")
 
-  async function checkOwnedSchemaImports(owner: string, directory: string): Promise<void> {
-    for await (const entry of Deno.readDir(directory)) {
-      const path = `${directory}/${entry.name}`
-      if (entry.isDirectory) {
-        await checkOwnedSchemaImports(owner, path)
-        continue
+  const readTypeScriptFiles = async (directory: string): Promise<readonly string[]> => {
+    const files: string[] = []
+    const visit = async (path: string): Promise<void> => {
+      for await (const entry of Deno.readDir(path)) {
+        const child = `${path}/${entry.name}`
+        if (entry.isDirectory) await visit(child)
+        else if (entry.isFile && entry.name.endsWith(".ts")) files.push(child)
       }
-      if (!entry.isFile || !entry.name.endsWith(".ts")) continue
+    }
+    try {
+      await visit(directory)
+    } catch (cause) {
+      if (!(cause instanceof Deno.errors.NotFound)) throw cause
+    }
+    return files
+  }
 
+  const sourceOwner = (path: string): string | undefined => {
+    const packageName = path.match(/^packages\/([^/]+)\/src\//)?.[1]
+    return packageName === undefined ? undefined : `packages/${packageName}`
+  }
+
+  const isKernelSchemaTest = (path: string) => path.startsWith("packages/kernel/tests/")
+
+  for (const root of ["apps", "packages", "tests", "tooling"] as const) {
+    for (const path of await readTypeScriptFiles(root)) {
       const source = await Deno.readTextFile(path)
       for (const match of source.matchAll(/db\/schema\/([A-Za-z_][A-Za-z0-9_-]*)\.ts/g)) {
-        const importedSchema = match[1]
+        const importedSchema = match[1]!
         const importedOwner = schemas.get(importedSchema)
-        if (importedOwner !== undefined && importedOwner !== owner) {
+        if (importedOwner === undefined || isKernelSchemaTest(path)) continue
+        const owner = sourceOwner(path)
+        if (owner === undefined) {
+          failures.push(
+            `${path}: application, test, and tooling code must use public contracts instead of ${importedSchema} tables`,
+          )
+        } else if (importedOwner !== owner) {
           failures.push(
             `${path}: ${owner} must not import ${importedSchema} tables owned by ${importedOwner}`,
           )
         }
       }
-    }
-  }
-
-  for (const owner of schemas.values()) {
-    try {
-      await checkOwnedSchemaImports(owner, `${owner}/src`)
-    } catch (cause) {
-      if (!(cause instanceof Deno.errors.NotFound)) throw cause
     }
   }
 

@@ -6,3 +6,4 @@ valid:
 invalid:
   - import { stockPosition } from "../inventory/src/internal/tables.ts"
   - import { repository } from "../inventory/src/repositories/repository.ts"
+  - import { privateService } from "../inventory/src/service.ts"

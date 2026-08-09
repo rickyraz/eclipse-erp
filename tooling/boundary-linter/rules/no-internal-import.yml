@@ -11,4 +11,4 @@ rule:
     - pattern: import "$SOURCE"
 constraints:
   SOURCE:
-    regex: "(^|/)\\.\\.?/[^/]+/src/(internal|repositories|tables)(/|$)|^@eclipse/[^/]+/(internal|repositories|tables)(/|$)"
+    regex: "(^|/)\\.\\.?/[^/]+/src(/|$)|^@eclipse/[^/]+/src(/|$)"
