@@ -11,7 +11,8 @@
 > - Capability release and runtime governance:
 >   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 > - Active runtime: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
-> - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
+> - Async ADR:
+>   [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
 
 ## Decision
 
@@ -31,9 +32,9 @@ pg_durable
 -> checkpointed multi-step workflow
 ```
 
-Effect fibers are not durable. A Stateful Entity Runtime owns selected active
-entity state and serialization; it does not replace checkpointed multi-step
-workflow execution or durable accepted-work semantics.
+Effect fibers are not durable. A Stateful Entity Runtime owns selected active entity state and
+serialization; it does not replace checkpointed multi-step workflow execution or durable
+accepted-work semantics.
 
 ## Compatibility Gate
 
@@ -46,7 +47,9 @@ workflow execution or durable accepted-work semantics.
 
 Until then, a compatibility job layer remains available. The first bounded implementation is the
 `packages/process` coordination owner and its PostgreSQL workflow-run, event-outbox, and job tables;
-it does not claim that a worker or `pg_durable` is authoritative.
+it does not claim that a worker or `pg_durable` is authoritative. PgQue activation additionally
+requires the installer, ticker, grants, upgrade, and adapter gate defined by
+[ADR-0033](../decisions/0033-extend-order-lifecycle-and-gate-pgque.md).
 
 ## Direct Transaction Examples
 
@@ -82,13 +85,11 @@ Each workflow must define:
 
 A workflow must not replace a local transaction invariant.
 
-The runtime must persist step state, execution context, idempotency keys, retry
-state, unknown external outcomes, compensation progress, and manual-recovery
-state. Detailed Process Studio release, promotion, authority, and observability
-semantics are governed by
+The runtime must persist step state, execution context, idempotency keys, retry state, unknown
+external outcomes, compensation progress, and manual-recovery state. Detailed Process Studio
+release, promotion, authority, and observability semantics are governed by
 [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md).
 
-Typed action/event catalogs, Process IR, definition versioning, static validation,
-and compensation semantics are owned by
-[`process-studio.md`](./process-studio.md). The durable engine must preserve those
-semantics without becoming their source of truth.
+Typed action/event catalogs, Process IR, definition versioning, static validation, and compensation
+semantics are owned by [`process-studio.md`](./process-studio.md). The durable engine must preserve
+those semantics without becoming their source of truth.

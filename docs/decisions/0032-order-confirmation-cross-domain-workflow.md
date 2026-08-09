@@ -1,19 +1,23 @@
 # ADR-0032: Atomic Sales Order Confirmation Across Sales, Inventory, and Accounting
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-09
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0033
 
 > **Related documents**
 >
 > - ADR index: [`./README.md`](./README.md)
-> - Canonical architecture: [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
-> - Transactional consistency: [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
+> - Canonical architecture:
+>   [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
+> - Transactional consistency:
+>   [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
 > - Messaging: [`../architecture/pgque-messaging.md`](../architecture/pgque-messaging.md)
-> - Durable execution: [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
+> - Durable execution:
+>   [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Process Studio: [`../architecture/process-studio.md`](../architecture/process-studio.md)
-> - Capability naming: [`./0031-capability-naming-and-business-verb-conventions.md`](./0031-capability-naming-and-business-verb-conventions.md)
+> - Capability naming:
+>   [`./0031-capability-naming-and-business-verb-conventions.md`](./0031-capability-naming-and-business-verb-conventions.md)
 
 ## Context
 
@@ -45,8 +49,8 @@ The workflow calls only public contracts:
 - `InventoryService.reserveStock`;
 - `AccountingService.postJournal`.
 
-The kernel exposes an ambient, typed transaction context through `Database.withTransaction`.
-Nested domain transactions join the active PostgreSQL transaction; they do not create independent
+The kernel exposes an ambient, typed transaction context through `Database.withTransaction`. Nested
+domain transactions join the active PostgreSQL transaction; they do not create independent
 transactions. No Drizzle transaction type crosses the process package's public contract.
 
 ### Command contract
@@ -82,8 +86,8 @@ successful PostgreSQL transaction. The process owner provides:
 - idempotent `recoverOrder` replay for lost responses or retryable outcomes;
 - `markManualRecovery` for operator fencing when a run requires investigation;
 - `WorkflowManualRecoveryRequired` when automatic replay is not allowed;
-- `WorkflowOutcomeUnknown` when the database outcome cannot be safely classified, directing callers to
-  the recovery command rather than retrying an unkeyed mutation.
+- `WorkflowOutcomeUnknown` when the database outcome cannot be safely classified, directing callers
+  to the recovery command rather than retrying an unkeyed mutation.
 
 Any later asynchronous or external step requires its own idempotent compensating command or explicit
 manual-recovery policy. It must not pretend to roll back committed domain facts.
