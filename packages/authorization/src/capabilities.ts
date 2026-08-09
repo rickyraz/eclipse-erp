@@ -38,6 +38,11 @@ export const CapabilityIds = [
   "accounting.legal_entity.configure",
   "accounting.account.create",
   "accounting.journal.post",
+  "accounting.revenue.configure",
+  "accounting.period.open",
+  "accounting.period.close",
+  "accounting.revenue.post",
+  "accounting.revenue.reverse",
 ] as const
 
 export const Capability = Schema.Literals(CapabilityIds)
@@ -222,6 +227,11 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
   definition("accounting.legal_entity.configure", "accounting", "legal_entity", "configure"),
   definition("accounting.account.create", "accounting", "account", "create"),
   definition("accounting.journal.post", "accounting", "journal", "post"),
+  definition("accounting.revenue.configure", "accounting", "revenue", "configure"),
+  definition("accounting.period.open", "accounting", "period", "open"),
+  definition("accounting.period.close", "accounting", "period", "close"),
+  definition("accounting.revenue.post", "accounting", "revenue", "post"),
+  definition("accounting.revenue.reverse", "accounting", "revenue", "reverse"),
 ]
 
 const capabilityIdSet = new Set<string>(CapabilityIds)

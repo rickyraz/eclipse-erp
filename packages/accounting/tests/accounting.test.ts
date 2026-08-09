@@ -2,10 +2,7 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
-import {
-  AuthorizationDenied,
-  makeAuthorizationTestLayer,
-} from "../../authorization/mod.ts"
+import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
   AccountingConfigurationAlreadyExists,
   AccountingService,
@@ -31,11 +28,11 @@ const withAccounting = <A, E>(
     makeAccountingTestLayer().pipe(
       Layer.provide(
         makeAuthorizationTestLayer(
-        grantedCapabilities.map((capability) => ({
-          userAccountId: principal.userAccountId,
-          tenantId,
-          capability: capability as (typeof capabilities)[number],
-        })),
+          grantedCapabilities.map((capability) => ({
+            userAccountId: principal.userAccountId,
+            tenantId,
+            capability: capability as (typeof capabilities)[number],
+          })),
         ),
       ),
     ),

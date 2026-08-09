@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 import {
   boolean,
   check,
+  date,
   foreignKey,
   pgSchema,
   primaryKey,
@@ -24,6 +25,10 @@ export const accountType = accountingSchema.enum(
 export const journalStatus = accountingSchema.enum(
   "journal_status",
   ["draft", "posted", "reversed"],
+)
+export const accountingPeriodStatus = accountingSchema.enum(
+  "accounting_period_status",
+  ["open", "closed"],
 )
 
 export const legalEntityAccountingConfigurations = accountingSchema.table(
@@ -65,6 +70,30 @@ export const legalEntityAccountingConfigurations = accountingSchema.table(
   ],
 )
 
+export const accountingPeriods = accountingSchema.table("accounting_periods", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
+  startsOn: date("starts_on").notNull(),
+  endsOn: date("ends_on").notNull(),
+  status: accountingPeriodStatus("status").notNull().default("open"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  unique("accounting_periods_tenant_id_id_key").on(table.tenantId, table.id),
+  foreignKey({
+    columns: [table.tenantId],
+    foreignColumns: [tenants.id],
+    name: "accounting_periods_tenant_fkey",
+  }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "accounting_periods_legal_entity_fkey",
+  }),
+  check("accounting_periods_dates_check", sql`${table.startsOn} <= ${table.endsOn}`),
+])
+
 export const accounts = accountingSchema.table("accounts", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
@@ -83,10 +112,41 @@ export const accounts = accountingSchema.table("accounts", {
   }).onDelete("cascade"),
 ])
 
+export const revenuePostingProfiles = accountingSchema.table("revenue_posting_profiles", {
+  tenantId: uuid("tenant_id").notNull(),
+  legalEntityId: uuid("legal_entity_id").notNull(),
+  receivableAccountId: uuid("receivable_account_id").notNull(),
+  revenueAccountId: uuid("revenue_account_id").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  primaryKey({ columns: [table.tenantId, table.legalEntityId] }),
+  foreignKey({
+    columns: [table.tenantId, table.legalEntityId],
+    foreignColumns: [legalEntities.tenantId, legalEntities.id],
+    name: "revenue_posting_profiles_legal_entity_fkey",
+  }),
+  foreignKey({
+    columns: [table.tenantId, table.receivableAccountId],
+    foreignColumns: [accounts.tenantId, accounts.id],
+    name: "revenue_posting_profiles_receivable_account_fkey",
+  }),
+  foreignKey({
+    columns: [table.tenantId, table.revenueAccountId],
+    foreignColumns: [accounts.tenantId, accounts.id],
+    name: "revenue_posting_profiles_revenue_account_fkey",
+  }),
+  check(
+    "revenue_posting_profiles_accounts_different_check",
+    sql`${table.receivableAccountId} <> ${table.revenueAccountId}`,
+  ),
+])
+
 export const journalEntries = accountingSchema.table("journal_entries", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
   reference: text("reference").notNull(),
+  reversesEntryId: uuid("reverses_entry_id"),
   status: journalStatus("status").notNull().default("draft"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   createdAt: createdAt(),
@@ -99,6 +159,11 @@ export const journalEntries = accountingSchema.table("journal_entries", {
     foreignColumns: [tenants.id],
     name: "journal_entries_tenant_id_fkey",
   }).onDelete("cascade"),
+  foreignKey({
+    columns: [table.tenantId, table.reversesEntryId],
+    foreignColumns: [table.tenantId, table.id],
+    name: "journal_entries_reverses_entry_fkey",
+  }),
   check(
     "journal_entries_posted_at_check",
     sql`(${table.status} = 'draft' and ${table.postedAt} is null) or

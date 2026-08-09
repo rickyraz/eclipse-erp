@@ -1,4 +1,6 @@
 export {
+  accountingPeriods,
+  accountingPeriodStatus,
   accountingSchema,
   accounts,
   accountType,
@@ -6,6 +8,7 @@ export {
   journalLines,
   journalStatus,
   legalEntityAccountingConfigurations,
+  revenuePostingProfiles,
 } from "./accounting.ts"
 export { authSchema, sessions, tenants } from "./auth.ts"
 export { authorizationSchema, memberships, tenantMemberships } from "./authorization.ts"
