@@ -20,7 +20,11 @@ const capabilities = [
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
-  capabilities.map((capability) => ({ userAccountId: principal.userAccountId, tenantId, capability })),
+  capabilities.map((capability) => ({
+    userAccountId: principal.userAccountId,
+    tenantId,
+    capability,
+  })),
 )
 
 const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>
@@ -50,7 +54,7 @@ describe("sales contract", () => {
         tenantId,
         customerId: customer.id,
         quotationId: quotation.id,
-        total: quotation.total,
+        lines: [{ itemId: "item-1", quantity: "10", unitPrice: "125.00" }],
       })
 
       assert.strictEqual(customer.email, "sales@acme.test")
@@ -87,7 +91,7 @@ describe("sales contract", () => {
         principal,
         tenantId,
         customerId: customer.id,
-        total: "10.00",
+        lines: [{ itemId: "item-1", quantity: "1", unitPrice: "10.00" }],
       })
       yield* sales.confirmOrder({
         principal,

@@ -59,7 +59,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            total: "100.00",
+            lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "100.00" }],
           })
           const confirmed = yield* sales.confirmOrder({
             principal,
@@ -143,7 +143,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               principal,
               tenantId: tenantB!.id,
               customerId: customer.id,
-              total: "10.00",
+              lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "10.00" }],
             })),
             CustomerNotFound,
           )

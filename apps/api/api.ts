@@ -19,7 +19,7 @@ import {
   PartyRelationshipKind,
   PartyRole,
 } from "../../packages/party/mod.ts"
-import { Customer, Quotation, SalesOrder } from "../../packages/sales/mod.ts"
+import { Customer, Quotation, SalesOrder, SalesOrderLine } from "../../packages/sales/mod.ts"
 import {
   OrderConfirmationPayload,
   OrderConfirmationResult,
@@ -213,7 +213,7 @@ const Sales = HttpApiGroup.make("Sales").add(
     payload: Schema.Struct({
       customerId: Schema.String,
       quotationId: Schema.optionalKey(Schema.String),
-      total: Schema.String,
+      lines: Schema.Array(SalesOrderLine).check(Schema.isMinLength(1)),
     }),
     success: CreatedOrder,
     error: errors,

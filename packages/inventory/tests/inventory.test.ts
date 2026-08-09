@@ -2,16 +2,14 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
-import {
-  AuthorizationDenied,
-  makeAuthorizationTestLayer,
-} from "../../authorization/mod.ts"
+import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
   InventoryCapabilities,
   InventoryService,
   makeInventoryTestLayer,
-  StockTransferDifferentLegalEntity,
   StockReservationIdempotencyConflict,
+  StockReservationInvalidState,
+  StockTransferDifferentLegalEntity,
   StockTransferInvalidState,
   StockUnavailable,
 } from "../mod.ts"
@@ -24,6 +22,8 @@ const capabilities = [
   InventoryCapabilities.itemCreate,
   InventoryCapabilities.stockReceive,
   InventoryCapabilities.stockReserve,
+  InventoryCapabilities.stockRelease,
+  InventoryCapabilities.stockFulfill,
   InventoryCapabilities.stockTransferCreate,
   InventoryCapabilities.stockTransferConfirm,
   InventoryCapabilities.stockTransferComplete,
@@ -37,11 +37,11 @@ const withInventory = <A, E>(
     makeInventoryTestLayer().pipe(
       Layer.provide(
         makeAuthorizationTestLayer(
-        grantedCapabilities.map((capability) => ({
-          userAccountId: principal.userAccountId,
-          tenantId,
-          capability: capability as (typeof capabilities)[number],
-        })),
+          grantedCapabilities.map((capability) => ({
+            userAccountId: principal.userAccountId,
+            tenantId,
+            capability: capability as (typeof capabilities)[number],
+          })),
         ),
       ),
     ),
@@ -91,6 +91,115 @@ describe("inventory contract", () => {
       assert.strictEqual(reservation.quantity, "4")
       assert.strictEqual(reservation.idempotencyKey, "reservation-1")
       assert.strictEqual(reservation.id, repeated.id)
+    })))
+
+  it.effect("releases and fulfills active reservations exactly once", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Main",
+      })
+      const item = yield* inventory.createItem({
+        principal,
+        tenantId,
+        sku: "sku-terminal",
+        name: "Widget",
+      })
+      yield* inventory.receiveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "10",
+      })
+      const released = yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "4",
+      })
+      assert.strictEqual(
+        (yield* inventory.releaseReservation({
+          principal,
+          tenantId,
+          reservationId: released.id,
+        })).status,
+        "released",
+      )
+      assert.strictEqual(
+        (yield* inventory.releaseReservation({
+          principal,
+          tenantId,
+          reservationId: released.id,
+        })).id,
+        released.id,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(inventory.fulfillReservation({
+          principal,
+          tenantId,
+          reservationId: released.id,
+        })),
+        StockReservationInvalidState,
+      )
+      const allAvailable = yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "10",
+      })
+      yield* inventory.releaseReservation({
+        principal,
+        tenantId,
+        reservationId: allAvailable.id,
+      })
+
+      const fulfilled = yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "4",
+      })
+      assert.strictEqual(
+        (yield* inventory.fulfillReservation({
+          principal,
+          tenantId,
+          reservationId: fulfilled.id,
+        })).status,
+        "fulfilled",
+      )
+      assert.strictEqual(
+        (yield* inventory.fulfillReservation({
+          principal,
+          tenantId,
+          reservationId: fulfilled.id,
+        })).id,
+        fulfilled.id,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(inventory.releaseReservation({
+          principal,
+          tenantId,
+          reservationId: fulfilled.id,
+        })),
+        StockReservationInvalidState,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(inventory.reserveStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          quantity: "7",
+        })),
+        StockUnavailable,
+      )
     })))
 
   it.effect("rejects an idempotency key reused for different stock", () =>
@@ -349,7 +458,9 @@ describe("inventory contract", () => {
         }))
         assert.instanceOf(error, AuthorizationDenied)
       }),
-      capabilities.filter((capability) => capability !== InventoryCapabilities.stockTransferConfirm),
+      capabilities.filter((capability) =>
+        capability !== InventoryCapabilities.stockTransferConfirm
+      ),
     ))
 
   it.effect("requires a separate capability to complete a transfer", () =>
@@ -396,6 +507,8 @@ describe("inventory contract", () => {
         }))
         assert.instanceOf(error, AuthorizationDenied)
       }),
-      capabilities.filter((capability) => capability !== InventoryCapabilities.stockTransferComplete),
+      capabilities.filter((capability) =>
+        capability !== InventoryCapabilities.stockTransferComplete
+      ),
     ))
 })

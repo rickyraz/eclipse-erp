@@ -143,7 +143,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            total: "100.00",
+            lines: [{ itemId: item.id, quantity: "1", unitPrice: "100.00" }],
           })
           const input = {
             principal,
@@ -278,7 +278,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            total: "100.00",
+            lines: [{ itemId: item.id, quantity: "1", unitPrice: "100.00" }],
           })
           const error = yield* Effect.flip(process.confirmOrder({
             principal,
@@ -400,7 +400,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            total: "50.00",
+            lines: [{ itemId: item.id, quantity: "1", unitPrice: "50.00" }],
           })
           const input = {
             principal,

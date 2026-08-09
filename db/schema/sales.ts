@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm"
-import { check, foreignKey, pgSchema, text, timestamp, unique, uuid } from "drizzle-orm/pg-core"
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgSchema,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, money, updatedAt } from "./common.ts"
@@ -66,6 +76,7 @@ export const orders = salesSchema.table("orders", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
+  unique("orders_tenant_id_id_key").on(table.tenantId, table.id),
   foreignKey({
     columns: [table.tenantId],
     foreignColumns: [tenants.id],
@@ -92,4 +103,23 @@ export const orders = salesSchema.table("orders", {
       (${table.status} = 'confirmed' and ${table.confirmedAt} is not null) or
       (${table.status} = 'cancelled')`,
   ),
+])
+
+export const orderLines = salesSchema.table("order_lines", {
+  id: id(),
+  tenantId: uuid("tenant_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  quantity: bigint("quantity", { mode: "string" }).notNull(),
+  unitPrice: money("unit_price").notNull(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("order_lines_tenant_order_idx").on(table.tenantId, table.orderId),
+  foreignKey({
+    columns: [table.tenantId, table.orderId],
+    foreignColumns: [orders.tenantId, orders.id],
+    name: "order_lines_tenant_order_fkey",
+  }).onDelete("cascade"),
+  check("order_lines_quantity_check", sql`${table.quantity} > 0`),
+  check("order_lines_unit_price_check", sql`${table.unitPrice} >= 0`),
 ])

@@ -101,6 +101,11 @@ export const ReserveStockInput = Schema.Struct({
   quantity: Quantity,
   idempotencyKey: Schema.optionalKey(Schema.String.check(Schema.isPattern(/\S/))),
 })
+export const ReleaseReservationInput = Schema.Struct({
+  ...ScopedInput,
+  reservationId: Schema.String,
+})
+export const FulfillReservationInput = ReleaseReservationInput
 export const CreateStockTransferInput = Schema.Struct({
   ...ScopedInput,
   sourceWarehouseId: Schema.String,
@@ -153,6 +158,21 @@ export class StockReservationIdempotencyConflict
     {
       tenantId: Schema.String,
       idempotencyKey: Schema.String,
+    },
+  ) {}
+export class StockReservationNotFound
+  extends Schema.TaggedErrorClass<StockReservationNotFound>()("StockReservationNotFound", {
+    tenantId: Schema.String,
+    reservationId: Schema.String,
+  }) {}
+export class StockReservationInvalidState
+  extends Schema.TaggedErrorClass<StockReservationInvalidState>()(
+    "StockReservationInvalidState",
+    {
+      tenantId: Schema.String,
+      reservationId: Schema.String,
+      operation: Schema.Literals(["release", "fulfill"]),
+      status: StockReservationStatus,
     },
   ) {}
 export class StockTransferNotFound
@@ -216,6 +236,18 @@ export interface InventoryService {
     StockReservation,
     StockReservationIdempotencyConflict | StockUnavailable | CommonFailure
   >
+  readonly releaseReservation: (
+    input: unknown,
+  ) => Effect.Effect<
+    StockReservation,
+    StockReservationInvalidState | StockReservationNotFound | CommonFailure
+  >
+  readonly fulfillReservation: (
+    input: unknown,
+  ) => Effect.Effect<
+    StockReservation,
+    StockReservationInvalidState | StockReservationNotFound | CommonFailure
+  >
   readonly createTransfer: (
     input: unknown,
   ) => Effect.Effect<
@@ -249,6 +281,16 @@ export const InventoryService = Context.Service<InventoryService>("EclipseERP/In
 
 const referenceFailure = (tenantId: string, warehouseId: string, itemId: string) =>
   new InventoryReferenceNotFound({ tenantId, warehouseId, itemId })
+
+const reservationSelection = {
+  id: reservations.id,
+  tenantId: reservations.tenantId,
+  warehouseId: reservations.warehouseId,
+  itemId: reservations.itemId,
+  quantity: reservations.quantity,
+  idempotencyKey: reservations.idempotencyKey,
+  status: reservations.status,
+}
 
 const transferSelection = {
   id: stockTransfers.id,
@@ -307,148 +349,200 @@ export const makeInventoryService = Effect.gen(function* () {
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
-  createWarehouse: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.warehouseCreate,
-      })
-      const name = decoded.name.trim()
-      const primaryBranchId = decoded.primaryBranchId ?? null
-      const rows = yield* database.query(
-        (db) =>
-          db.insert(warehouses).values({
-            tenantId: decoded.tenantId,
-            legalEntityId: decoded.legalEntityId,
-            primaryBranchId,
-            name,
-          }).returning({
-            id: warehouses.id,
-            tenantId: warehouses.tenantId,
-            legalEntityId: warehouses.legalEntityId,
-            primaryBranchId: warehouses.primaryBranchId,
-            name: warehouses.name,
-          }),
-        "inventory.warehouse.create",
-      ).pipe(
-        Effect.mapError((error) => {
-          if (isDatabaseConstraint(error, "warehouses_tenant_name_key")) {
-            return new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name })
-          }
-          if (isDatabaseConstraint(error, "warehouses_tenant_legal_entity_fkey", "23503")) {
-            return new WarehouseLegalEntityNotFound({
+    createWarehouse: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.warehouseCreate,
+        })
+        const name = decoded.name.trim()
+        const primaryBranchId = decoded.primaryBranchId ?? null
+        const rows = yield* database.query(
+          (db) =>
+            db.insert(warehouses).values({
               tenantId: decoded.tenantId,
               legalEntityId: decoded.legalEntityId,
-            })
-          }
-          if (
-            primaryBranchId !== null &&
-            isDatabaseConstraint(error, "warehouses_tenant_legal_entity_branch_fkey", "23503")
-          ) {
-            return new WarehouseBranchNotFound({
-              tenantId: decoded.tenantId,
-              legalEntityId: decoded.legalEntityId,
-              branchId: primaryBranchId,
-            })
-          }
-          return error
-        }),
-      )
-      return rows[0]!
-    }),
-  createItem: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.itemCreate,
-      })
-      const sku = decoded.sku.trim().toUpperCase()
-      const rows = yield* database.query(
-        (db) =>
-          db.insert(items).values({ tenantId: decoded.tenantId, sku, name: decoded.name.trim() })
-            .returning({
-              id: items.id,
-              tenantId: items.tenantId,
-              sku: items.sku,
-              name: items.name,
+              primaryBranchId,
+              name,
+            }).returning({
+              id: warehouses.id,
+              tenantId: warehouses.tenantId,
+              legalEntityId: warehouses.legalEntityId,
+              primaryBranchId: warehouses.primaryBranchId,
+              name: warehouses.name,
             }),
-        "inventory.item.create",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDatabaseConstraint(error, "items_tenant_sku_key")
-            ? new ItemAlreadyExists({ tenantId: decoded.tenantId, sku })
-            : error
-        ),
-      )
-      return rows[0]!
-    }),
-  receiveStock: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(ReceiveStockInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.stockReceive,
-      })
-      const balance = yield* database.transaction(
-        async (tx) => {
-          const rows = await tx.insert(stockBalances)
-            .values({
+          "inventory.warehouse.create",
+        ).pipe(
+          Effect.mapError((error) => {
+            if (isDatabaseConstraint(error, "warehouses_tenant_name_key")) {
+              return new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name })
+            }
+            if (isDatabaseConstraint(error, "warehouses_tenant_legal_entity_fkey", "23503")) {
+              return new WarehouseLegalEntityNotFound({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.legalEntityId,
+              })
+            }
+            if (
+              primaryBranchId !== null &&
+              isDatabaseConstraint(error, "warehouses_tenant_legal_entity_branch_fkey", "23503")
+            ) {
+              return new WarehouseBranchNotFound({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.legalEntityId,
+                branchId: primaryBranchId,
+              })
+            }
+            return error
+          }),
+        )
+        return rows[0]!
+      }),
+    createItem: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.itemCreate,
+        })
+        const sku = decoded.sku.trim().toUpperCase()
+        const rows = yield* database.query(
+          (db) =>
+            db.insert(items).values({ tenantId: decoded.tenantId, sku, name: decoded.name.trim() })
+              .returning({
+                id: items.id,
+                tenantId: items.tenantId,
+                sku: items.sku,
+                name: items.name,
+              }),
+          "inventory.item.create",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(error, "items_tenant_sku_key")
+              ? new ItemAlreadyExists({ tenantId: decoded.tenantId, sku })
+              : error
+          ),
+        )
+        return rows[0]!
+      }),
+    receiveStock: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ReceiveStockInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockReceive,
+        })
+        const balance = yield* database.transaction(
+          async (tx) => {
+            const rows = await tx.insert(stockBalances)
+              .values({
+                tenantId: decoded.tenantId,
+                warehouseId: decoded.warehouseId,
+                itemId: decoded.itemId,
+                onHand: decoded.quantity,
+              })
+              .onConflictDoUpdate({
+                target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
+                set: {
+                  onHand: sql`${stockBalances.onHand} + ${decoded.quantity}`,
+                  updatedAt: now(),
+                },
+              })
+              .returning({
+                tenantId: stockBalances.tenantId,
+                warehouseId: stockBalances.warehouseId,
+                itemId: stockBalances.itemId,
+                onHand: stockBalances.onHand,
+                reserved: stockBalances.reserved,
+              })
+            await tx.insert(movements).values({
               tenantId: decoded.tenantId,
               warehouseId: decoded.warehouseId,
               itemId: decoded.itemId,
-              onHand: decoded.quantity,
+              quantity: decoded.quantity,
+              kind: "receipt",
             })
-            .onConflictDoUpdate({
-              target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
-              set: {
-                onHand: sql`${stockBalances.onHand} + ${decoded.quantity}`,
+            return rows[0]!
+          },
+          "inventory.stock.receive",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(error, "stock_balances_warehouse_fkey", "23503") ||
+              isDatabaseConstraint(error, "stock_balances_item_fkey", "23503")
+              ? referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId)
+              : error
+          ),
+        )
+        return balance
+      }),
+    reserveStock: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockReserve,
+        })
+        const reservation = yield* database.transaction(
+          async (tx) => {
+            if (decoded.idempotencyKey !== undefined) {
+              const existingRows = await tx.select({
+                id: reservations.id,
+                tenantId: reservations.tenantId,
+                warehouseId: reservations.warehouseId,
+                itemId: reservations.itemId,
+                quantity: reservations.quantity,
+                idempotencyKey: reservations.idempotencyKey,
+                status: reservations.status,
+              })
+                .from(reservations)
+                .where(
+                  and(
+                    eq(reservations.tenantId, decoded.tenantId),
+                    eq(reservations.idempotencyKey, decoded.idempotencyKey),
+                  ),
+                )
+                .for("update")
+              const existing = existingRows[0]
+              if (existing !== undefined) {
+                if (
+                  existing.warehouseId !== decoded.warehouseId ||
+                  existing.itemId !== decoded.itemId ||
+                  existing.quantity !== decoded.quantity
+                ) {
+                  return { _tag: "idempotency-conflict" as const }
+                }
+                return { _tag: "existing" as const, reservation: existing }
+              }
+            }
+
+            const updated = await tx.update(stockBalances)
+              .set({
+                reserved: sql`${stockBalances.reserved} + ${decoded.quantity}`,
                 updatedAt: now(),
-              },
-            })
-            .returning({
-              tenantId: stockBalances.tenantId,
-              warehouseId: stockBalances.warehouseId,
-              itemId: stockBalances.itemId,
-              onHand: stockBalances.onHand,
-              reserved: stockBalances.reserved,
-            })
-          await tx.insert(movements).values({
-            tenantId: decoded.tenantId,
-            warehouseId: decoded.warehouseId,
-            itemId: decoded.itemId,
-            quantity: decoded.quantity,
-            kind: "receipt",
-          })
-          return rows[0]!
-        },
-        "inventory.stock.receive",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDatabaseConstraint(error, "stock_balances_warehouse_fkey", "23503") ||
-            isDatabaseConstraint(error, "stock_balances_item_fkey", "23503")
-            ? referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId)
-            : error
-        ),
-      )
-      return balance
-    }),
-  reserveStock: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.stockReserve,
-      })
-      const reservation = yield* database.transaction(
-        async (tx) => {
-          if (decoded.idempotencyKey !== undefined) {
-            const existingRows = await tx.select({
+              })
+              .where(
+                and(
+                  eq(stockBalances.tenantId, decoded.tenantId),
+                  eq(stockBalances.warehouseId, decoded.warehouseId),
+                  eq(stockBalances.itemId, decoded.itemId),
+                  gte(sql`${stockBalances.onHand} - ${stockBalances.reserved}`, decoded.quantity),
+                ),
+              )
+              .returning({ itemId: stockBalances.itemId })
+            if (updated[0] === undefined) return { _tag: "unavailable" as const }
+
+            const rows = await tx.insert(reservations).values({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              quantity: decoded.quantity,
+              idempotencyKey: decoded.idempotencyKey ?? null,
+            }).returning({
               id: reservations.id,
               tenantId: reservations.tenantId,
               warehouseId: reservations.warehouseId,
@@ -457,588 +551,210 @@ export const makeInventoryService = Effect.gen(function* () {
               idempotencyKey: reservations.idempotencyKey,
               status: reservations.status,
             })
+            const row = rows[0]!
+            await tx.insert(movements).values({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              quantity: decoded.quantity,
+              kind: "reservation",
+              referenceId: row.id,
+            })
+            return { _tag: "created" as const, reservation: row }
+          },
+          "inventory.stock.reserve",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(error, "reservations_tenant_idempotency_key") &&
+              decoded.idempotencyKey !== undefined
+              ? new StockReservationIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                idempotencyKey: decoded.idempotencyKey,
+              })
+              : error
+          ),
+        )
+        if (reservation._tag === "idempotency-conflict") {
+          return yield* Effect.fail(
+            new StockReservationIdempotencyConflict({
+              tenantId: decoded.tenantId,
+              idempotencyKey: decoded.idempotencyKey!,
+            }),
+          )
+        }
+        if (reservation._tag === "existing" || reservation._tag === "created") {
+          return reservation.reservation
+        }
+        return yield* Effect.fail(
+          new StockUnavailable({
+            tenantId: decoded.tenantId,
+            warehouseId: decoded.warehouseId,
+            itemId: decoded.itemId,
+            requested: decoded.quantity,
+          }),
+        )
+      }),
+    releaseReservation: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ReleaseReservationInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockRelease,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [reservation] = await tx.select(reservationSelection)
               .from(reservations)
               .where(
                 and(
                   eq(reservations.tenantId, decoded.tenantId),
-                  eq(reservations.idempotencyKey, decoded.idempotencyKey),
+                  eq(reservations.id, decoded.reservationId),
                 ),
               )
               .for("update")
-            const existing = existingRows[0]
-            if (existing !== undefined) {
-              if (
-                existing.warehouseId !== decoded.warehouseId ||
-                existing.itemId !== decoded.itemId ||
-                existing.quantity !== decoded.quantity
-              ) {
-                return { _tag: "idempotency-conflict" as const }
-              }
-              return { _tag: "existing" as const, reservation: existing }
+            if (reservation === undefined) return { _tag: "not-found" as const }
+            if (reservation.status === "released") {
+              return { _tag: "existing" as const, reservation }
             }
-          }
-
-          const updated = await tx.update(stockBalances)
-            .set({
-              reserved: sql`${stockBalances.reserved} + ${decoded.quantity}`,
-              updatedAt: now(),
-            })
-            .where(
-              and(
-                eq(stockBalances.tenantId, decoded.tenantId),
-                eq(stockBalances.warehouseId, decoded.warehouseId),
-                eq(stockBalances.itemId, decoded.itemId),
-                gte(sql`${stockBalances.onHand} - ${stockBalances.reserved}`, decoded.quantity),
-              ),
-            )
-            .returning({ itemId: stockBalances.itemId })
-          if (updated[0] === undefined) return { _tag: "unavailable" as const }
-
-          const rows = await tx.insert(reservations).values({
-            tenantId: decoded.tenantId,
-            warehouseId: decoded.warehouseId,
-            itemId: decoded.itemId,
-            quantity: decoded.quantity,
-            idempotencyKey: decoded.idempotencyKey ?? null,
-          }).returning({
-            id: reservations.id,
-            tenantId: reservations.tenantId,
-            warehouseId: reservations.warehouseId,
-            itemId: reservations.itemId,
-            quantity: reservations.quantity,
-            idempotencyKey: reservations.idempotencyKey,
-            status: reservations.status,
-          })
-          const row = rows[0]!
-          await tx.insert(movements).values({
-            tenantId: decoded.tenantId,
-            warehouseId: decoded.warehouseId,
-            itemId: decoded.itemId,
-            quantity: decoded.quantity,
-            kind: "reservation",
-            referenceId: row.id,
-          })
-          return { _tag: "created" as const, reservation: row }
-        },
-        "inventory.stock.reserve",
-      ).pipe(
-        Effect.mapError((error) =>
-          isDatabaseConstraint(error, "reservations_tenant_idempotency_key") &&
-              decoded.idempotencyKey !== undefined
-            ? new StockReservationIdempotencyConflict({
-              tenantId: decoded.tenantId,
-              idempotencyKey: decoded.idempotencyKey,
-            })
-            : error
-        ),
-      )
-      if (reservation._tag === "idempotency-conflict") {
-        return yield* Effect.fail(
-          new StockReservationIdempotencyConflict({
-            tenantId: decoded.tenantId,
-            idempotencyKey: decoded.idempotencyKey!,
-          }),
-        )
-      }
-      if (reservation._tag === "existing" || reservation._tag === "created") {
-        return reservation.reservation
-      }
-      return yield* Effect.fail(
-        new StockUnavailable({
-          tenantId: decoded.tenantId,
-          warehouseId: decoded.warehouseId,
-          itemId: decoded.itemId,
-          requested: decoded.quantity,
-        }),
-      )
-    }),
-  createTransfer: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CreateStockTransferInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.stockTransferCreate,
-      })
-      if (decoded.sourceWarehouseId === decoded.destinationWarehouseId) {
-        return yield* Effect.fail(
-          new StockTransferSameWarehouse({
-            tenantId: decoded.tenantId,
-            warehouseId: decoded.sourceWarehouseId,
-          }),
-        )
-      }
-      const itemIds = new Set<string>()
-      for (const line of decoded.lines) {
-        if (itemIds.has(line.itemId)) {
-          return yield* Effect.fail(
-            new StockTransferDuplicateItem({ tenantId: decoded.tenantId, itemId: line.itemId }),
-          )
-        }
-        itemIds.add(line.itemId)
-      }
-
-      const result = yield* database.transaction(
-        async (tx) => {
-          const warehouseRows = await tx.select({
-            id: warehouses.id,
-            legalEntityId: warehouses.legalEntityId,
-          })
-            .from(warehouses)
-            .where(
-              and(
-                eq(warehouses.tenantId, decoded.tenantId),
-                inArray(warehouses.id, [decoded.sourceWarehouseId, decoded.destinationWarehouseId]),
-              ),
-            )
-            .for("update")
-          const warehousesById = new Map(warehouseRows.map((row) => [row.id, row]))
-          const sourceWarehouse = warehousesById.get(decoded.sourceWarehouseId)
-          const destinationWarehouse = warehousesById.get(decoded.destinationWarehouseId)
-          const missingWarehouseId = sourceWarehouse === undefined
-            ? decoded.sourceWarehouseId
-            : destinationWarehouse === undefined
-            ? decoded.destinationWarehouseId
-            : undefined
-          if (missingWarehouseId !== undefined) {
-            return { _tag: "warehouse-not-found" as const, warehouseId: missingWarehouseId }
-          }
-          if (sourceWarehouse!.legalEntityId !== destinationWarehouse!.legalEntityId) {
-            return {
-              _tag: "different-legal-entity" as const,
-              sourceWarehouseId: decoded.sourceWarehouseId,
-              destinationWarehouseId: decoded.destinationWarehouseId,
+            if (reservation.status !== "active") {
+              return { _tag: "invalid-state" as const, status: reservation.status }
             }
-          }
 
-          const itemRows = await tx.select({ id: items.id })
-            .from(items)
-            .where(
-              and(
-                eq(items.tenantId, decoded.tenantId),
-                inArray(items.id, [...itemIds]),
-              ),
-            )
-            .for("update")
-          const existingItemIds = new Set(itemRows.map((row) => row.id))
-          const missingItemId = decoded.lines.find((line) => !existingItemIds.has(line.itemId))
-            ?.itemId
-          if (missingItemId !== undefined) {
-            return { _tag: "item-not-found" as const, itemId: missingItemId }
-          }
-
-          const [row] = await tx.insert(stockTransfers).values({
-            tenantId: decoded.tenantId,
-            legalEntityId: sourceWarehouse!.legalEntityId,
-            sourceWarehouseId: decoded.sourceWarehouseId,
-            destinationWarehouseId: decoded.destinationWarehouseId,
-          }).returning(transferSelection)
-          await tx.insert(stockTransferLines).values(
-            decoded.lines.map((line) => ({
-              tenantId: decoded.tenantId,
-              transferId: row!.id,
-              itemId: line.itemId,
-              quantity: line.quantity,
-            })),
-          )
-          return {
-            _tag: "created" as const,
-            transfer: toStockTransfer(row!, decoded.lines),
-          }
-        },
-        "inventory.stock.transfer.create",
-      ).pipe(Effect.mapError((error) => mapTransferCreateError(error, decoded)))
-
-      if (result._tag === "warehouse-not-found") {
-        return yield* Effect.fail(
-          new StockTransferWarehouseNotFound({
-            tenantId: decoded.tenantId,
-            warehouseId: result.warehouseId,
-          }),
-        )
-      }
-      if (result._tag === "different-legal-entity") {
-        return yield* Effect.fail(
-          new StockTransferDifferentLegalEntity({
-            tenantId: decoded.tenantId,
-            sourceWarehouseId: result.sourceWarehouseId,
-            destinationWarehouseId: result.destinationWarehouseId,
-          }),
-        )
-      }
-      if (result._tag === "item-not-found") {
-        return yield* Effect.fail(
-          new StockTransferItemNotFound({ tenantId: decoded.tenantId, itemId: result.itemId }),
-        )
-      }
-      return result.transfer
-    }),
-  confirmTransfer: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(ConfirmStockTransferInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.stockTransferConfirm,
-      })
-      const result = yield* database.transaction(
-        async (tx) => {
-          const [row] = await tx.select(transferSelection)
-            .from(stockTransfers)
-            .where(
-              and(
-                eq(stockTransfers.tenantId, decoded.tenantId),
-                eq(stockTransfers.id, decoded.transferId),
-              ),
-            )
-            .for("update")
-          if (row === undefined) return { _tag: "not-found" as const }
-
-          const lines = await tx.select(transferLineSelection)
-            .from(stockTransferLines)
-            .where(
-              and(
-                eq(stockTransferLines.tenantId, decoded.tenantId),
-                eq(stockTransferLines.transferId, decoded.transferId),
-              ),
-            )
-            .orderBy(stockTransferLines.itemId)
-          const current = toStockTransfer(row, lines)
-          if (row.status !== "draft") return { _tag: "existing" as const, transfer: current }
-
-          const balances = lines.length === 0 ? [] : await tx.select({
-            itemId: stockBalances.itemId,
-            onHand: stockBalances.onHand,
-            reserved: stockBalances.reserved,
-          })
-            .from(stockBalances)
-            .where(
-              and(
-                eq(stockBalances.tenantId, decoded.tenantId),
-                eq(stockBalances.warehouseId, row.sourceWarehouseId),
-                inArray(stockBalances.itemId, lines.map((line) => line.itemId)),
-              ),
-            )
-            .orderBy(stockBalances.itemId)
-            .for("update")
-          const balancesByItem = new Map(balances.map((balance) => [balance.itemId, balance]))
-          for (const line of lines) {
-            const balance = balancesByItem.get(line.itemId)
-            if (
-              balance === undefined ||
-              BigInt(balance.onHand) - BigInt(balance.reserved) < BigInt(line.quantity)
-            ) {
-              return {
-                _tag: "unavailable" as const,
-                warehouseId: row.sourceWarehouseId,
-                itemId: line.itemId,
-                requested: line.quantity,
-              }
-            }
-          }
-
-          const timestamp = now()
-          for (const line of lines) {
+            const timestamp = now()
             await tx.update(stockBalances)
               .set({
-                onHand: sql`${stockBalances.onHand} - ${line.quantity}`,
+                reserved: sql`${stockBalances.reserved} - ${reservation.quantity}`,
                 updatedAt: timestamp,
               })
               .where(
                 and(
                   eq(stockBalances.tenantId, decoded.tenantId),
-                  eq(stockBalances.warehouseId, row.sourceWarehouseId),
-                  eq(stockBalances.itemId, line.itemId),
+                  eq(stockBalances.warehouseId, reservation.warehouseId),
+                  eq(stockBalances.itemId, reservation.itemId),
                 ),
               )
-          }
-          if (lines.length > 0) {
-            await tx.insert(movements).values(
-              lines.map((line) => ({
-                tenantId: decoded.tenantId,
-                warehouseId: row.sourceWarehouseId,
-                itemId: line.itemId,
-                quantity: String(-BigInt(line.quantity)),
-                kind: "issue" as const,
-                referenceId: row.id,
-              })),
-            )
-          }
-          const [confirmed] = await tx.update(stockTransfers)
-            .set({ status: "confirmed", confirmedAt: timestamp, updatedAt: timestamp })
-            .where(
-              and(
-                eq(stockTransfers.tenantId, decoded.tenantId),
-                eq(stockTransfers.id, decoded.transferId),
-                eq(stockTransfers.status, "draft"),
-              ),
-            )
-            .returning(transferSelection)
-          return { _tag: "confirmed" as const, transfer: toStockTransfer(confirmed!, lines) }
-        },
-        "inventory.stock.transfer.confirm",
-      )
-
-      if (result._tag === "not-found") {
-        return yield* Effect.fail(
-          new StockTransferNotFound({ tenantId: decoded.tenantId, transferId: decoded.transferId }),
-        )
-      }
-      if (result._tag === "unavailable") {
-        return yield* Effect.fail(
-          new StockUnavailable({
-            tenantId: decoded.tenantId,
-            warehouseId: result.warehouseId,
-            itemId: result.itemId,
-            requested: result.requested,
-          }),
-        )
-      }
-      return result.transfer
-    }),
-  completeTransfer: (input) =>
-    Effect.gen(function* () {
-      const decoded = yield* Schema.decodeUnknownEffect(CompleteStockTransferInput)(input)
-      yield* authorization.authorize({
-        principal: decoded.principal,
-        tenantId: decoded.tenantId,
-        capability: InventoryCapabilities.stockTransferComplete,
-      })
-      const result = yield* database.transaction(
-        async (tx) => {
-          const [row] = await tx.select(transferSelection)
-            .from(stockTransfers)
-            .where(
-              and(
-                eq(stockTransfers.tenantId, decoded.tenantId),
-                eq(stockTransfers.id, decoded.transferId),
-              ),
-            )
-            .for("update")
-          if (row === undefined) return { _tag: "not-found" as const }
-
-          const lines = await tx.select(transferLineSelection)
-            .from(stockTransferLines)
-            .where(
-              and(
-                eq(stockTransferLines.tenantId, decoded.tenantId),
-                eq(stockTransferLines.transferId, decoded.transferId),
-              ),
-            )
-            .orderBy(stockTransferLines.itemId)
-          const current = toStockTransfer(row, lines)
-          if (row.status === "completed") return { _tag: "existing" as const, transfer: current }
-          if (row.status !== "confirmed") {
-            return { _tag: "invalid-state" as const, status: row.status }
-          }
-
-          const timestamp = now()
-          for (const line of lines) {
-            await tx.insert(stockBalances).values({
+            const [released] = await tx.update(reservations)
+              .set({ status: "released", updatedAt: timestamp })
+              .where(eq(reservations.id, reservation.id))
+              .returning(reservationSelection)
+            await tx.insert(movements).values({
               tenantId: decoded.tenantId,
-              warehouseId: row.destinationWarehouseId,
-              itemId: line.itemId,
-              onHand: line.quantity,
-            }).onConflictDoUpdate({
-              target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
-              set: {
-                onHand: sql`${stockBalances.onHand} + ${line.quantity}`,
-                updatedAt: timestamp,
-              },
+              warehouseId: reservation.warehouseId,
+              itemId: reservation.itemId,
+              quantity: String(-BigInt(reservation.quantity)),
+              kind: "release",
+              referenceId: reservation.id,
             })
-          }
-          if (lines.length > 0) {
-            await tx.insert(movements).values(
-              lines.map((line) => ({
-                tenantId: decoded.tenantId,
-                warehouseId: row.destinationWarehouseId,
-                itemId: line.itemId,
-                quantity: line.quantity,
-                kind: "receipt" as const,
-                referenceId: row.id,
-              })),
-            )
-          }
-          const [completed] = await tx.update(stockTransfers)
-            .set({ status: "completed", completedAt: timestamp, updatedAt: timestamp })
-            .where(
-              and(
-                eq(stockTransfers.tenantId, decoded.tenantId),
-                eq(stockTransfers.id, decoded.transferId),
-                eq(stockTransfers.status, "confirmed"),
-              ),
-            )
-            .returning(transferSelection)
-          return { _tag: "completed" as const, transfer: toStockTransfer(completed!, lines) }
-        },
-        "inventory.stock.transfer.complete",
-      )
-
-      if (result._tag === "not-found") {
-        return yield* Effect.fail(
-          new StockTransferNotFound({ tenantId: decoded.tenantId, transferId: decoded.transferId }),
+            return { _tag: "released" as const, reservation: released! }
+          },
+          "inventory.stock.release",
         )
-      }
-      if (result._tag === "invalid-state") {
-        return yield* Effect.fail(
-          new StockTransferInvalidState({
-            tenantId: decoded.tenantId,
-            transferId: decoded.transferId,
-            operation: "complete",
-            status: result.status,
-          }),
-        )
-      }
-      return result.transfer
-    }),
-  } satisfies InventoryService
-})
-
-export const makeInventoryTestLayer = () =>
-  Layer.effect(
-    InventoryService,
-    Effect.gen(function* () {
-      const authorization = yield* AuthorizationService
-      const clock = yield* Clock.Clock
-      const now = () => new Date(clock.currentTimeMillisUnsafe())
-      const storedWarehouses = new Map<string, Warehouse>()
-      const storedItems = new Map<string, Item>()
-      const balances = new Map<string, { onHand: bigint; reserved: bigint }>()
-      const storedTransfers = new Map<string, StockTransfer>()
-      const storedReservations = new Map<string, StockReservation>()
-      let sequence = 1
-      const nextId = () => `inventory-test-${sequence++}`
-      const authorize = (principal: unknown, tenantId: string, capability: string) =>
-        authorization.authorize({ principal, tenantId, capability })
-      const service: InventoryService = {
-    createWarehouse: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.warehouseCreate)
-        const name = decoded.name.trim()
-        if (
-          [...storedWarehouses.values()].some((value) =>
-            value.tenantId === decoded.tenantId && value.name === name
-          )
-        ) {
+        if (result._tag === "not-found") {
           return yield* Effect.fail(
-            new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name }),
-          )
-        }
-        const value = {
-          id: nextId(),
-          tenantId: decoded.tenantId,
-          legalEntityId: decoded.legalEntityId,
-          primaryBranchId: decoded.primaryBranchId ?? null,
-          name,
-        }
-        storedWarehouses.set(value.id, value)
-        return value
-      }),
-    createItem: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.itemCreate)
-        const sku = decoded.sku.trim().toUpperCase()
-        if (
-          [...storedItems.values()].some((value) =>
-            value.tenantId === decoded.tenantId && value.sku === sku
-          )
-        ) {
-          return yield* Effect.fail(new ItemAlreadyExists({ tenantId: decoded.tenantId, sku }))
-        }
-        const value = {
-          id: nextId(),
-          tenantId: decoded.tenantId,
-          sku,
-          name: decoded.name.trim(),
-        }
-        storedItems.set(value.id, value)
-        return value
-      }),
-    receiveStock: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(ReceiveStockInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockReceive)
-        if (
-          storedWarehouses.get(decoded.warehouseId)?.tenantId !== decoded.tenantId ||
-          storedItems.get(decoded.itemId)?.tenantId !== decoded.tenantId
-        ) {
-          return yield* Effect.fail(
-            referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
-          )
-        }
-        const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
-        const balance = balances.get(key) ?? { onHand: 0n, reserved: 0n }
-        balance.onHand += BigInt(decoded.quantity)
-        balances.set(key, balance)
-        return {
-          tenantId: decoded.tenantId,
-          warehouseId: decoded.warehouseId,
-          itemId: decoded.itemId,
-          onHand: String(balance.onHand),
-          reserved: String(balance.reserved),
-        }
-      }),
-    reserveStock: (input) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
-        yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockReserve)
-        const idempotencyKey = decoded.idempotencyKey === undefined
-          ? undefined
-          : `${decoded.tenantId}:${decoded.idempotencyKey}`
-        const existing = idempotencyKey === undefined
-          ? undefined
-          : storedReservations.get(idempotencyKey)
-        if (existing !== undefined) {
-          if (
-            existing.warehouseId !== decoded.warehouseId ||
-            existing.itemId !== decoded.itemId ||
-            existing.quantity !== decoded.quantity
-          ) {
-            return yield* Effect.fail(
-              new StockReservationIdempotencyConflict({
-                tenantId: decoded.tenantId,
-                idempotencyKey: decoded.idempotencyKey!,
-              }),
-            )
-          }
-          return existing
-        }
-        const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
-        const balance = balances.get(key)
-        const quantity = BigInt(decoded.quantity)
-        if (balance === undefined || balance.onHand - balance.reserved < quantity) {
-          return yield* Effect.fail(
-            new StockUnavailable({
+            new StockReservationNotFound({
               tenantId: decoded.tenantId,
-              warehouseId: decoded.warehouseId,
-              itemId: decoded.itemId,
-              requested: decoded.quantity,
+              reservationId: decoded.reservationId,
             }),
           )
         }
-        balance.reserved += quantity
-        const reservation: StockReservation = {
-          id: nextId(),
-          tenantId: decoded.tenantId,
-          warehouseId: decoded.warehouseId,
-          itemId: decoded.itemId,
-          quantity: decoded.quantity,
-          idempotencyKey: decoded.idempotencyKey ?? null,
-          status: "active",
+        if (result._tag === "invalid-state") {
+          return yield* Effect.fail(
+            new StockReservationInvalidState({
+              tenantId: decoded.tenantId,
+              reservationId: decoded.reservationId,
+              operation: "release",
+              status: result.status,
+            }),
+          )
         }
-        if (idempotencyKey !== undefined) storedReservations.set(idempotencyKey, reservation)
-        return reservation
+        return result.reservation
+      }),
+    fulfillReservation: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(FulfillReservationInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockFulfill,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [reservation] = await tx.select(reservationSelection)
+              .from(reservations)
+              .where(
+                and(
+                  eq(reservations.tenantId, decoded.tenantId),
+                  eq(reservations.id, decoded.reservationId),
+                ),
+              )
+              .for("update")
+            if (reservation === undefined) return { _tag: "not-found" as const }
+            if (reservation.status === "fulfilled") {
+              return { _tag: "existing" as const, reservation }
+            }
+            if (reservation.status !== "active") {
+              return { _tag: "invalid-state" as const, status: reservation.status }
+            }
+
+            const timestamp = now()
+            await tx.update(stockBalances)
+              .set({
+                onHand: sql`${stockBalances.onHand} - ${reservation.quantity}`,
+                reserved: sql`${stockBalances.reserved} - ${reservation.quantity}`,
+                updatedAt: timestamp,
+              })
+              .where(
+                and(
+                  eq(stockBalances.tenantId, decoded.tenantId),
+                  eq(stockBalances.warehouseId, reservation.warehouseId),
+                  eq(stockBalances.itemId, reservation.itemId),
+                ),
+              )
+            const [fulfilled] = await tx.update(reservations)
+              .set({ status: "fulfilled", updatedAt: timestamp })
+              .where(eq(reservations.id, reservation.id))
+              .returning(reservationSelection)
+            await tx.insert(movements).values({
+              tenantId: decoded.tenantId,
+              warehouseId: reservation.warehouseId,
+              itemId: reservation.itemId,
+              quantity: String(-BigInt(reservation.quantity)),
+              kind: "issue",
+              referenceId: reservation.id,
+            })
+            return { _tag: "fulfilled" as const, reservation: fulfilled! }
+          },
+          "inventory.stock.fulfill",
+        )
+        if (result._tag === "not-found") {
+          return yield* Effect.fail(
+            new StockReservationNotFound({
+              tenantId: decoded.tenantId,
+              reservationId: decoded.reservationId,
+            }),
+          )
+        }
+        if (result._tag === "invalid-state") {
+          return yield* Effect.fail(
+            new StockReservationInvalidState({
+              tenantId: decoded.tenantId,
+              reservationId: decoded.reservationId,
+              operation: "fulfill",
+              status: result.status,
+            }),
+          )
+        }
+        return result.reservation
       }),
     createTransfer: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CreateStockTransferInput)(input)
-        yield* authorize(
-          decoded.principal,
-          decoded.tenantId,
-          InventoryCapabilities.stockTransferCreate,
-        )
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockTransferCreate,
+        })
         if (decoded.sourceWarehouseId === decoded.destinationWarehouseId) {
           return yield* Effect.fail(
             new StockTransferSameWarehouse({
@@ -1056,72 +772,212 @@ export const makeInventoryTestLayer = () =>
           }
           itemIds.add(line.itemId)
         }
-        if (
-          storedWarehouses.get(decoded.sourceWarehouseId)?.tenantId !== decoded.tenantId
-        ) {
+
+        const result = yield* database.transaction(
+          async (tx) => {
+            const warehouseRows = await tx.select({
+              id: warehouses.id,
+              legalEntityId: warehouses.legalEntityId,
+            })
+              .from(warehouses)
+              .where(
+                and(
+                  eq(warehouses.tenantId, decoded.tenantId),
+                  inArray(warehouses.id, [
+                    decoded.sourceWarehouseId,
+                    decoded.destinationWarehouseId,
+                  ]),
+                ),
+              )
+              .for("update")
+            const warehousesById = new Map(warehouseRows.map((row) => [row.id, row]))
+            const sourceWarehouse = warehousesById.get(decoded.sourceWarehouseId)
+            const destinationWarehouse = warehousesById.get(decoded.destinationWarehouseId)
+            const missingWarehouseId = sourceWarehouse === undefined
+              ? decoded.sourceWarehouseId
+              : destinationWarehouse === undefined
+              ? decoded.destinationWarehouseId
+              : undefined
+            if (missingWarehouseId !== undefined) {
+              return { _tag: "warehouse-not-found" as const, warehouseId: missingWarehouseId }
+            }
+            if (sourceWarehouse!.legalEntityId !== destinationWarehouse!.legalEntityId) {
+              return {
+                _tag: "different-legal-entity" as const,
+                sourceWarehouseId: decoded.sourceWarehouseId,
+                destinationWarehouseId: decoded.destinationWarehouseId,
+              }
+            }
+
+            const itemRows = await tx.select({ id: items.id })
+              .from(items)
+              .where(
+                and(
+                  eq(items.tenantId, decoded.tenantId),
+                  inArray(items.id, [...itemIds]),
+                ),
+              )
+              .for("update")
+            const existingItemIds = new Set(itemRows.map((row) => row.id))
+            const missingItemId = decoded.lines.find((line) => !existingItemIds.has(line.itemId))
+              ?.itemId
+            if (missingItemId !== undefined) {
+              return { _tag: "item-not-found" as const, itemId: missingItemId }
+            }
+
+            const [row] = await tx.insert(stockTransfers).values({
+              tenantId: decoded.tenantId,
+              legalEntityId: sourceWarehouse!.legalEntityId,
+              sourceWarehouseId: decoded.sourceWarehouseId,
+              destinationWarehouseId: decoded.destinationWarehouseId,
+            }).returning(transferSelection)
+            await tx.insert(stockTransferLines).values(
+              decoded.lines.map((line) => ({
+                tenantId: decoded.tenantId,
+                transferId: row!.id,
+                itemId: line.itemId,
+                quantity: line.quantity,
+              })),
+            )
+            return {
+              _tag: "created" as const,
+              transfer: toStockTransfer(row!, decoded.lines),
+            }
+          },
+          "inventory.stock.transfer.create",
+        ).pipe(Effect.mapError((error) => mapTransferCreateError(error, decoded)))
+
+        if (result._tag === "warehouse-not-found") {
           return yield* Effect.fail(
             new StockTransferWarehouseNotFound({
               tenantId: decoded.tenantId,
-              warehouseId: decoded.sourceWarehouseId,
+              warehouseId: result.warehouseId,
             }),
           )
         }
-        if (
-          storedWarehouses.get(decoded.destinationWarehouseId)?.tenantId !== decoded.tenantId
-        ) {
-          return yield* Effect.fail(
-            new StockTransferWarehouseNotFound({
-              tenantId: decoded.tenantId,
-              warehouseId: decoded.destinationWarehouseId,
-            }),
-          )
-        }
-        const sourceWarehouse = storedWarehouses.get(decoded.sourceWarehouseId)!
-        const destinationWarehouse = storedWarehouses.get(decoded.destinationWarehouseId)!
-        if (destinationWarehouse.legalEntityId !== sourceWarehouse.legalEntityId) {
+        if (result._tag === "different-legal-entity") {
           return yield* Effect.fail(
             new StockTransferDifferentLegalEntity({
               tenantId: decoded.tenantId,
-              sourceWarehouseId: decoded.sourceWarehouseId,
-              destinationWarehouseId: decoded.destinationWarehouseId,
+              sourceWarehouseId: result.sourceWarehouseId,
+              destinationWarehouseId: result.destinationWarehouseId,
             }),
           )
         }
-        const missingItem = decoded.lines.find((line) =>
-          storedItems.get(line.itemId)?.tenantId !== decoded.tenantId
-        )
-        if (missingItem !== undefined) {
+        if (result._tag === "item-not-found") {
           return yield* Effect.fail(
-            new StockTransferItemNotFound({
-              tenantId: decoded.tenantId,
-              itemId: missingItem.itemId,
-            }),
+            new StockTransferItemNotFound({ tenantId: decoded.tenantId, itemId: result.itemId }),
           )
         }
-        const transfer: StockTransfer = {
-          id: nextId(),
-          tenantId: decoded.tenantId,
-          legalEntityId: sourceWarehouse.legalEntityId,
-          sourceWarehouseId: decoded.sourceWarehouseId,
-          destinationWarehouseId: decoded.destinationWarehouseId,
-          status: "draft",
-          confirmedAt: null,
-          completedAt: null,
-          lines: decoded.lines,
-        }
-        storedTransfers.set(transfer.id, transfer)
-        return transfer
+        return result.transfer
       }),
     confirmTransfer: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ConfirmStockTransferInput)(input)
-        yield* authorize(
-          decoded.principal,
-          decoded.tenantId,
-          InventoryCapabilities.stockTransferConfirm,
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockTransferConfirm,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [row] = await tx.select(transferSelection)
+              .from(stockTransfers)
+              .where(
+                and(
+                  eq(stockTransfers.tenantId, decoded.tenantId),
+                  eq(stockTransfers.id, decoded.transferId),
+                ),
+              )
+              .for("update")
+            if (row === undefined) return { _tag: "not-found" as const }
+
+            const lines = await tx.select(transferLineSelection)
+              .from(stockTransferLines)
+              .where(
+                and(
+                  eq(stockTransferLines.tenantId, decoded.tenantId),
+                  eq(stockTransferLines.transferId, decoded.transferId),
+                ),
+              )
+              .orderBy(stockTransferLines.itemId)
+            const current = toStockTransfer(row, lines)
+            if (row.status !== "draft") return { _tag: "existing" as const, transfer: current }
+
+            const balances = lines.length === 0 ? [] : await tx.select({
+              itemId: stockBalances.itemId,
+              onHand: stockBalances.onHand,
+              reserved: stockBalances.reserved,
+            })
+              .from(stockBalances)
+              .where(
+                and(
+                  eq(stockBalances.tenantId, decoded.tenantId),
+                  eq(stockBalances.warehouseId, row.sourceWarehouseId),
+                  inArray(stockBalances.itemId, lines.map((line) => line.itemId)),
+                ),
+              )
+              .orderBy(stockBalances.itemId)
+              .for("update")
+            const balancesByItem = new Map(balances.map((balance) => [balance.itemId, balance]))
+            for (const line of lines) {
+              const balance = balancesByItem.get(line.itemId)
+              if (
+                balance === undefined ||
+                BigInt(balance.onHand) - BigInt(balance.reserved) < BigInt(line.quantity)
+              ) {
+                return {
+                  _tag: "unavailable" as const,
+                  warehouseId: row.sourceWarehouseId,
+                  itemId: line.itemId,
+                  requested: line.quantity,
+                }
+              }
+            }
+
+            const timestamp = now()
+            for (const line of lines) {
+              await tx.update(stockBalances)
+                .set({
+                  onHand: sql`${stockBalances.onHand} - ${line.quantity}`,
+                  updatedAt: timestamp,
+                })
+                .where(
+                  and(
+                    eq(stockBalances.tenantId, decoded.tenantId),
+                    eq(stockBalances.warehouseId, row.sourceWarehouseId),
+                    eq(stockBalances.itemId, line.itemId),
+                  ),
+                )
+            }
+            if (lines.length > 0) {
+              await tx.insert(movements).values(
+                lines.map((line) => ({
+                  tenantId: decoded.tenantId,
+                  warehouseId: row.sourceWarehouseId,
+                  itemId: line.itemId,
+                  quantity: String(-BigInt(line.quantity)),
+                  kind: "issue" as const,
+                  referenceId: row.id,
+                })),
+              )
+            }
+            const [confirmed] = await tx.update(stockTransfers)
+              .set({ status: "confirmed", confirmedAt: timestamp, updatedAt: timestamp })
+              .where(
+                and(
+                  eq(stockTransfers.tenantId, decoded.tenantId),
+                  eq(stockTransfers.id, decoded.transferId),
+                  eq(stockTransfers.status, "draft"),
+                ),
+              )
+              .returning(transferSelection)
+            return { _tag: "confirmed" as const, transfer: toStockTransfer(confirmed!, lines) }
+          },
+          "inventory.stock.transfer.confirm",
         )
-        const transfer = storedTransfers.get(decoded.transferId)
-        if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {
+
+        if (result._tag === "not-found") {
           return yield* Effect.fail(
             new StockTransferNotFound({
               tenantId: decoded.tenantId,
@@ -1129,49 +985,97 @@ export const makeInventoryTestLayer = () =>
             }),
           )
         }
-        if (transfer.status !== "draft") return transfer
-        for (const line of transfer.lines) {
-          const balance = balances.get(
-            `${decoded.tenantId}:${transfer.sourceWarehouseId}:${line.itemId}`,
+        if (result._tag === "unavailable") {
+          return yield* Effect.fail(
+            new StockUnavailable({
+              tenantId: decoded.tenantId,
+              warehouseId: result.warehouseId,
+              itemId: result.itemId,
+              requested: result.requested,
+            }),
           )
-          if (
-            balance === undefined ||
-            balance.onHand - balance.reserved < BigInt(line.quantity)
-          ) {
-            return yield* Effect.fail(
-              new StockUnavailable({
-                tenantId: decoded.tenantId,
-                warehouseId: transfer.sourceWarehouseId,
-                itemId: line.itemId,
-                requested: line.quantity,
-              }),
-            )
-          }
         }
-        for (const line of transfer.lines) {
-          const balance = balances.get(
-            `${decoded.tenantId}:${transfer.sourceWarehouseId}:${line.itemId}`,
-          )!
-          balance.onHand -= BigInt(line.quantity)
-        }
-        const confirmed: StockTransfer = {
-          ...transfer,
-          status: "confirmed",
-          confirmedAt: now().toISOString(),
-        }
-        storedTransfers.set(confirmed.id, confirmed)
-        return confirmed
+        return result.transfer
       }),
     completeTransfer: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CompleteStockTransferInput)(input)
-        yield* authorize(
-          decoded.principal,
-          decoded.tenantId,
-          InventoryCapabilities.stockTransferComplete,
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockTransferComplete,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [row] = await tx.select(transferSelection)
+              .from(stockTransfers)
+              .where(
+                and(
+                  eq(stockTransfers.tenantId, decoded.tenantId),
+                  eq(stockTransfers.id, decoded.transferId),
+                ),
+              )
+              .for("update")
+            if (row === undefined) return { _tag: "not-found" as const }
+
+            const lines = await tx.select(transferLineSelection)
+              .from(stockTransferLines)
+              .where(
+                and(
+                  eq(stockTransferLines.tenantId, decoded.tenantId),
+                  eq(stockTransferLines.transferId, decoded.transferId),
+                ),
+              )
+              .orderBy(stockTransferLines.itemId)
+            const current = toStockTransfer(row, lines)
+            if (row.status === "completed") return { _tag: "existing" as const, transfer: current }
+            if (row.status !== "confirmed") {
+              return { _tag: "invalid-state" as const, status: row.status }
+            }
+
+            const timestamp = now()
+            for (const line of lines) {
+              await tx.insert(stockBalances).values({
+                tenantId: decoded.tenantId,
+                warehouseId: row.destinationWarehouseId,
+                itemId: line.itemId,
+                onHand: line.quantity,
+              }).onConflictDoUpdate({
+                target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
+                set: {
+                  onHand: sql`${stockBalances.onHand} + ${line.quantity}`,
+                  updatedAt: timestamp,
+                },
+              })
+            }
+            if (lines.length > 0) {
+              await tx.insert(movements).values(
+                lines.map((line) => ({
+                  tenantId: decoded.tenantId,
+                  warehouseId: row.destinationWarehouseId,
+                  itemId: line.itemId,
+                  quantity: line.quantity,
+                  kind: "receipt" as const,
+                  referenceId: row.id,
+                })),
+              )
+            }
+            const [completed] = await tx.update(stockTransfers)
+              .set({ status: "completed", completedAt: timestamp, updatedAt: timestamp })
+              .where(
+                and(
+                  eq(stockTransfers.tenantId, decoded.tenantId),
+                  eq(stockTransfers.id, decoded.transferId),
+                  eq(stockTransfers.status, "confirmed"),
+                ),
+              )
+              .returning(transferSelection)
+            return { _tag: "completed" as const, transfer: toStockTransfer(completed!, lines) }
+          },
+          "inventory.stock.transfer.complete",
         )
-        const transfer = storedTransfers.get(decoded.transferId)
-        if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {
+
+        if (result._tag === "not-found") {
           return yield* Effect.fail(
             new StockTransferNotFound({
               tenantId: decoded.tenantId,
@@ -1179,31 +1083,424 @@ export const makeInventoryTestLayer = () =>
             }),
           )
         }
-        if (transfer.status === "completed") return transfer
-        if (transfer.status !== "confirmed") {
+        if (result._tag === "invalid-state") {
           return yield* Effect.fail(
             new StockTransferInvalidState({
               tenantId: decoded.tenantId,
               transferId: decoded.transferId,
               operation: "complete",
-              status: transfer.status,
+              status: result.status,
             }),
           )
         }
-        for (const line of transfer.lines) {
-          const key = `${decoded.tenantId}:${transfer.destinationWarehouseId}:${line.itemId}`
-          const balance = balances.get(key) ?? { onHand: 0n, reserved: 0n }
-          balance.onHand += BigInt(line.quantity)
-          balances.set(key, balance)
-        }
-        const completed: StockTransfer = {
-          ...transfer,
-          status: "completed",
-          completedAt: now().toISOString(),
-        }
-        storedTransfers.set(completed.id, completed)
-        return completed
+        return result.transfer
       }),
+  } satisfies InventoryService
+})
+
+export const makeInventoryTestLayer = () =>
+  Layer.effect(
+    InventoryService,
+    Effect.gen(function* () {
+      const authorization = yield* AuthorizationService
+      const clock = yield* Clock.Clock
+      const now = () => new Date(clock.currentTimeMillisUnsafe())
+      const storedWarehouses = new Map<string, Warehouse>()
+      const storedItems = new Map<string, Item>()
+      const balances = new Map<string, { onHand: bigint; reserved: bigint }>()
+      const storedTransfers = new Map<string, StockTransfer>()
+      const storedReservations = new Map<string, StockReservation>()
+      const reservationIdsByIdempotencyKey = new Map<string, string>()
+      let sequence = 1
+      const nextId = () => `inventory-test-${sequence++}`
+      const authorize = (principal: unknown, tenantId: string, capability: string) =>
+        authorization.authorize({ principal, tenantId, capability })
+      const service: InventoryService = {
+        createWarehouse: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CreateWarehouseInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.warehouseCreate,
+            )
+            const name = decoded.name.trim()
+            if (
+              [...storedWarehouses.values()].some((value) =>
+                value.tenantId === decoded.tenantId && value.name === name
+              )
+            ) {
+              return yield* Effect.fail(
+                new WarehouseAlreadyExists({ tenantId: decoded.tenantId, name }),
+              )
+            }
+            const value = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              primaryBranchId: decoded.primaryBranchId ?? null,
+              name,
+            }
+            storedWarehouses.set(value.id, value)
+            return value
+          }),
+        createItem: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
+            yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.itemCreate)
+            const sku = decoded.sku.trim().toUpperCase()
+            if (
+              [...storedItems.values()].some((value) =>
+                value.tenantId === decoded.tenantId && value.sku === sku
+              )
+            ) {
+              return yield* Effect.fail(new ItemAlreadyExists({ tenantId: decoded.tenantId, sku }))
+            }
+            const value = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              sku,
+              name: decoded.name.trim(),
+            }
+            storedItems.set(value.id, value)
+            return value
+          }),
+        receiveStock: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ReceiveStockInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockReceive,
+            )
+            if (
+              storedWarehouses.get(decoded.warehouseId)?.tenantId !== decoded.tenantId ||
+              storedItems.get(decoded.itemId)?.tenantId !== decoded.tenantId
+            ) {
+              return yield* Effect.fail(
+                referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
+              )
+            }
+            const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
+            const balance = balances.get(key) ?? { onHand: 0n, reserved: 0n }
+            balance.onHand += BigInt(decoded.quantity)
+            balances.set(key, balance)
+            return {
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              onHand: String(balance.onHand),
+              reserved: String(balance.reserved),
+            }
+          }),
+        reserveStock: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ReserveStockInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockReserve,
+            )
+            const idempotencyKey = decoded.idempotencyKey === undefined
+              ? undefined
+              : `${decoded.tenantId}:${decoded.idempotencyKey}`
+            const existing = idempotencyKey === undefined
+              ? undefined
+              : storedReservations.get(reservationIdsByIdempotencyKey.get(idempotencyKey) ?? "")
+            if (existing !== undefined) {
+              if (
+                existing.warehouseId !== decoded.warehouseId ||
+                existing.itemId !== decoded.itemId ||
+                existing.quantity !== decoded.quantity
+              ) {
+                return yield* Effect.fail(
+                  new StockReservationIdempotencyConflict({
+                    tenantId: decoded.tenantId,
+                    idempotencyKey: decoded.idempotencyKey!,
+                  }),
+                )
+              }
+              return existing
+            }
+            const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
+            const balance = balances.get(key)
+            const quantity = BigInt(decoded.quantity)
+            if (balance === undefined || balance.onHand - balance.reserved < quantity) {
+              return yield* Effect.fail(
+                new StockUnavailable({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.warehouseId,
+                  itemId: decoded.itemId,
+                  requested: decoded.quantity,
+                }),
+              )
+            }
+            balance.reserved += quantity
+            const reservation: StockReservation = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              quantity: decoded.quantity,
+              idempotencyKey: decoded.idempotencyKey ?? null,
+              status: "active",
+            }
+            storedReservations.set(reservation.id, reservation)
+            if (idempotencyKey !== undefined) {
+              reservationIdsByIdempotencyKey.set(idempotencyKey, reservation.id)
+            }
+            return reservation
+          }),
+        releaseReservation: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ReleaseReservationInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockRelease,
+            )
+            const reservation = storedReservations.get(decoded.reservationId)
+            if (reservation === undefined || reservation.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new StockReservationNotFound({
+                  tenantId: decoded.tenantId,
+                  reservationId: decoded.reservationId,
+                }),
+              )
+            }
+            if (reservation.status === "released") return reservation
+            if (reservation.status !== "active") {
+              return yield* Effect.fail(
+                new StockReservationInvalidState({
+                  tenantId: decoded.tenantId,
+                  reservationId: decoded.reservationId,
+                  operation: "release",
+                  status: reservation.status,
+                }),
+              )
+            }
+            const balance = balances.get(
+              `${decoded.tenantId}:${reservation.warehouseId}:${reservation.itemId}`,
+            )!
+            balance.reserved -= BigInt(reservation.quantity)
+            const released = { ...reservation, status: "released" as const }
+            storedReservations.set(released.id, released)
+            return released
+          }),
+        fulfillReservation: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(FulfillReservationInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockFulfill,
+            )
+            const reservation = storedReservations.get(decoded.reservationId)
+            if (reservation === undefined || reservation.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new StockReservationNotFound({
+                  tenantId: decoded.tenantId,
+                  reservationId: decoded.reservationId,
+                }),
+              )
+            }
+            if (reservation.status === "fulfilled") return reservation
+            if (reservation.status !== "active") {
+              return yield* Effect.fail(
+                new StockReservationInvalidState({
+                  tenantId: decoded.tenantId,
+                  reservationId: decoded.reservationId,
+                  operation: "fulfill",
+                  status: reservation.status,
+                }),
+              )
+            }
+            const balance = balances.get(
+              `${decoded.tenantId}:${reservation.warehouseId}:${reservation.itemId}`,
+            )!
+            const quantity = BigInt(reservation.quantity)
+            balance.onHand -= quantity
+            balance.reserved -= quantity
+            const fulfilled = { ...reservation, status: "fulfilled" as const }
+            storedReservations.set(fulfilled.id, fulfilled)
+            return fulfilled
+          }),
+        createTransfer: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CreateStockTransferInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockTransferCreate,
+            )
+            if (decoded.sourceWarehouseId === decoded.destinationWarehouseId) {
+              return yield* Effect.fail(
+                new StockTransferSameWarehouse({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.sourceWarehouseId,
+                }),
+              )
+            }
+            const itemIds = new Set<string>()
+            for (const line of decoded.lines) {
+              if (itemIds.has(line.itemId)) {
+                return yield* Effect.fail(
+                  new StockTransferDuplicateItem({
+                    tenantId: decoded.tenantId,
+                    itemId: line.itemId,
+                  }),
+                )
+              }
+              itemIds.add(line.itemId)
+            }
+            if (
+              storedWarehouses.get(decoded.sourceWarehouseId)?.tenantId !== decoded.tenantId
+            ) {
+              return yield* Effect.fail(
+                new StockTransferWarehouseNotFound({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.sourceWarehouseId,
+                }),
+              )
+            }
+            if (
+              storedWarehouses.get(decoded.destinationWarehouseId)?.tenantId !== decoded.tenantId
+            ) {
+              return yield* Effect.fail(
+                new StockTransferWarehouseNotFound({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.destinationWarehouseId,
+                }),
+              )
+            }
+            const sourceWarehouse = storedWarehouses.get(decoded.sourceWarehouseId)!
+            const destinationWarehouse = storedWarehouses.get(decoded.destinationWarehouseId)!
+            if (destinationWarehouse.legalEntityId !== sourceWarehouse.legalEntityId) {
+              return yield* Effect.fail(
+                new StockTransferDifferentLegalEntity({
+                  tenantId: decoded.tenantId,
+                  sourceWarehouseId: decoded.sourceWarehouseId,
+                  destinationWarehouseId: decoded.destinationWarehouseId,
+                }),
+              )
+            }
+            const missingItem = decoded.lines.find((line) =>
+              storedItems.get(line.itemId)?.tenantId !== decoded.tenantId
+            )
+            if (missingItem !== undefined) {
+              return yield* Effect.fail(
+                new StockTransferItemNotFound({
+                  tenantId: decoded.tenantId,
+                  itemId: missingItem.itemId,
+                }),
+              )
+            }
+            const transfer: StockTransfer = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              legalEntityId: sourceWarehouse.legalEntityId,
+              sourceWarehouseId: decoded.sourceWarehouseId,
+              destinationWarehouseId: decoded.destinationWarehouseId,
+              status: "draft",
+              confirmedAt: null,
+              completedAt: null,
+              lines: decoded.lines,
+            }
+            storedTransfers.set(transfer.id, transfer)
+            return transfer
+          }),
+        confirmTransfer: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ConfirmStockTransferInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockTransferConfirm,
+            )
+            const transfer = storedTransfers.get(decoded.transferId)
+            if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new StockTransferNotFound({
+                  tenantId: decoded.tenantId,
+                  transferId: decoded.transferId,
+                }),
+              )
+            }
+            if (transfer.status !== "draft") return transfer
+            for (const line of transfer.lines) {
+              const balance = balances.get(
+                `${decoded.tenantId}:${transfer.sourceWarehouseId}:${line.itemId}`,
+              )
+              if (
+                balance === undefined ||
+                balance.onHand - balance.reserved < BigInt(line.quantity)
+              ) {
+                return yield* Effect.fail(
+                  new StockUnavailable({
+                    tenantId: decoded.tenantId,
+                    warehouseId: transfer.sourceWarehouseId,
+                    itemId: line.itemId,
+                    requested: line.quantity,
+                  }),
+                )
+              }
+            }
+            for (const line of transfer.lines) {
+              const balance = balances.get(
+                `${decoded.tenantId}:${transfer.sourceWarehouseId}:${line.itemId}`,
+              )!
+              balance.onHand -= BigInt(line.quantity)
+            }
+            const confirmed: StockTransfer = {
+              ...transfer,
+              status: "confirmed",
+              confirmedAt: now().toISOString(),
+            }
+            storedTransfers.set(confirmed.id, confirmed)
+            return confirmed
+          }),
+        completeTransfer: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CompleteStockTransferInput)(input)
+            yield* authorize(
+              decoded.principal,
+              decoded.tenantId,
+              InventoryCapabilities.stockTransferComplete,
+            )
+            const transfer = storedTransfers.get(decoded.transferId)
+            if (transfer === undefined || transfer.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new StockTransferNotFound({
+                  tenantId: decoded.tenantId,
+                  transferId: decoded.transferId,
+                }),
+              )
+            }
+            if (transfer.status === "completed") return transfer
+            if (transfer.status !== "confirmed") {
+              return yield* Effect.fail(
+                new StockTransferInvalidState({
+                  tenantId: decoded.tenantId,
+                  transferId: decoded.transferId,
+                  operation: "complete",
+                  status: transfer.status,
+                }),
+              )
+            }
+            for (const line of transfer.lines) {
+              const key = `${decoded.tenantId}:${transfer.destinationWarehouseId}:${line.itemId}`
+              const balance = balances.get(key) ?? { onHand: 0n, reserved: 0n }
+              balance.onHand += BigInt(line.quantity)
+              balances.set(key, balance)
+            }
+            const completed: StockTransfer = {
+              ...transfer,
+              status: "completed",
+              completedAt: now().toISOString(),
+            }
+            storedTransfers.set(completed.id, completed)
+            return completed
+          }),
       }
       return service
     }),

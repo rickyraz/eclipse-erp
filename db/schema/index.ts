@@ -38,6 +38,7 @@ export {
 } from "./inventory.ts"
 export {
   customers,
+  orderLines,
   orders,
   orderStatus,
   quotations,

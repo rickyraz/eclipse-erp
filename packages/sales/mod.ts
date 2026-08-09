@@ -1,6 +1,7 @@
 export { SalesCapabilities } from "./src/capabilities.ts"
 
 export {
+  CancelOrderInput,
   ConfirmOrderInput,
   CreateCustomerInput,
   CreateOrderInput,
@@ -15,6 +16,7 @@ export {
   SalesOrder,
   SalesOrderConfirmationIdempotencyConflict,
   SalesOrderInvalidState,
+  SalesOrderLine,
   SalesOrderNotFound,
   SalesService,
 } from "./src/service.ts"
@@ -22,5 +24,6 @@ export type {
   Customer as CustomerType,
   Quotation as QuotationType,
   SalesOrder as SalesOrderType,
+  SalesOrderLine as SalesOrderLineType,
   SalesService as SalesServiceShape,
 } from "./src/service.ts"
