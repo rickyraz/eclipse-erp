@@ -1,4 +1,5 @@
 export {
+  CurrentDatabaseTransaction,
   Database,
   DatabaseFailure,
   isDatabaseConstraint,

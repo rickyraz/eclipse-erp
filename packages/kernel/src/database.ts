@@ -7,6 +7,7 @@ import type { AnyRelations, EmptyRelations } from "drizzle-orm/relations"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import type { Sql } from "postgres"
 
@@ -25,6 +26,17 @@ export interface PostgresClient {
 
 export type DrizzleDatabase = PostgresJsDatabase<EmptyRelations>
 export type DrizzleTransaction = PostgresJsTransaction<AnyRelations>
+
+export const CurrentDatabaseTransaction = Context.Reference<DrizzleTransaction | undefined>(
+  "EclipseERP/CurrentDatabaseTransaction",
+  { defaultValue: () => undefined },
+)
+
+class TransactionEffectFailure extends Error {
+  constructor(readonly failure: unknown) {
+    super("transaction effect failed")
+  }
+}
 
 export class DatabaseFailure extends Schema.TaggedErrorClass<DatabaseFailure>()("DatabaseFailure", {
   operation: Schema.String,
@@ -67,6 +79,10 @@ export interface DatabaseService {
     operation: (transaction: DrizzleTransaction) => Promise<A>,
     operationName?: string,
   ) => Effect.Effect<A, DatabaseFailure>
+  readonly withTransaction: <A, E, R>(
+    operation: Effect.Effect<A, E, R>,
+    operationName?: string,
+  ) => Effect.Effect<A, E | DatabaseFailure, R>
 }
 
 export const Database = Context.Service<DatabaseService>("EclipseERP/Database")
@@ -118,17 +134,63 @@ export const makePostgresDatabase = (client: Sql): DatabaseService => {
     query: (operation, operationName = "query") =>
       Effect.andThen(
         validate,
-        Effect.tryPromise({
-          try: () => operation(database),
-          catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+        Effect.gen(function* () {
+          const transaction = yield* CurrentDatabaseTransaction
+          return yield* Effect.tryPromise({
+            try: () =>
+              transaction === undefined
+                ? operation(database)
+                : operation(transaction as unknown as DrizzleDatabase),
+            catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+          })
         }),
       ),
     transaction: (operation, operationName = "transaction") =>
       Effect.andThen(
         validate,
-        Effect.tryPromise({
-          try: () => database.transaction(operation),
-          catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+        Effect.gen(function* () {
+          const transaction = yield* CurrentDatabaseTransaction
+          return yield* Effect.tryPromise({
+            try: () =>
+              transaction === undefined ? database.transaction(operation) : operation(transaction),
+            catch: (cause) => new DatabaseFailure({ operation: operationName, cause }),
+          })
+        }),
+      ),
+    withTransaction: <A, E, R>(operation: Effect.Effect<A, E, R>, operationName = "transaction") =>
+      Effect.andThen(
+        validate,
+        Effect.gen(function* () {
+          const current = yield* CurrentDatabaseTransaction
+          if (current !== undefined) return yield* operation
+
+          const context = yield* Effect.context<R>()
+          const outcome = yield* Effect.tryPromise({
+            try: () =>
+              database.transaction(async (transaction) => {
+                const result = await Effect.runPromise(
+                  Effect.provideService(
+                    Effect.provideContext(Effect.result(operation), context),
+                    CurrentDatabaseTransaction,
+                    transaction,
+                  ),
+                )
+                if (Result.isFailure(result)) {
+                  throw new TransactionEffectFailure(result.failure)
+                }
+                return result.success
+              }),
+            catch: (cause) =>
+              cause instanceof TransactionEffectFailure
+                ? { _tag: "effect-failure" as const, error: cause.failure as E }
+                : {
+                  _tag: "database-failure" as const,
+                  error: new DatabaseFailure({ operation: operationName, cause }),
+                },
+          }).pipe(Effect.result)
+
+          if (Result.isFailure(outcome)) return yield* Effect.fail(outcome.failure.error)
+          return outcome.success
         }),
       ),
   }

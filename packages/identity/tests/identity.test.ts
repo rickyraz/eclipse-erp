@@ -93,6 +93,8 @@ describe("user account contract", () => {
         Effect.fail(databaseFailure),
       transaction: <A>(_operation: (transaction: DrizzleTransaction) => Promise<A>) =>
         Effect.fail(databaseFailure),
+      withTransaction: <A, E, R>(_operation: Effect.Effect<A, E, R>) =>
+        Effect.fail(databaseFailure),
     }
 
     return Effect.provide(
