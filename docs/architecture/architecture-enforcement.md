@@ -10,6 +10,7 @@
 >
 > - Global architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL ownership: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
 > - Documentation ownership: [`../documentation-boundaries.md`](../documentation-boundaries.md)
@@ -18,7 +19,7 @@
 
 Architectural boundaries are not considered effective merely because they are
 documented. The repository must enforce them through static checks, tests,
-database privileges, and CI.
+database privileges, deployment validation, and CI.
 
 ## Package Boundary Model
 
@@ -205,6 +206,35 @@ access, and generated code remain outside its static resolution model.
 Run it directly with `deno task callgraph:check`; it also runs as part of
 `deno task boundary:lint`.
 
+## Workload-Isolation Enforcement
+
+When the workload-isolation fabric is implemented, repository and deployment checks must distinguish
+what can be proved statically from what requires runtime evidence.
+
+Static and contract checks should reject:
+
+- capability IDs containing cell, shard, priority, pool, region, or executor topology;
+- public routes without owner-reviewed workload metadata;
+- query composition roots resolving command database services;
+- async lifecycle composition roots mutating core domain facts outside command admission;
+- projection routes configured with a primary fallback;
+- adaptive limiters without a physical hard ceiling;
+- unbounded interactive queue or wait configuration;
+- public DTOs, events, entity addresses, or Process IR exposing WorkloadCell or shuffle-shard
+  placement.
+
+Secret and deployment checks should reject:
+
+- command credentials mounted into query processes;
+- query network access to the primary where hard isolation is claimed;
+- async lifecycle roles with broad domain mutation privileges;
+- pool maxima whose sum consumes the reviewed command reserve;
+- missing CPU, memory, in-flight, or connection hard limits named by the claim;
+- simultaneous all-cell deployment where staggered cell isolation is required.
+
+Load and fault-injection tests must prove the remaining behavioral claim. Static boundaries alone do
+not prove CPU, memory, I/O, network, storage, or shared-control-plane isolation.
+
 ## Architecture Exceptions
 
 An exception must include:
@@ -232,6 +262,7 @@ Drizzle migration-graph validation
 Effect-native HTTP validation
 architecture tests
 relative-link validation for documentation
+workload-metadata and topology-leak validation when implemented
 ```
 
 ## Suggested Repository Layout
@@ -260,4 +291,6 @@ Architecture enforcement is complete only when:
 - dependency cycles fail CI;
 - tracked public call edges resolve through public package contracts;
 - architecture exceptions are explicit and reviewable;
-- database privileges reinforce the same ownership model.
+- database privileges reinforce the same ownership model;
+- query, async, and command composition roots cannot acquire one another's protected credentials;
+- every published hard-isolation claim has executable overload evidence and explicit exclusions.

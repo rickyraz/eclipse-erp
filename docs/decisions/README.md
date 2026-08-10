@@ -56,5 +56,6 @@ current system; ADRs preserve decision history.
 | [`0031`](./0031-capability-naming-and-business-verb-conventions.md)  | Define capability naming and business verb conventions          | Accepted   |
 | [`0032`](./0032-order-confirmation-cross-domain-workflow.md)         | Define atomic Sales + Inventory + Accounting order confirmation | Superseded |
 | [`0033`](./0033-extend-order-lifecycle-and-gate-pgque.md)            | Extend order lifecycle and gate PgQue activation                | Accepted   |
+| [`0034`](./0034-adopt-non-interference-overload-isolation.md)        | Adopt non-interference as the overload-isolation target         | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

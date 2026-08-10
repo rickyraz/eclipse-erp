@@ -13,6 +13,8 @@
 >   [`../architecture/postgresql-19-architecture.md`](../architecture/postgresql-19-architecture.md)
 > - Search architecture:
 >   [`../architecture/search-architecture.md`](../architecture/search-architecture.md)
+> - Workload isolation:
+>   [`../architecture/workload-isolation.md`](../architecture/workload-isolation.md)
 > - Stateful runtime:
 >   [`../architecture/runtime-architecture.md`](../architecture/runtime-architecture.md)
 > - State and consistency:
@@ -35,17 +37,23 @@ vendor product, process count, node count, region layout, or scaling strategy. I
 replaced or omitted when its required semantics remain satisfied.
 
 Domain contracts, entity addresses, events, persistence schemas, and Process IR must not expose
-node, region, PostgreSQL shard, cache product, runtime adapter, fleet, bucket, or deployment
-topology.
+node, region, WorkloadCell, shuffle shard, executor, pool, PostgreSQL shard, cache product, runtime
+adapter, fleet, bucket, or deployment topology.
+
+A colocated deployment may use logical workload classes and bounded semaphores, but it must not claim
+physical non-interference. A hard-isolation claim requires named disjoint resources, bounded shared
+dependencies, separate credentials and paths where applicable, and executable overload evidence.
 
 ## Layer Responsibilities
 
 | Layer                      | Minimum architectural requirement                                                                                                    | Deployment freedom                                                                       |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | Frontend and static assets | Typed API boundary; no ownership of authorization or business invariants                                                             | Local static server, CDN, or independently scaled asset hosting                          |
+| Thin workload router       | Topology-only placement and bounded ingress; no business mutation, PostgreSQL transaction, or primary credential                     | Colocated edge role or independently scaled router with protected command ingress        |
 | API and domain services    | Stateless by default; typed commands; authorization and tenant scope enforced before mutation                                        | One process or many replicas behind a load balancer                                      |
 | PostgreSQL                 | Canonical business facts, transactions, constraints, history, and audit                                                              | Direct connection, pooling, replicas, partitioning, or sharding hidden behind the kernel |
 | Read replicas              | Staleness must be explicit; never validate an invariant or satisfy required read-after-write behavior from stale data                | Optional and independently scaled per read workload                                      |
+| Projection query plane     | Bounded, authorized, rebuildable reads; hard-isolated routes have no primary credential or primary fallback                         | Colocated logical role, separate process, replica, or independent projection store       |
 | Stateful Entity Runtime    | Optional active ownership and entity-local serialization; never canonical authority by itself                                        | Local adapter, `celld`, another adapter, or disabled per entity category                 |
 | PgQue                      | Committed-event stream and fan-out; publication remains atomic with the canonical mutation                                           | Consumers may be colocated or independently scaled                                       |
 | Job workers                | Leased, scheduled, prioritized single-consumer work with retries and observable lifecycle                                            | Colocated workers or separate worker pools                                               |
@@ -91,8 +99,10 @@ return through the owning domain.
 
 Search connection pools, workers, replicas, and external nodes share explicit capacity and freshness
 budgets. They may fail or degrade without changing canonical facts or starving invariant-sensitive
-transactions. Detailed rules are owned by
-[`../architecture/search-architecture.md`](../architecture/search-architecture.md).
+transactions. Hard-isolated routes do not fall back to the primary. Detailed search rules are owned
+by [`../architecture/search-architecture.md`](../architecture/search-architecture.md); global
+non-interference rules are owned by
+[`../architecture/workload-isolation.md`](../architecture/workload-isolation.md).
 
 ## Database Scaling
 
@@ -110,9 +120,11 @@ Entity addresses never contain a PostgreSQL shard. Moving a tenant or aggregate 
 or shards must not change its public identity or domain contract.
 
 Read replicas may serve explicitly stale-tolerant queries. Invariant-sensitive reads and writes
-remain on a transactionally appropriate primary or shard. Cross-shard business work must stay
-explicit as a transaction, durable process, event, or compensation; infrastructure must not pretend
-several shards form one local transaction.
+remain on a transactionally appropriate primary or shard. Every currently accepted atomic workflow
+must remain transactionally colocated. Changing an accepted invariant from one PostgreSQL
+transaction to a durable process, event, or compensation requires a superseding consistency ADR;
+operators must not make that semantic change through shard placement. New cross-shard work must stay
+explicit, and infrastructure must not pretend several shards form one local transaction.
 
 ## Deployment Profiles
 
@@ -131,11 +143,31 @@ A small installation may use:
 
 Logical boundaries still apply even when processes are colocated.
 
-### Scaled
+### Workload-isolated
+
+A deployment seeking query-to-command non-interference separates:
+
+- command, query, and async ingress and execution budgets;
+- command primary credentials, query projection credentials, optional bounded read-only query-
+  authorization credentials, and narrow async lifecycle credentials;
+- command, query-authorization, query-projection, and async connection pools;
+- projection-safe dashboard reads from PostgreSQL-primary execution;
+- hard physical ceilings from adaptive safe ceilings.
+
+Projection failure returns declared stale, `429`, or `503` behavior and does not open a primary
+fallback. Async-triggered business commands use existing job or workflow durability to reach a
+command-capable worker composition root, then re-enter command admission and credentials without
+loopback HTTP. The
+deployment publishes the exact protected resources, shared dependencies, excluded failure modes, and
+overload-test results.
+
+### Scaled or WorkloadCell-isolated
 
 A larger installation may independently add or scale:
 
-- CDN and multiple API replicas;
+- CDN, a thin workload router, and multiple API replicas;
+- bounded tenant-group WorkloadCells with staggered deployment and evacuation;
+- tenant-aware recursive shuffle sharding inside selected workload planes;
 - connection pooling, PostgreSQL replicas, partitioning, or shards;
 - dedicated PgQue consumer and job-worker pools;
 - selected stateful entity categories through `celld` or another adapter;
@@ -156,7 +188,10 @@ Self-hosted operators may choose infrastructure appropriate to their workload. I
 the platform operator owns topology decisions. Plugins and business users cannot bypass
 architectural boundaries or select arbitrary infrastructure through domain inputs.
 
-Products such as `celld`, PgQue, `pg_durable`, Redis, ClickHouse, or a search engine are not granted
-business authority merely because they are deployed. EclipseERP depends on the minimum architectural
-semantics assigned to each layer and keeps product-specific topology behind infrastructure adapters
-or composition roots.
+Products such as `celld`, PgQue, `pg_durable`, Redis, ClickHouse, a pooler, or a search engine are not
+granted business authority merely because they are deployed. EclipseERP depends on the minimum
+architectural semantics assigned to each layer and keeps product-specific topology behind
+infrastructure adapters or composition roots.
+
+WorkloadCell placement and ResourceLease acquisition likewise do not grant tenant visibility,
+capabilities, durability, or canonical ownership.

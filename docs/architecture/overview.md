@@ -6,6 +6,7 @@
 >
 > - Full specification: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
@@ -21,31 +22,29 @@
 ```text
 Users
   |
-Edge proxy
+Edge / thin workload router
   |
-API / Worker / Event Relay / Migrator
+WorkloadCell placement (topology-private)
   |
-Public domain contracts
+  +--> Command plane --> command pool --> PostgreSQL primary
+  |         |
+  |         `--> optional Stateful Entity Runtime for approved aggregates
   |
-  +--> optional Stateful Entity Runtime --+
-  |                                        |
-  +----------------------------------------+
-                                           |
-                               PgBouncer / PostgreSQL services
-                                           |
-                                      PostgreSQL 19
-  |-- transactional domain state
-  |-- immutable accounting and inventory facts
-  |-- authorization and audit
-  |-- PgQue
-  |-- durable jobs and workflows
-  |-- rebuildable search projections
-  `-- hierarchy and graph projections
+  +--> Query plane --> query pool --> rebuildable projection store
+  |
+  `--> Async plane --> PgQue / jobs / workflows / integrations
+                              |
+                              `--> projection builders
+
+PostgreSQL 19 remains canonical for transactional domain state, immutable
+accounting and inventory facts, authorization, audit, outbox, and durable work.
 ```
 
-The API, worker, event relay, and migrator are separate processes in one
-application family. They share domain packages and PostgreSQL transaction
-boundaries. They are not independent microservices.
+The API, worker, event relay, and migrator remain separate processes in one application family. They
+share domain packages. WorkloadCell placement must preserve every accepted cross-domain PostgreSQL
+transaction boundary; splitting one requires a superseding consistency decision. The processes are
+not independent microservices. Minimal deployments may colocate workload roles; hard-isolation
+claims require actual reserved resources, credentials, pools, and tested failure boundaries.
 
 ## Runtime
 
@@ -93,6 +92,20 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.
 - ClickHouse, search indexes, and caches: rebuildable projections.
+
+## Non-Interference
+
+Commands, projection queries, and asynchronous work have separate workload metadata and bounded
+admission. A deployment claiming hard query-to-command isolation reserves command ingress,
+executors, and connection capacity that projection-query and async lifecycle work cannot acquire.
+Projection-query executors hold no primary credential. Async infrastructure may use a separate,
+narrow primary-backed lifecycle budget, but async-triggered business commands must re-enter the
+command path. Projection failure degrades or rejects reads; it does not silently fall back to
+reserved command resources.
+
+WorkloadCells and optional tenant-aware shuffle sharding narrow deployment blast radius without
+changing domain ownership, public identity, authorization, or PostgreSQL truth. See
+[`./workload-isolation.md`](./workload-isolation.md).
 
 ## Search
 

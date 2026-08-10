@@ -17,6 +17,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - Stateful runtime: [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
 > - State and consistency: [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
 > - Search architecture: [`./docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md)
+> - Workload isolation: [`./docs/architecture/workload-isolation.md`](./docs/architecture/workload-isolation.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
 > - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
@@ -336,6 +337,31 @@ ADR-0027.
 - Unsupported extension DDL and indexes use reviewed Drizzle custom migrations; provider-specific raw
   SQL must not enter domain packages.
 - Bound search connections, concurrency, top-k, candidates, statement time, and OLTP resource impact.
+
+## Workload Isolation and Non-Interference
+
+Before changing route workload classes, dashboard/report execution, connection pools, overload
+control, deployment cells, or shuffle sharding, read
+[`docs/architecture/workload-isolation.md`](./docs/architecture/workload-isolation.md) and ADR-0034.
+
+- Keep workload class, criticality, consistency, cost, and admission policy as metadata; do not put
+  topology, priority, pool, or cell names into capability IDs.
+- A ResourceLease is admission, not authorization, durable acceptance, a database lock, or business
+  ownership.
+- Use a cheap pre-authorization ingress bound, then acquire the protected execution permit only after
+  scoped authorization and before executor slots, database connections, projection connections, or
+  expensive work.
+- Hard-isolated projection routes must not possess a PostgreSQL-primary credential or silently fall
+  back to command resources.
+- Preserve a non-zero command reserve that query and async workloads cannot acquire.
+- Async-triggered business commands must re-enter command admission, authorization, idempotency,
+  owner-controlled services, and transaction boundaries.
+- Keep interactive queues and wait deadlines bounded; reject or degrade before backlog amplifies
+  retries.
+- Use `WorkloadCell` for deployment containment; do not confuse it with a Stateful Entity Runtime
+  entity or a `celld` runtime cell.
+- Do not claim hard isolation from logical semaphores or separate pools alone. Name the protected
+  resources, shared dependencies, excluded failures, and overload proof.
 
 ## Stateful Runtime and Asynchronous Rules
 

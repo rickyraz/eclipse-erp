@@ -10,6 +10,7 @@
 > - Canonical architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
@@ -37,6 +38,26 @@ The Stateful Entity Runtime is optional. Stateless Effect services and direct Po
 transactions remain the default. A domain adopts runtime ownership only for an approved aggregate
 category with evidence that identity-local serialization, hot state, or object-local coordination is
 required.
+
+Three independent boundaries use similar language and must not be conflated:
+
+```text
+StatefulEntity
+-> EclipseERP aggregate-level serialization and active-state boundary
+
+celld cell
+-> one adapter-owned named Durable Object with one active owner and private SQLite state
+
+WorkloadCell
+-> deployment resource and fault-containment boundary for a tenant group and workload planes
+```
+
+A `WorkloadCell` is governed by [`workload-isolation.md`](./workload-isolation.md). It is not a
+stateful entity, aggregate boundary, or authorization grant. A `celld` cell is an adapter
+implementation term, not an AWS-style workload cell. `celld` bucket durability does not make its
+SQLite state canonical for EclipseERP; runtime fields still follow the state classification and
+PostgreSQL anchor required by [`state-and-consistency.md`](./state-and-consistency.md). Runtime
+entity addressing, WorkloadCell placement, and PostgreSQL placement remain separate concerns.
 
 ## System Shape
 

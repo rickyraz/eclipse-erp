@@ -14,6 +14,8 @@
 >   [`../architecture/runtime-architecture.md`](../architecture/runtime-architecture.md)
 > - State and consistency:
 >   [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
+> - Workload isolation:
+>   [`../architecture/workload-isolation.md`](../architecture/workload-isolation.md)
 > - Runtime comparison:
 >   [`../architecture/reference/erp-runtime-comparison.md`](../architecture/reference/erp-runtime-comparison.md)
 
@@ -22,16 +24,18 @@
 ADR-0025 accepts explicit state ownership as an EclipseERP primitive without selecting a mandatory
 implementation.
 
-[`celld`](https://github.com/denoland/celld) is an open-source, self-hosted Durable Objects runtime.
-Its documented model aligns with the desired primitive: name-addressed objects, one writer per cell,
-private SQLite state, JavaScript RPC, alarms, hibernation, and restoration from an S3-compatible
-fleet bucket. Its ownership protocol uses object-storage compare-and-swap, and the fleet bucket
-stores deployments, cell replicas, ownership records, leases, and peer authentication material.
+[`celld`](https://github.com/denoland/celld) is an open-source, self-hosted distributed Durable
+Objects runtime. Its documented model aligns with the desired primitive: name-addressed objects, one
+owner per cell, private SQLite state, JavaScript RPC, alarms, hibernation, and restoration from an
+S3-compatible fleet bucket. Object-storage compare-and-swap selects one owner; the bucket stores the
+cell databases, deployments, ownership records, leases, and peer authentication material. `celld`
+treats that bucket as the durable source of truth for its cell database state.
 
-The fit is promising but not sufficient for production adoption. As of 2026-08-06, the project
-documents itself as alpha, says its runtime and compatibility surface are evolving, supports one
-application deployment per fleet, does not provide a multi-tenant scheduler or managed ingress, does
-not terminate peer TLS, and says it is not safe for hostile multi-tenant use.
+The fit is promising but not sufficient for production adoption. As of August 10, 2026, upstream
+says its runtime and compatibility surface are still evolving; a fleet runs one application
+deployment; and peer HTTP requires a trusted private network or encrypted overlay because it does
+not terminate TLS. EclipseERP must continue to treat bucket access and credentials as
+fleet-administrator access.
 
 Current upstream references:
 
@@ -39,6 +43,32 @@ Current upstream references:
 - [Cloudflare compatibility](https://github.com/denoland/celld/blob/main/docs/cloudflare-compat.md)
 - [Limitations](https://github.com/denoland/celld/blob/main/docs/limitations.md)
 - [Security](https://github.com/denoland/celld/blob/main/docs/security.md)
+
+## Terminology Boundary
+
+`celld` and workload isolation use the word `cell` for different abstractions:
+
+```text
+celld cell
+-> one named stateful Durable Object
+-> one active owner and one private SQLite database
+-> entity-level coordination, serialization, activation, and recovery
+
+WorkloadCell
+-> one bounded deployment resource and fault-containment unit
+-> tenant-group placement, workload planes, credentials, pools, and admission budgets
+-> overload and noisy-neighbor containment
+```
+
+A `celld` cell may execute inside a WorkloadCell command plane, but neither one replaces the other.
+A `celld` cell does not prove that projection traffic cannot consume reserved command capacity. A
+WorkloadCell does not establish one active owner for a business entity.
+
+`celld`'s bucket durability is a runtime property, not a transfer of EclipseERP business authority.
+Under ADR-0003, PostgreSQL remains canonical for EclipseERP business facts. A selected runtime field
+must therefore follow the canonical, rebuildable, runtime-durable, or ephemeral classification in
+[`state-and-consistency.md`](../architecture/state-and-consistency.md). A later ADR would be
+required to make a `celld` SQLite fact canonical for EclipseERP.
 
 ## Proposal
 

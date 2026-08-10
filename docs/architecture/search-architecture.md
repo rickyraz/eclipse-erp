@@ -3,13 +3,14 @@
 > **Status:** Canonical
 >
 > **Owns:** Search authority, domain and cross-domain search boundaries, lexical and semantic
-> retrieval posture, projection consistency, provider evolution, workload isolation, and search
-> production gates.
+> retrieval posture, projection consistency, provider evolution, search-specific workload safety,
+> and search production gates.
 >
 > **Related documents**
 >
 > - Canonical architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
@@ -245,34 +246,47 @@ Before enabling a search extension in production, prove:
   fallback;
 - malformed or adversarial queries cannot bypass decoding or exhaust unbounded resources.
 
-## Workload Isolation
+## Search Workload Safety
 
-Search shares PostgreSQL resources until measurements justify another topology. Kernel and
-deployment configuration may create logical workload classes such as:
+Global workload classes, admission, reserved command capacity, WorkloadCells, and non-interference
+claims are owned by [`workload-isolation.md`](./workload-isolation.md).
+
+Search shares PostgreSQL resources until measurements justify another topology. Its work maps to the
+canonical planes rather than defining competing top-level workload classes:
 
 ```text
-transaction
-interactive read
-search
-background indexing
-migration
+query
+-> authoritative search read
+-> projection search read
+
+async
+-> background indexing
+-> embedding and projection build
+
+operational control
+-> migration and index administration
 ```
 
-Each class has an explicit connection budget. Search additionally uses:
+Each path has an explicit connection budget. Search additionally uses:
 
 - bounded concurrency;
 - statement timeout;
 - bounded top-k and candidate counts;
 - query cancellation;
 - slow-query and index-usage telemetry;
-- optional stale-tolerant replica routing.
+- optional stale-tolerant replica or projection routing.
 
-Separate pools do not create extra connection capacity automatically. Their limits must fit within
-one reviewed PostgreSQL connection budget and preserve capacity for invariant-sensitive
-transactions.
+Separate pools on one PostgreSQL instance provide budgeting, not complete CPU, I/O, WAL, lock, or
+storage isolation. Their limits must fit within one reviewed PostgreSQL connection budget and
+preserve capacity for invariant-sensitive transactions.
+
+A search route may claim hard query-to-command non-interference only when its executor, credential,
+pool, and projection store cannot acquire the named command reserve. Such a route must not silently
+fall back to PostgreSQL primary during projection or replica failure.
 
 A replica search path documents maximum tolerated lag and routes read-after-write or authorization-
-sensitive requests to an appropriate primary or owning service.
+sensitive requests to an appropriate bounded authoritative path. A route that requires the primary
+is not a hard-isolated projection query.
 
 ## Sharding and Topology
 

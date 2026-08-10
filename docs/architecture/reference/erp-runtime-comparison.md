@@ -9,6 +9,7 @@
 > **Related documents**
 >
 > - Stateful runtime: [`../runtime-architecture.md`](../runtime-architecture.md)
+> - Workload isolation: [`../workload-isolation.md`](../workload-isolation.md)
 > - State and consistency: [`../state-and-consistency.md`](../state-and-consistency.md)
 > - Stateful runtime ADR:
 >   [`../../decisions/0025-introduce-stateful-entity-runtime.md`](../../decisions/0025-introduce-stateful-entity-runtime.md)
@@ -224,11 +225,33 @@ unbounded synchronous entity chains
 runtime ownership inferred from relation reachability
 ```
 
+## `celld` Is Not a WorkloadCell
+
+`celld` uses _cell_ for a stateful execution object. A WorkloadCell uses the term for a deployment
+fault and resource boundary. They are orthogonal:
+
+| Question                | WorkloadCell                                             | `celld` cell                                                      |
+| ----------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| What is bounded?        | Tenant-group workload resources and failure blast radius | One named object's stateful execution                             |
+| Routing key             | Tenant and principal workload placement                  | Entity/object address                                             |
+| Main protection         | Query/async starvation and noisy-neighbor spread         | Concurrent transitions for one coordination atom                  |
+| State                   | May host pools and projection infrastructure             | Private SQLite state replicated to its bucket                     |
+| Authority in EclipseERP | Never domain authority                                   | Runtime state only unless a later ADR changes canonical ownership |
+
+A command can first enter a WorkloadCell command plane and then route to a `celld` object for
+entity-local serialization. This does not make `celld` a substitute for resource leases, command
+reserves, or projection isolation.
+
 ## `celld` in the Comparison
 
 `celld` is relevant because its documented Durable Object surface includes one writer per cell,
 names as addresses, private SQLite state, RPC methods, alarms, and hibernatable WebSockets. Its
-fleet uses an S3-compatible bucket for durable cell state and ownership coordination.
+fleet uses an S3-compatible bucket for durable cell state and ownership coordination; upstream
+treats the bucket as the durable source of truth for its SQLite state.
+
+That storage authority is `celld` runtime semantics. EclipseERP's separate decision is that
+PostgreSQL remains canonical for business facts, so an enabled adapter must classify and reconcile
+its runtime fields under [`state-and-consistency.md`](../state-and-consistency.md).
 
 Primary references:
 

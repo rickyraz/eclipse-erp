@@ -8,6 +8,7 @@
 >
 > - Summary: [`./overview.md`](./overview.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
@@ -46,25 +47,28 @@
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
 > - Atomic order confirmation workflow:
 >   [`../decisions/0032-order-confirmation-cross-domain-workflow.md`](../decisions/0032-order-confirmation-cross-domain-workflow.md)
+> - Non-interference overload isolation:
+>   [`../decisions/0034-adopt-non-interference-overload-isolation.md`](../decisions/0034-adopt-non-interference-overload-isolation.md)
 
 ## Decision
 
 EclipseERP remains a modular monolith. This specification changes the application runtime, not the
 domain, ledger, audit, or transactional-integrity principles.
 
-| Area              | Decision                                                                |
-| ----------------- | ----------------------------------------------------------------------- |
-| Language          | TypeScript strict                                                       |
-| Application model | Effect                                                                  |
-| Runtime           | Deno                                                                    |
-| HTTP              | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno`   |
-| Database          | PostgreSQL 19+                                                          |
-| Query layer       | Drizzle ORM with `postgres.js`                                          |
-| Migrations        | Pinned Drizzle Kit graph with reviewed SQL                              |
-| Stateful ownership | Optional vendor-neutral Stateful Entity Runtime                         |
-| Native compute    | Optional Zig through `Deno.dlopen`                                      |
-| Frontend          | Vite-based SolidJS 2.0 SPA with a separate backend                      |
-| Contracts         | Effect Schema                                                           |
+| Area               | Decision                                                              |
+| ------------------ | --------------------------------------------------------------------- |
+| Language           | TypeScript strict                                                     |
+| Application model  | Effect                                                                |
+| Runtime            | Deno                                                                  |
+| HTTP               | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno` |
+| Database           | PostgreSQL 19+                                                        |
+| Query layer        | Drizzle ORM with `postgres.js`                                        |
+| Migrations         | Pinned Drizzle Kit graph with reviewed SQL                            |
+| Stateful ownership | Optional vendor-neutral Stateful Entity Runtime                       |
+| Overload isolation | Workload planes, bounded admission, and reserved command capacity      |
+| Native compute     | Optional Zig through `Deno.dlopen`                                    |
+| Frontend           | Vite-based SolidJS 2.0 SPA with a separate backend                    |
+| Contracts          | Effect Schema                                                         |
 
 Effect owns typed failures, lifecycle, concurrency, retry, telemetry, and dependency injection.
 Drizzle owns typed schema and query construction. PostgreSQL owns constraints and transactions.
@@ -262,6 +266,36 @@ participate in the same PostgreSQL transaction through typed services.
 No module may mutate another module's tables directly. Sharing a transaction does not transfer
 semantic ownership; every invariant-sensitive mutation still passes through the owning domain's
 public typed service.
+
+## Workload Isolation Contract
+
+Public operations declare workload behavior separately from capability identity. Business verbs
+continue to describe owner-controlled effects; workload class, criticality, consistency, estimated
+cost, deadline, and admission remain metadata.
+
+The initial planes are command, query, and async. Query work may use a bounded authoritative path or
+a projection-safe path; only the projection-safe path qualifies for the no-primary-credential
+guarantee. Canonical commands retain a reviewed non-zero resource reserve. Projection-safe
+dashboard, search, and reporting routes in a hard-isolated deployment must not obtain command
+executor slots, command database connections, or a PostgreSQL-primary credential, and they must not
+silently fall back to the primary when their projection path is unavailable.
+
+A business command remains command-plane work when initiated by a job, event consumer, or workflow.
+Async orchestration must re-enter command admission, authorization, idempotency, owner-controlled
+services, and transaction boundaries.
+
+Scarce work acquires bounded admission before executor or database resources. Adaptive concurrency
+may lower a tested hard ceiling but never exceed it. Interactive queues and wait deadlines remain
+finite; overload rejects or degrades before backlog amplifies retries.
+
+`WorkloadCell` is the topology-private deployment containment term. It is distinct from a domain,
+Tenant, Stateful Entity Runtime entity, and `celld` runtime cell. WorkloadCell placement and optional
+recursive shuffle sharding must not appear in public DTOs, capability IDs, events, entity addresses,
+or Process IR.
+
+A colocated deployment preserves logical boundaries but cannot claim physical non-interference
+without executable proof of disjoint resources. Detailed routing, resource, projection, overload,
+and validation rules are owned by [`workload-isolation.md`](./workload-isolation.md).
 
 ## Stateful Entity Runtime Contract
 

@@ -8,6 +8,7 @@
 > **Related documents**
 >
 > - PostgreSQL architecture: [`../architecture/postgresql-19-architecture.md`](../architecture/postgresql-19-architecture.md)
+> - Workload isolation: [`../architecture/workload-isolation.md`](../architecture/workload-isolation.md)
 > - Architecture enforcement: [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
 > - Authorization architecture: [`../architecture/authorization.md`](../architecture/authorization.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
@@ -31,6 +32,19 @@ eclipse_observer
 eclipse_break_glass
 ```
 
+A hard-isolated deployment additionally uses distinct login identities such as:
+
+```text
+eclipse_command
+eclipse_projection_query
+eclipse_query_authorizer
+eclipse_async_worker
+```
+
+These names describe deployment responsibility, not business capability ownership. A minimal
+colocated profile may retain `eclipse_api` and `eclipse_worker`, but it cannot claim the same physical
+resource separation.
+
 Additional non-login ownership roles may exist per schema:
 
 ```text
@@ -44,6 +58,44 @@ eclipse_owner_workflow
 eclipse_owner_integration
 eclipse_owner_audit
 ```
+
+## Hard-Isolation Role Boundaries
+
+`eclipse_command` connects to the PostgreSQL primary through the command pool and may execute the
+approved domain transactions required by public commands. It is used by command-capable API and
+worker composition roots and receives the command resource reserve.
+
+`eclipse_projection_query` connects only to the approved projection store or isolated read path. It
+must not:
+
+- possess a PostgreSQL-primary credential;
+- inherit `eclipse_api` or schema-owner privileges;
+- open command transactions;
+- use a configuration fallback to the command pool or primary.
+
+`eclipse_query_authorizer` is optional when sensitive projection reads require current
+owner-controlled authorization. It uses a separate, bounded, read-only primary pool and may invoke
+only approved owner-controlled authorization-check contracts or functions, including the current
+scope, relationship, and SoD checks those owners require. If the required owner state is unavailable
+through that bounded path, the request is authoritative rather than hard-isolated. The role must not
+use the command pool, mutate grants, or read arbitrary domain payloads. Saturation fails the query
+path closed.
+
+`eclipse_async_worker` uses an async-specific pool and only the privileges required by registered
+PgQue consumers, job lifecycle, projection builders, workflow orchestration, and integration
+delivery. It must not receive broad mutation rights to core domain schemas. When async orchestration
+initiates a canonical business command, it uses the existing job or workflow durability semantics to
+hand work to a command-capable worker using the `eclipse_command` path. Domain services are invoked
+locally rather than through loopback HTTP. Its maximum connections must not consume the command
+reserve.
+
+Separate login roles on one PostgreSQL instance provide privilege and connection isolation, not
+complete CPU, I/O, WAL, lock, or storage isolation. Deployment claims must name the resources that
+are physically independent.
+
+Secrets for these roles must be delivered only to their intended composition roots. Query images,
+containers, or processes must not receive the command secret even when the application packages are
+shared.
 
 ## Migrator Role
 
@@ -220,7 +272,12 @@ Privilege tests must prove that:
 - tenant context is required;
 - RLS isolates tenants;
 - unauthorized cross-schema writes fail;
-- owner and break-glass privileges are not available to normal processes.
+- owner and break-glass privileges are not available to normal processes;
+- projection-query credentials cannot connect to or inherit privileges on the primary;
+- query-authorizer credentials are read-only, narrowly granted, separately pooled, and fail closed;
+- async lifecycle credentials cannot mutate core domain facts outside the command path;
+- async and query pool maxima cannot consume the reviewed command connection reserve;
+- pooled tenant and principal context cannot leak across workload roles.
 
 ## Operational Review
 
@@ -237,6 +294,7 @@ Review role grants:
 The role model is complete when:
 
 - every process has a dedicated role;
+- isolated command, projection-query, and async composition roots receive only their own secrets;
 - no normal process uses superuser or schema-owner credentials;
 - grants match the schema ownership registry;
 - privilege tests run in CI or deployment validation;

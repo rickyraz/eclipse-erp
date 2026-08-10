@@ -10,6 +10,7 @@
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Messaging and outbox: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - PostgreSQL truth ADR:
@@ -246,6 +247,8 @@ known-stale state while waiting for background repair.
 | Ownership moves during queued commands                  | One owner transition                    | Old owner stops admission; commands retry or route to new owner       |
 | Runtime store unavailable                               | Canonical database may remain available | Use approved fallback or fail closed by category; do not invent state |
 | PostgreSQL unavailable                                  | Canonical mutation unavailable          | Reject or retry; runtime-local success is forbidden                   |
+| Resource admission denied before protected work         | No mutation                             | Return typed overload failure; do not acquire the guarded connection  |
+| Projection query path unavailable or over capacity      | Canonical facts unchanged               | Return declared stale/error behavior; no hidden primary fallback      |
 | Outbox delivery fails after commit                      | Canonical fact remains committed        | Retry from durable outbox; expose lag and provider state              |
 | Duplicate event delivery                                | Canonical fact unchanged                | Consumer deduplicates or applies idempotently                         |
 | Runtime schema upgrade fails                            | Canonical facts remain valid            | Roll back adapter deployment or rebuild compatible state              |

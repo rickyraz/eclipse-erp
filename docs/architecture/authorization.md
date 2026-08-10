@@ -6,6 +6,7 @@
 >
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
+> - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Authorization ADR: [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
 > - User-account lifecycle and tenant membership: [`../decisions/0030-user-account-lifecycle-and-tenant-membership.md`](../decisions/0030-user-account-lifecycle-and-tenant-membership.md)
 > - Capability naming: [`../decisions/0031-capability-naming-and-business-verb-conventions.md`](../decisions/0031-capability-naming-and-business-verb-conventions.md)
@@ -66,13 +67,15 @@ accounting.invoice.post
 accounting.invoice.reverse
 inventory.stock.reserve
 inventory.stock.adjust
-inventory.stock.transfer.create
-inventory.stock.transfer.confirm
-inventory.stock.transfer.complete
-auth.role.assign
+inventory.stock_transfer.create
+inventory.stock_transfer.confirm
+inventory.stock_transfer.complete
+authorization.role.assign
 ```
 
-Avoid broad permissions such as `invoice.update`.
+Use explicit lifecycle or controlled verbs where the business effect differs. Ordinary `create`,
+`read`, or `update` remains acceptable when it accurately names one coherent owner-controlled action.
+Broad `manage`, `write`, `admin`, `full_access`, and `execute` capabilities are forbidden by ADR-0031.
 
 ## Scope
 
@@ -93,6 +96,24 @@ A grant may be limited to:
 
 Tenant administrators must not provide arbitrary SQL, JavaScript, or other
 unrestricted code. Dynamic conditions use a typed, validated policy model.
+
+## Admission Is Not Authorization
+
+Workload class, criticality, WorkloadCell placement, shuffle-shard membership, and ResourceLease
+acquisition do not grant a business capability. They control where and whether work may begin after
+trusted routing metadata is resolved.
+
+A caller must still pass tenant membership, scoped capability, domain policy, and Separation of
+Duties checks. A query projection or isolated executor must fail closed when authorization context is
+missing, stale beyond its contract, or invalid. Sensitive isolated queries invoke a bounded
+owner-controlled authorization-check contract with no access to the command reserve or use an
+owner-approved fail-closed authorization projection with explicit scope, relationship, SoD,
+revocation, and freshness behavior. If current owner state cannot be evaluated through that path,
+the query is authoritative and does not claim hard projection isolation. WorkloadCell or lease membership must
+never be accepted as proof of tenant visibility or mutation authority.
+
+Capability IDs retain business ownership and verbs. They must not encode `command`, `query`,
+`priority`, pool, cell, region, or executor names.
 
 ## Enforcement Layers
 

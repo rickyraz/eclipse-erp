@@ -9,6 +9,7 @@
 >
 > - Architecture enforcement: [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
 > - Active architecture: [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
+> - Workload isolation: [`../architecture/workload-isolation.md`](../architecture/workload-isolation.md)
 > - Authorization architecture: [`../architecture/authorization.md`](../architecture/authorization.md)
 > - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
 > - Agent rules: [`../../AGENTS.md`](../../AGENTS.md)
@@ -144,6 +145,36 @@ The current architecture tests validate schema ownership through
 
 These tests complement the static boundary linter.
 
+## Workload Isolation Tests
+
+A deployment or route must not claim hard non-interference from configuration review alone. The
+smallest executable proof should saturate the source workload while exercising the protected
+workload.
+
+For query-to-command isolation, test:
+
+- multitab, retry-loop, expensive-filter, and poison-query traffic from one tenant-scoped user;
+- per-user, per-tenant, route, plane, and WorkloadCell hard limits;
+- admission-key mapping for Human, Service, Process, and Delegated principals without delegation
+  bypass;
+- cheap pre-authorization ingress bounds and protected execution admission only after authorization;
+- rejection before query or command database connection acquisition;
+- command ingress, executor, and connection reserve remaining during query and async saturation;
+- adaptive limits never exceeding their physical hard ceilings;
+- bounded queue depth, wait deadline, cancellation, and permit release;
+- query-process inability to obtain command services or PostgreSQL-primary credentials;
+- async-triggered business commands re-entering command admission, authorization, idempotency, and
+  credential boundaries;
+- projection lag, outage, replay, and rebuild without hidden primary fallback;
+- `429`, `503`, stale, reduced, deadline, backoff, jitter, and idempotent retry behavior;
+- shuffle-shard containment so one principal cannot route to the entire executor fleet;
+- current authorization and tenant isolation while projection state is delayed or rebuilt;
+- command success rate and p95/p99 latency staying within the reviewed objective.
+
+Record the shared dependencies and excluded failure modes in the test fixture or deployment profile.
+A colocated logical limiter test proves overload governance, not physical CPU, memory, network, or
+storage isolation.
+
 ## Event and Job Tests
 
 Event consumers and jobs must test:
@@ -246,8 +277,8 @@ frontend tests
 build
 ```
 
-Risky database or workflow changes may require additional migration and recovery
-stages.
+Risky database, workflow, or hard-isolation changes may require additional migration, recovery,
+load, fault-injection, and deployment-policy stages.
 
 ## Completion Criteria
 
