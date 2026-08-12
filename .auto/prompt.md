@@ -1,50 +1,46 @@
-# Autoresearch: Complete EclipseERP P0-P3 primitive roadmap
+# Autoresearch: Close EclipseERP P3 and ADR-0033 runtime gaps
 
 ## Objective
-Complete the canonical ERP primitive sequence in `docs/roadmap/erp-primitives.md` from P0 through P3 without contradicting accepted ADRs or duplicating canonical documentation. Resolve material UNKNOWN decisions with ADRs, implement the smallest executable contracts and invariant proofs, and keep Process Studio behind its existing gates.
+After completing the initial P0-P3 decision portfolio, finish the remaining executable gaps before calling P3 and the bounded ADR-0033 order lifecycle ready: owner-controlled transaction-aware event publication, distinct command/correlation/idempotency metadata, durable duplicate-safe consumer completion, and cancellation/fulfillment coordination.
 
 ## Metrics
-- **Primary**: `accepted_gates` (unitless, higher is better) — objective implementation/documentation gates satisfied by `.auto/measure.sh`.
-- **Secondary**: `remaining_gates` — acceptance gates still open.
+- **Primary**: `p3_ready_gates` (unitless, higher is better).
+- **Secondary**: `remaining_gates`.
 
 ## How to Run
-`./.auto/measure.sh` outputs structured metrics. `.auto/checks.sh` runs repository correctness checks after a passing measurement.
+`./.auto/measure.sh`; correctness checks run automatically from `.auto/checks.sh`.
 
 ## Files in Scope
-- `docs/decisions/`, `docs/architecture/`, `docs/roadmap/`: decisions, canonical semantics, readiness evidence.
-- `packages/{inventory,accounting,sales,process,integrations,party,kernel}/`: owner-local public contracts and implementations.
-- `db/schema/`, `db/migrations/`, `db/ownership.toml`: owned persistence and constraints.
-- `tests/`, package tests, capability catalog tooling: executable proof.
-- `.auto/`: experiment state only.
+- `packages/{messaging,catalog,inventory,accounting,sales,process,kernel}/`
+- `db/schema/`, `db/migrations/`, `db/ownership.toml`
+- affected apps/tests and canonical docs/ADRs/roadmaps
+- `.auto/`
 
 ## Off Limits
-- `vendor/` and `node_modules/` (reference-only).
-- Production deployment, secrets, destructive migration execution.
-- Visual Process Studio/runtime expansion beyond primitive/catalog prerequisites.
-- Speculative localization, manufacturing, payroll, valuation, lot/serial, multiple-currency, or tax rules not required by the selected baseline.
+- PgQue activation, external connectors, Process IR/runtime/designer, production deployment, secrets.
+- Rewriting applied migrations or accepted ADR history.
+- Claiming exactly-once external delivery.
 
 ## Constraints
-- Accepted superseding ADRs win; do not rewrite accepted ADR history.
-- Read `docs/documentation-boundaries.md` before documentation edits.
-- Effect v4 changes must consult the vendored `vendor/effect-smol` source.
-- Drizzle changes must use repository schema/migration workflow; no raw SQL in domains.
-- No cross-domain private imports or direct table writes.
-- Preserve tenant/legal-entity isolation, authorization, typed failures, idempotency, concurrency, audit, and correction semantics.
-- Use `@effect/vitest`; no `Deno.test`, direct `vitest`, or runtime runners in tests.
-- Do not improve the metric by weakening gates, deleting tests, or merely relabeling roadmap state without executable evidence.
+- Domains publish only their own event declarations through a transaction-aware public messaging port.
+- Messaging owns envelope/delivery/receipt infrastructure, not business meaning.
+- PostgreSQL-local consumer effect and completed receipt share one transaction.
+- Event identity is `(eventType,eventVersion)`; command ID, correlation ID, causation ID, and idempotency key remain distinct.
+- Preserve public Effect Schema, authorization, tenant scope, idempotency, rollback, and package acyclicity.
+- No direct cross-domain table imports/writes; no raw SQL in domain implementations.
+- Do not weaken tests or gates to improve metrics.
 
-## Acceptance Gates
-1. Reconcile canonical docs and the process coordinator with accepted ADR-0033.
-2. Explicitly close P0 with existing executable evidence and deployment prerequisites.
-3. Decide P1 baseline (product/service, UOM, quantity, location, negative stock, corrections, valuation/traceability scope).
-4. Implement P1 typed units and correction/concurrency proof.
-5. Decide P2 document/obligation ownership and money/fiscal baseline.
-6. Implement P2 legal-entity financial scope, period/posting rules, reversal/manual recovery proof.
-7. Decide P3 audit/event/outbox/retention boundary.
-8. Implement typed versioned action/event catalog entries for at least two domains with compatibility tests.
-9. Implement P3 audit/correlation and atomic publication/idempotent-consumer proof for selected facts.
-10. Reconcile roadmap/domain maturity status and pass required repository validation.
+## Readiness Gates
+1. Messaging package/schema owns the current outbox contract and transaction-aware append service.
+2. Process lifecycle event is Process-owned and carries distinct command/correlation/causation/idempotency metadata through Messaging.
+3. Inventory stock-corrected event is PUBLIC and atomically emitted by `adjustStock`.
+4. Accounting revenue-posted event is PUBLIC and atomically emitted by `postRevenueForOrder`.
+5. Durable completed consumer receipts suppress duplicate PostgreSQL-local effects and roll back with failed effects.
+6. ADR-0033 cancellation and fulfillment commands coordinate Sales, Inventory, Accounting, events, jobs, idempotency, and invalid states.
+7. P3/domain maturity/roadmap evidence is reconciled and the full repository validation portfolio passes.
 
 ## What's Been Tried
-- Initial repository assessment found P0 substantially implemented, P1-P3 partial, stale roadmap statements about periods/process, and `packages/process` still using the superseded caller-supplied order-confirmation payload despite ADR-0033.
-- Start by reconciling ADR-0033 and documentation drift, then close each dependency gate in order.
+- Initial P0-P3 portfolio reached 10/10 acceptance gates.
+- ADR-0037 and catalog contracts exist, but Inventory and Accounting events remain EXPERIMENTAL because owner publication is absent.
+- The old coordinator event was renamed `process.order_confirmation.completed`; it still uses the legacy Process-owned outbox and conflates correlation with idempotency.
+- ADR-0033 confirmation is implemented, but cancellation and fulfillment remain missing.
