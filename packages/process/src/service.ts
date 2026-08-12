@@ -404,6 +404,9 @@ export const makeProcessService = Effect.gen(function* () {
             legalEntityId: decoded.legalEntityId,
             orderId: order.id,
             amount: order.total,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
           })
 
           const event = yield* messaging.append({

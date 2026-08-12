@@ -87,7 +87,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             makeInventoryService,
             Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const accounting = yield* Effect.provide(
+            makeAccountingService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -215,7 +218,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(result.order.total, "125.00")
           assert.strictEqual(result.journal.lines[0]?.debit, "125.00")
           assert.strictEqual(counts.workflow_runs, "1")
-          assert.strictEqual(counts.events, "1")
+          assert.strictEqual(counts.events, "2")
           assert.strictEqual(counts.jobs, "1")
           const [event] = yield* Effect.promise(() =>
             client<{
@@ -344,7 +347,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             makeInventoryService,
             Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const accounting = yield* Effect.provide(
+            makeAccountingService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -456,7 +462,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             makeInventoryService,
             Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const accounting = yield* Effect.provide(
+            makeAccountingService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(

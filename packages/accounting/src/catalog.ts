@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import { AuthorizationDenied } from "../../authorization/mod.ts"
 import { defineActionCatalogEntry, defineEventCatalogEntry } from "../../catalog/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
+import { EventIdempotencyConflict } from "../../messaging/mod.ts"
 import { AccountingCapabilities } from "./capabilities.ts"
 import {
   AccountingPeriodNotOpen,
@@ -31,6 +32,7 @@ export const AccountingPostRevenueAction = defineActionCatalogEntry({
   outputSchema: JournalEntry,
   errorSchemas: [
     AccountingPeriodNotOpen,
+    EventIdempotencyConflict,
     JournalIdempotencyConflict,
     RevenuePostingProfileNotFound,
     AuthorizationDenied,
@@ -52,7 +54,7 @@ export const AccountingRevenuePostedEvent = defineEventCatalogEntry({
   owningDomain: "accounting",
   title: "Revenue posted",
   description: "Revenue was posted by its owning Accounting transaction.",
-  stability: "EXPERIMENTAL",
+  stability: "PUBLIC",
   compatibilityRange: { minimumVersion: 1, maximumVersion: 1 },
   payloadSchema: RevenuePostedEventPayload,
   scope: ["tenant"],

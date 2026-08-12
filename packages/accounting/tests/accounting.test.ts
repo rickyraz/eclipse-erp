@@ -3,6 +3,12 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { DatabaseFailure } from "../../kernel/mod.ts"
+import {
+  type EventEnvelope,
+  makeMessagingTestLayer,
+  MessagingService,
+} from "../../messaging/mod.ts"
 import {
   AccountingConfigurationAlreadyExists,
   AccountingPeriodNotOpen,
@@ -13,7 +19,12 @@ import {
 } from "../mod.ts"
 
 const principal = { userAccountId: "accountant", sessionId: "session" }
-const tenantId = "tenant-a"
+const tenantId = "00000000-0000-4000-8000-000000000001"
+const revenueMetadata = {
+  commandId: "revenue-command-1",
+  correlationId: "revenue-correlation-1",
+  causationId: null,
+} as const
 const capabilities = [
   "accounting.legal_entity.configure",
   "accounting.account.create",
@@ -28,11 +39,12 @@ const capabilities = [
 const withAccounting = <A, E>(
   program: Effect.Effect<A, E, AccountingService>,
   grantedCapabilities: readonly string[] = capabilities,
+  messaging = makeMessagingTestLayer(),
 ) =>
   Effect.provide(
     program,
     makeAccountingTestLayer().pipe(
-      Layer.provide(
+      Layer.provide(Layer.merge(
         makeAuthorizationTestLayer(
           grantedCapabilities.map((capability) => ({
             userAccountId: principal.userAccountId,
@@ -40,9 +52,41 @@ const withAccounting = <A, E>(
             capability: capability as (typeof capabilities)[number],
           })),
         ),
-      ),
+        messaging,
+      )),
     ),
   )
+
+const makeRecordingMessagingLayer = (events: EventEnvelope[]) =>
+  Layer.effect(
+    MessagingService,
+    Effect.map(MessagingService, (messaging) => ({
+      ...messaging,
+      append: (input: unknown) =>
+        messaging.append(input).pipe(
+          Effect.tap((event) => Effect.sync(() => events.push(event))),
+        ),
+    })),
+  ).pipe(Layer.provide(makeMessagingTestLayer()))
+
+const makeFailOnceMessagingLayer = () => {
+  let fail = true
+  return Layer.effect(
+    MessagingService,
+    Effect.map(MessagingService, (messaging) => ({
+      ...messaging,
+      append: (input: unknown) => {
+        if (fail) {
+          fail = false
+          return Effect.fail(
+            new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
+          )
+        }
+        return messaging.append(input)
+      },
+    })),
+  ).pipe(Layer.provide(makeMessagingTestLayer()))
+}
 
 const prepareRevenuePosting = Effect.gen(function* () {
   const accounting = yield* AccountingService
@@ -209,6 +253,7 @@ describe("accounting contract", () => {
         legalEntityId: "legal-entity-a",
         orderId: "order-open",
         amount: "125.00",
+        ...revenueMetadata,
       })
       assert.strictEqual(journal.status, "posted")
       assert.deepStrictEqual(journal.lines.map(({ debit, credit }) => ({ debit, credit })), [
@@ -233,6 +278,7 @@ describe("accounting contract", () => {
           legalEntityId: "legal-entity-a",
           orderId: "order-closed",
           amount: "125.00",
+          ...revenueMetadata,
         })),
         AccountingPeriodNotOpen,
       )
@@ -247,6 +293,7 @@ describe("accounting contract", () => {
         legalEntityId: "legal-entity-a",
         orderId: "order-reverse",
         amount: "125.00",
+        ...revenueMetadata,
       })
       const reversal = yield* accounting.reverseRevenueForOrder({
         principal,
@@ -263,6 +310,90 @@ describe("accounting contract", () => {
       assert.strictEqual(reversal.reversesEntryId, posted.id)
       assert.strictEqual(repeated.id, reversal.id)
     })))
+
+  it.effect("revenue posted atomic publication preserves metadata and one event on replay", () => {
+    const events: EventEnvelope[] = []
+    return withAccounting(
+      Effect.gen(function* () {
+        const { accounting } = yield* prepareRevenuePosting
+        const input = {
+          principal,
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          orderId: "revenue-order-idempotency",
+          amount: "125.00",
+          commandId: "revenue-post-command",
+          correlationId: "revenue-post-correlation",
+          causationId: "order-confirmed-event",
+        }
+        const journal = yield* accounting.postRevenueForOrder(input)
+        const replay = yield* accounting.postRevenueForOrder({
+          ...input,
+          commandId: "revenue-post-retry-command",
+          correlationId: "revenue-post-retry-correlation",
+        })
+
+        assert.strictEqual(replay.id, journal.id)
+        assert.strictEqual(events.length, 1)
+        assert.deepStrictEqual(events[0], {
+          eventId: journal.id,
+          eventType: "accounting.revenue.posted",
+          eventVersion: 1,
+          tenantId,
+          aggregateType: "journal_entry",
+          aggregateId: journal.id,
+          commandId: input.commandId,
+          correlationId: input.correlationId,
+          causationId: input.causationId,
+          idempotencyKey: input.orderId,
+          actorPrincipalId: principal.userAccountId,
+          occurredAt: journal.postedAt,
+          payload: {
+            journalId: journal.id,
+            legalEntityId: input.legalEntityId,
+            orderId: input.orderId,
+          },
+          publishedAt: null,
+          attempts: 0,
+        })
+        assert.strictEqual(
+          new Set([
+            events[0]!.commandId,
+            events[0]!.correlationId,
+            events[0]!.causationId,
+            events[0]!.idempotencyKey,
+          ]).size,
+          4,
+        )
+      }),
+      capabilities,
+      makeRecordingMessagingLayer(events),
+    )
+  })
+
+  it.effect("revenue posted atomic publication rolls back when messaging append fails", () =>
+    withAccounting(
+      Effect.gen(function* () {
+        const { accounting } = yield* prepareRevenuePosting
+        const input = {
+          principal,
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          orderId: "revenue-order-rollback",
+          amount: "125.00",
+          ...revenueMetadata,
+        }
+
+        assert.instanceOf(
+          yield* Effect.flip(accounting.postRevenueForOrder(input)),
+          DatabaseFailure,
+        )
+        const journal = yield* accounting.postRevenueForOrder(input)
+        assert.strictEqual(journal.status, "posted")
+      }),
+      capabilities,
+      makeFailOnceMessagingLayer(),
+    ))
 
   it.effect("rejects an unbalanced journal", () =>
     withAccounting(Effect.gen(function* () {

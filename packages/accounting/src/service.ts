@@ -18,7 +18,9 @@ import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import { AccountingCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 
+const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
 const Precision = Schema.Literal(2)
@@ -130,6 +132,9 @@ export const PostRevenueForOrderInput = Schema.Struct({
   legalEntityId: Schema.String,
   orderId: Schema.String,
   amount: Money,
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.optionalKey(Schema.NullOr(NonEmptyString)),
 })
 
 export const ReverseRevenueForOrderInput = Schema.Struct({
@@ -257,6 +262,7 @@ export interface AccountingService {
   ) => Effect.Effect<
     JournalEntry,
     | AccountingPeriodNotOpen
+    | EventIdempotencyConflict
     | JournalIdempotencyConflict
     | RevenuePostingProfileNotFound
     | CommonFailure
@@ -335,6 +341,7 @@ const validateLines = (lines: readonly JournalLine[]) => {
 export const makeAccountingService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
+  const messaging = yield* MessagingService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
@@ -573,6 +580,9 @@ export const makeAccountingService = Effect.gen(function* () {
           capability: AccountingCapabilities.revenuePost,
         })
         const reference = revenueReference(decoded.legalEntityId, decoded.orderId)
+        const commandId = decoded.commandId.trim()
+        const correlationId = decoded.correlationId.trim()
+        const causationId = decoded.causationId?.trim() ?? null
         const existing = yield* database.query(
           (db) =>
             db.select(journalEntrySelection).from(journalEntries).where(and(
@@ -609,63 +619,92 @@ export const makeAccountingService = Effect.gen(function* () {
             })),
           }
         }
-        const journal = yield* database.transaction(
-          async (tx) => {
-            const profile = (await tx.select().from(revenuePostingProfiles).where(and(
-              eq(revenuePostingProfiles.tenantId, decoded.tenantId),
-              eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
-            )).for("update"))[0]
-            if (profile === undefined) return { _tag: "profile-missing" as const }
-            const configuration = (await tx.select({
-              postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
-            })
-              .from(legalEntityAccountingConfigurations).where(and(
-                eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
-                eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
-              )).for("update"))[0]
-            if (configuration?.postingEnabled !== true) return { _tag: "period-closed" as const }
-            const currentPeriod =
-              (await tx.select({ id: accountingPeriods.id }).from(accountingPeriods).where(and(
-                eq(accountingPeriods.tenantId, decoded.tenantId),
-                eq(accountingPeriods.legalEntityId, decoded.legalEntityId),
-                eq(accountingPeriods.status, "open"),
-                lte(accountingPeriods.startsOn, utcDate(clock)),
-                gte(accountingPeriods.endsOn, utcDate(clock)),
-              )).for("update"))[0]
-            if (currentPeriod === undefined) return { _tag: "period-closed" as const }
-            const entry = (await tx.insert(journalEntries).values({
-              tenantId: decoded.tenantId,
-              reference,
-            }).returning({ id: journalEntries.id }))[0]!
-            const lines: readonly JournalLine[] = [
-              { accountId: profile.receivableAccountId, debit: decoded.amount, credit: "0" },
-              { accountId: profile.revenueAccountId, debit: "0", credit: decoded.amount },
-            ]
-            await tx.insert(journalLines).values(lines.map((line) => ({
-              tenantId: decoded.tenantId,
-              entryId: entry.id,
-              ...line,
-            })))
-            const postedAt = now()
-            const posted = (await tx.update(journalEntries).set({
-              status: "posted",
-              postedAt,
-              updatedAt: postedAt,
-            })
-              .where(eq(journalEntries.id, entry.id)).returning(journalEntrySelection))[0]!
-            return {
-              _tag: "posted" as const,
-              journal: {
-                id: posted.id,
-                tenantId: posted.tenantId,
-                reference: posted.reference,
-                status: "posted" as const,
-                postedAt: posted.postedAt!.toISOString(),
-                lines,
+        const journal = yield* database.withTransaction(
+          Effect.gen(function* () {
+            const mutation = yield* database.transaction(
+              async (tx) => {
+                const profile = (await tx.select().from(revenuePostingProfiles).where(and(
+                  eq(revenuePostingProfiles.tenantId, decoded.tenantId),
+                  eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
+                )).for("update"))[0]
+                if (profile === undefined) return { _tag: "profile-missing" as const }
+                const configuration = (await tx.select({
+                  postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
+                })
+                  .from(legalEntityAccountingConfigurations).where(and(
+                    eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                    eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                  )).for("update"))[0]
+                if (configuration?.postingEnabled !== true) {
+                  return { _tag: "period-closed" as const }
+                }
+                const currentPeriod =
+                  (await tx.select({ id: accountingPeriods.id }).from(accountingPeriods).where(and(
+                    eq(accountingPeriods.tenantId, decoded.tenantId),
+                    eq(accountingPeriods.legalEntityId, decoded.legalEntityId),
+                    eq(accountingPeriods.status, "open"),
+                    lte(accountingPeriods.startsOn, utcDate(clock)),
+                    gte(accountingPeriods.endsOn, utcDate(clock)),
+                  )).for("update"))[0]
+                if (currentPeriod === undefined) return { _tag: "period-closed" as const }
+                const entry = (await tx.insert(journalEntries).values({
+                  tenantId: decoded.tenantId,
+                  reference,
+                }).returning({ id: journalEntries.id }))[0]!
+                const lines: readonly JournalLine[] = [
+                  { accountId: profile.receivableAccountId, debit: decoded.amount, credit: "0" },
+                  { accountId: profile.revenueAccountId, debit: "0", credit: decoded.amount },
+                ]
+                await tx.insert(journalLines).values(lines.map((line) => ({
+                  tenantId: decoded.tenantId,
+                  entryId: entry.id,
+                  ...line,
+                })))
+                const postedAt = now()
+                const posted = (await tx.update(journalEntries).set({
+                  status: "posted",
+                  postedAt,
+                  updatedAt: postedAt,
+                })
+                  .where(eq(journalEntries.id, entry.id)).returning(journalEntrySelection))[0]!
+                return {
+                  _tag: "posted" as const,
+                  journal: {
+                    id: posted.id,
+                    tenantId: posted.tenantId,
+                    reference: posted.reference,
+                    status: "posted" as const,
+                    postedAt: posted.postedAt!.toISOString(),
+                    lines,
+                  },
+                }
               },
+              "accounting.revenue.post",
+            )
+            if (mutation._tag === "posted") {
+              yield* messaging.append({
+                eventId: mutation.journal.id,
+                eventType: "accounting.revenue.posted",
+                eventVersion: 1,
+                tenantId: decoded.tenantId,
+                aggregateType: "journal_entry",
+                aggregateId: mutation.journal.id,
+                commandId,
+                correlationId,
+                causationId,
+                idempotencyKey: decoded.orderId,
+                actorPrincipalId: decoded.principal.userAccountId,
+                occurredAt: mutation.journal.postedAt,
+                payload: {
+                  journalId: mutation.journal.id,
+                  legalEntityId: decoded.legalEntityId,
+                  orderId: decoded.orderId,
+                },
+              })
             }
-          },
-          "accounting.revenue.post",
+            return mutation
+          }),
+          "accounting.revenue.post.atomic",
         ).pipe(Effect.mapError((error) =>
           isDatabaseConstraint(error, "journal_entries_reference_key")
             ? new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference })
@@ -1019,6 +1058,7 @@ export const makeAccountingTestLayer = () =>
     AccountingService,
     Effect.gen(function* () {
       const authorization = yield* AuthorizationService
+      const messaging = yield* MessagingService
       const clock = yield* Clock.Clock
       const configurations = new Map<string, AccountingConfiguration>()
       const profiles = new Map<string, RevenuePostingProfile>()
@@ -1191,6 +1231,9 @@ export const makeAccountingTestLayer = () =>
               capability: AccountingCapabilities.revenuePost,
             })
             const reference = revenueReference(decoded.legalEntityId, decoded.orderId)
+            const commandId = decoded.commandId.trim()
+            const correlationId = decoded.correlationId.trim()
+            const causationId = decoded.causationId?.trim() ?? null
             const existing = storedJournals.get(`${decoded.tenantId}:${reference}`)
             if (existing !== undefined) {
               if (existing.lines[0]?.debit !== decoded.amount) {
@@ -1227,7 +1270,7 @@ export const makeAccountingTestLayer = () =>
               )
             }
             const journal: JournalEntry = {
-              id: nextId(),
+              id: crypto.randomUUID(),
               tenantId: decoded.tenantId,
               reference,
               status: "posted",
@@ -1237,6 +1280,25 @@ export const makeAccountingTestLayer = () =>
                 { accountId: profile.revenueAccountId, debit: "0", credit: decoded.amount },
               ],
             }
+            yield* messaging.append({
+              eventId: journal.id,
+              eventType: "accounting.revenue.posted",
+              eventVersion: 1,
+              tenantId: decoded.tenantId,
+              aggregateType: "journal_entry",
+              aggregateId: journal.id,
+              commandId,
+              correlationId,
+              causationId,
+              idempotencyKey: decoded.orderId,
+              actorPrincipalId: decoded.principal.userAccountId,
+              occurredAt: journal.postedAt,
+              payload: {
+                journalId: journal.id,
+                legalEntityId: decoded.legalEntityId,
+                orderId: decoded.orderId,
+              },
+            })
             storedJournals.set(`${decoded.tenantId}:${reference}`, journal)
             return journal
           }),

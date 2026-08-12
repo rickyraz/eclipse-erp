@@ -5,7 +5,8 @@ import * as Result from "effect/Result"
 
 import { AccountingCapabilities, AccountingPeriodNotOpen, makeAccountingService } from "../mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -114,6 +115,198 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "revenue posted atomic publication preserves metadata, replay, and rollback",
+  () =>
+    withTemporaryDatabase(
+      databaseUrl!,
+      (client) =>
+        Effect.gen(function* () {
+          yield* runMigrations(client)
+          const database = makePostgresDatabase(client)
+          const [tenant] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+            `
+          )
+          const [organization] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.parties (tenant_id, kind, name)
+              values (${tenant!.id}, 'organization', 'Atomic Revenue Organization') returning id
+            `
+          )
+          const [legalEntity] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.legal_entities (tenant_id, organization_party_id)
+              values (${tenant!.id}, ${organization!.id}) returning id
+            `
+          )
+          const accounts = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounts (tenant_id, code, name, type)
+              values
+                (${tenant!.id}, 'ATOMIC-RECEIVABLE', 'Receivable', 'asset'),
+                (${tenant!.id}, 'ATOMIC-REVENUE', 'Revenue', 'revenue')
+              returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.legal_entity_accounting_configurations
+                (tenant_id, legal_entity_id, base_currency, decimal_precision,
+                 fiscal_year_start_month, posting_enabled)
+              values (${tenant!.id}, ${legalEntity!.id}, 'USD', 2, 1, true)
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.revenue_posting_profiles
+                (tenant_id, legal_entity_id, receivable_account_id, revenue_account_id)
+              values (${tenant!.id}, ${legalEntity!.id}, ${accounts[0]!.id}, ${accounts[1]!.id})
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on)
+              values (${tenant!.id}, ${legalEntity!.id}, '1900-01-01', '2100-12-31')
+            `
+          )
+          const principal = { userAccountId: "accounting-atomic", sessionId: "session" }
+          const authorizationLayer = makeAuthorizationTestLayer([{
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+            capability: AccountingCapabilities.revenuePost,
+          }])
+
+          yield* Effect.gen(function* () {
+            const authorization = yield* AuthorizationService
+            const messaging = yield* makeMessagingService.pipe(
+              Effect.provideService(Database, database),
+            )
+            const requirements = Layer.mergeAll(
+              Layer.succeed(Database, database),
+              Layer.succeed(AuthorizationService, authorization),
+              Layer.succeed(MessagingService, messaging),
+            )
+            const accounting = yield* Effect.provide(makeAccountingService, requirements)
+            const input = {
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              orderId: "revenue-order-atomic",
+              amount: "10.00",
+              commandId: "revenue-command-atomic",
+              correlationId: "revenue-correlation-atomic",
+              causationId: "order-confirmed-atomic",
+            }
+            const journal = yield* accounting.postRevenueForOrder(input)
+            const replay = yield* accounting.postRevenueForOrder({
+              ...input,
+              commandId: "revenue-command-retry",
+              correlationId: "revenue-correlation-retry",
+            })
+            assert.strictEqual(replay.id, journal.id)
+
+            const events = yield* Effect.promise(() =>
+              client<{
+                id: string
+                event_type: string
+                event_version: number
+                aggregate_type: string
+                aggregate_id: string
+                command_id: string
+                correlation_id: string
+                causation_id: string | null
+                idempotency_key: string
+                actor_principal_id: string
+                occurred_at: string
+                payload: unknown
+              }[]>`
+                select id, event_type, event_version, aggregate_type, aggregate_id,
+                  command_id, correlation_id, causation_id, idempotency_key,
+                  actor_principal_id, occurred_at, payload
+                from messaging.event_outbox
+                where tenant_id = ${tenant!.id} and event_type = 'accounting.revenue.posted'
+              `
+            )
+            assert.strictEqual(events.length, 1)
+            assert.deepStrictEqual(events[0], {
+              id: journal.id,
+              event_type: "accounting.revenue.posted",
+              event_version: 1,
+              aggregate_type: "journal_entry",
+              aggregate_id: journal.id,
+              command_id: input.commandId,
+              correlation_id: input.correlationId,
+              causation_id: input.causationId,
+              idempotency_key: input.orderId,
+              actor_principal_id: principal.userAccountId,
+              occurred_at: events[0]!.occurred_at,
+              payload: {
+                journalId: journal.id,
+                legalEntityId: legalEntity!.id,
+                orderId: input.orderId,
+              },
+            })
+            assert.strictEqual(
+              new Set([
+                events[0]!.command_id,
+                events[0]!.correlation_id,
+                events[0]!.causation_id,
+                events[0]!.idempotency_key,
+              ]).size,
+              4,
+            )
+
+            const failingAccounting = yield* Effect.provide(
+              makeAccountingService,
+              Layer.mergeAll(
+                Layer.succeed(Database, database),
+                Layer.succeed(AuthorizationService, authorization),
+                Layer.succeed(MessagingService, {
+                  ...messaging,
+                  append: () =>
+                    Effect.fail(
+                      new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
+                    ),
+                }),
+              ),
+            )
+            assert.instanceOf(
+              yield* Effect.flip(failingAccounting.postRevenueForOrder({
+                ...input,
+                orderId: "revenue-order-rollback",
+                commandId: "revenue-command-rollback",
+                correlationId: "revenue-correlation-rollback",
+              })),
+              DatabaseFailure,
+            )
+            const [rolledBack] = yield* Effect.promise(() =>
+              client<{ journals: string; lines: string; events: string }[]>`
+                select
+                  (select count(*)::text from accounting.journal_entries
+                    where tenant_id = ${tenant!.id}
+                      and reference = ${`revenue:${
+                legalEntity!.id
+              }:revenue-order-rollback`}) as journals,
+                  (select count(*)::text from accounting.journal_lines l
+                    join accounting.journal_entries j on j.id = l.entry_id
+                    where j.tenant_id = ${tenant!.id}
+                      and j.reference = ${`revenue:${
+                legalEntity!.id
+              }:revenue-order-rollback`}) as lines,
+                  (select count(*)::text from messaging.event_outbox
+                    where tenant_id = ${tenant!.id}
+                      and idempotency_key = 'revenue-order-rollback') as events
+              `
+            )
+            assert.deepStrictEqual(rolledBack, { journals: "0", lines: "0", events: "0" })
+          }).pipe(Effect.provide(authorizationLayer))
+        }),
+    ),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "serializes period close with revenue posting and rejects later closed period posting",
   () =>
     withTemporaryDatabase(
@@ -184,11 +377,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
           yield* Effect.gen(function* () {
             const authorization = yield* AuthorizationService
+            const messaging = yield* makeMessagingService.pipe(
+              Effect.provideService(Database, database),
+            )
             const accounting = yield* Effect.provide(
               makeAccountingService,
-              Layer.merge(
+              Layer.mergeAll(
                 Layer.succeed(Database, database),
                 Layer.succeed(AuthorizationService, authorization),
+                Layer.succeed(MessagingService, messaging),
               ),
             )
             const [closeResult, postResult] = yield* Effect.all([
@@ -204,6 +401,9 @@ it.effect.skipIf(databaseUrl === undefined)(
                 legalEntityId: legalEntity!.id,
                 orderId: "concurrent-order",
                 amount: "10.00",
+                commandId: "concurrent-command",
+                correlationId: "concurrent-correlation",
+                causationId: null,
               }).pipe(Effect.result),
             ], { concurrency: "unbounded" })
 
@@ -220,6 +420,9 @@ it.effect.skipIf(databaseUrl === undefined)(
                 legalEntityId: legalEntity!.id,
                 orderId: "after-close",
                 amount: "10.00",
+                commandId: "after-close-command",
+                correlationId: "after-close-correlation",
+                causationId: null,
               })),
               AccountingPeriodNotOpen,
             )

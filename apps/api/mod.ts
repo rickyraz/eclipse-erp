@@ -60,7 +60,7 @@ const serviceLayers = (client: Sql) => {
   )
 
   const accounting = Layer.effect(AccountingService, makeAccountingService).pipe(
-    Layer.provide(businessRequirements),
+    Layer.provide(Layer.merge(businessRequirements, messaging)),
   )
 
   const process = Layer.effect(ProcessService, makeProcessService).pipe(

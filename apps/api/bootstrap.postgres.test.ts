@@ -45,12 +45,13 @@ it.effect.skipIf(databaseUrl === undefined)(
           ),
         )
         const party = yield* Effect.provide(makePartyService, businessRequirements)
-        const accounting = yield* Effect.provide(makeAccountingService, businessRequirements)
         const messaging = yield* Effect.provide(makeMessagingService, databaseLayer)
-        const inventory = yield* Effect.provide(
-          makeInventoryService,
-          Layer.merge(businessRequirements, Layer.succeed(MessagingService, messaging)),
+        const messagingRequirements = Layer.merge(
+          businessRequirements,
+          Layer.succeed(MessagingService, messaging),
         )
+        const accounting = yield* Effect.provide(makeAccountingService, messagingRequirements)
+        const inventory = yield* Effect.provide(makeInventoryService, messagingRequirements)
         const services = Layer.mergeAll(
           Layer.succeed(AuthService, auth),
           authorizationLayer,

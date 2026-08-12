@@ -63,6 +63,7 @@ describe("catalog compatibility", () => {
       assert.strictEqual(AccountingPostRevenueAction.outputSchema, JournalEntry)
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
       assert.strictEqual(AccountingRevenuePostedEvent.payloadSchema, RevenuePostedEventPayload)
+      assert.strictEqual(AccountingRevenuePostedEvent.stability, "PUBLIC")
 
       const principal = { userAccountId: "user-1", sessionId: "session-1" }
 
@@ -101,6 +102,9 @@ describe("catalog compatibility", () => {
         legalEntityId: "legal-entity-1",
         orderId: "order-1",
         amount: "10.00",
+        commandId: "command-1",
+        correlationId: "correlation-1",
+        causationId: null,
       })
       yield* Schema.decodeUnknownEffect(AccountingPostRevenueAction.outputSchema)({
         id: "journal-1",
