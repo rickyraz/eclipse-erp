@@ -32,7 +32,7 @@ it.effect("appends idempotently and rejects a mismatched envelope", () =>
     assert.instanceOf(failure, EventIdempotencyConflict)
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
-it.effect("suppresses a duplicate consumer effect", () =>
+it.effect("suppresses a duplicate event consumer effect with one consumer receipt", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
     const input = {
@@ -55,7 +55,7 @@ it.effect("suppresses a duplicate consumer effect", () =>
     assert.strictEqual(executions, 1)
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
-it.effect("does not complete a receipt when the consumer effect fails", () =>
+it.effect("rolls back the consumer receipt when the consumer effect fails", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
     const input = {

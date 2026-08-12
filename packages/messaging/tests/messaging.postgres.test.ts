@@ -57,7 +57,7 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "suppresses duplicate effects and rolls back failed effects with their receipts",
+  "suppresses a duplicate event and rolls back the consumer receipt with failed effects",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
