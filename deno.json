@@ -37,6 +37,9 @@
       "deno.json",
       "sgconfig.yml"
     ],
+    "exclude": [
+      "db/migrations/**/snapshot.json"
+    ],
     "useTabs": false,
     "lineWidth": 100,
     "semiColons": false,

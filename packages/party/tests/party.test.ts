@@ -6,18 +6,18 @@ import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authoriza
 import {
   BranchAlreadyExists,
   ExternalIdentifierAlreadyAssigned,
-  PartyRepresentationAlreadyExists,
-  PartyRepresentationUserAccountNotFound,
-  PartyRepresentationNotFound,
   LegalEntityAlreadyExists,
   LegalEntityNotFound,
   makePartyTestLayer,
   OrganizationRequired,
+  PartyCapabilities,
   PartyRelationshipAlreadyExists,
   PartyRelationshipRoleNotAssigned,
+  PartyRepresentationAlreadyExists,
+  PartyRepresentationNotFound,
+  PartyRepresentationUserAccountNotFound,
   PartyRoleAlreadyAssigned,
   PartyService,
-  PartyCapabilities,
 } from "../mod.ts"
 
 const principal = { userAccountId: "party-admin", sessionId: "session" }
@@ -35,7 +35,11 @@ const capabilities = [
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
-  capabilities.map((capability) => ({ userAccountId: principal.userAccountId, tenantId, capability })),
+  capabilities.map((capability) => ({
+    userAccountId: principal.userAccountId,
+    tenantId,
+    capability,
+  })),
 )
 
 const withParty = <A, E>(program: Effect.Effect<A, E, PartyService>) =>
@@ -100,7 +104,11 @@ describe("party contract", () => {
 
   it.effect("creates and deactivates an identity-party representation", () => {
     const authorization = makeAuthorizationTestLayer([
-      { userAccountId: principal.userAccountId, tenantId, capability: PartyCapabilities.partyCreate },
+      {
+        userAccountId: principal.userAccountId,
+        tenantId,
+        capability: PartyCapabilities.partyCreate,
+      },
       {
         userAccountId: principal.userAccountId,
         tenantId,
@@ -164,7 +172,7 @@ describe("party contract", () => {
           PartyRepresentationUserAccountNotFound,
         )
       }),
-      makePartyTestLayer(new Set(["user-account-1"])).pipe(Layer.provide(authorization))
+      makePartyTestLayer(new Set(["user-account-1"])).pipe(Layer.provide(authorization)),
     )
   })
 
@@ -348,7 +356,11 @@ describe("party contract", () => {
 
   it.effect("denies legal entity creation without its capability", () => {
     const authorization = makeAuthorizationTestLayer([
-      { userAccountId: principal.userAccountId, tenantId, capability: PartyCapabilities.partyCreate },
+      {
+        userAccountId: principal.userAccountId,
+        tenantId,
+        capability: PartyCapabilities.partyCreate,
+      },
     ])
     return Effect.provide(
       Effect.gen(function* () {
@@ -374,7 +386,11 @@ describe("party contract", () => {
 
   it.effect("denies relationship creation without its capability", () => {
     const authorization = makeAuthorizationTestLayer([
-      { userAccountId: principal.userAccountId, tenantId, capability: PartyCapabilities.partyCreate },
+      {
+        userAccountId: principal.userAccountId,
+        tenantId,
+        capability: PartyCapabilities.partyCreate,
+      },
       {
         userAccountId: principal.userAccountId,
         tenantId,

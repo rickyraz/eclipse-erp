@@ -50,7 +50,7 @@ contract and database tests
 | `identity` | identity domain | `PARTIAL` | clarify identity lifecycle and external identity boundaries |
 | `party` | party and party relationships | `PARTIAL` | mature customer/supplier/employee roles and relationship contracts |
 | `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope |
-| `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.post` v1 is a Level 3 slice | Keep generic journals and period actions out of Process Studio; AP/AR, payment, tax, and settlement remain out of scope |
+| `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.posted` v1 is a PUBLIC event contributor | Keep revenue posting out of the action catalog until amount provenance is owner-verifiable; generic journals, AP/AR, payment, tax, and settlement remain out of scope |
 | `sales` | customers, quotations, sales orders | `PARTIAL` | decide fulfillment, invoicing, credit policy, and customer-facing events |
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
@@ -202,7 +202,8 @@ existing domain.
 
 ## Current Level 3 Evidence
 
-The bounded internal catalog currently has two Level 3 capability slices:
+The bounded internal catalog currently has one Level 3 action slice and a second domain-owned event
+contributor:
 
 ```text
 inventory.stock.adjust v1
@@ -210,15 +211,15 @@ inventory.stock.adjust v1
   -> owner-controlled atomic publication
   -> idempotent correction and rollback proofs
 
-accounting.revenue.post v1
-  -> PUBLIC action + accounting.revenue.posted v1
-  -> owner-controlled atomic publication
+accounting.revenue.posted v1
+  -> PUBLIC event from the owner-controlled revenue transaction
   -> open-period, reversal, idempotency, and rollback proofs
+  -> accounting.revenue.post action remains unreleased until amount provenance is owner-verifiable
 ```
 
-This satisfies the two-domain catalog evidence requirement for bounded internal Process Studio 0.8
-work. It does not make all Inventory or Accounting commands process-safe, activate PgQue, implement
-external connectors, or authorize a broad workflow runtime.
+This is enough to validate the contributor protocol and bounded P3 event path. It does not satisfy
+the two-domain Level 3 action-provider gate, make all Inventory or Accounting commands process-safe,
+activate PgQue, implement external connectors, or authorize a broad workflow runtime.
 
 ## Domain Gate Before Workflow Runtime
 

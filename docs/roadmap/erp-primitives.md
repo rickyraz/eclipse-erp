@@ -85,7 +85,7 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 | Fiscal period and close | Non-overlapping open/closed periods serialize with revenue posting | `READY` (bounded P2 baseline) | Reopen, adjusting periods, arbitrary posting dates, and advanced close remain out of scope |
 | Policy and authorization | Capability catalog and deny-by-default checks cover current actions | `READY` for current actions | Add approval, override, and SoD policy only with new high-risk actions |
 | Audit and correlation | Messaging envelopes preserve actor, Tenant, command, correlation, causation, idempotency, and time | `READY` (bounded P3 baseline) | Deployment retention duration and external-provider audit remain gated operational decisions |
-| Typed actions and events | Inventory and Accounting publish domain-owned PUBLIC v1 actions/events with compatibility tests | `READY` for selected slices | Future Process Studio owns aggregation/release; other actions remain unregistered |
+| Typed actions and events | Inventory publishes a PUBLIC v1 action/event pair; Accounting publishes its owner-controlled PUBLIC revenue event | `READY` for the bounded P3 baseline | Accounting revenue action release remains gated on owner-verifiable amount provenance; future Process Studio owns aggregation/release |
 | Compensation and recovery | Order cancellation releases reservations and reverses revenue; fulfillment and manual recovery are explicit | `READY` (bounded lifecycle) | Returns, credits, and external compensation require later owner decisions |
 
 ## Decision Order

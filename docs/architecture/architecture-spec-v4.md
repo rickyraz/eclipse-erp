@@ -137,6 +137,8 @@ eclipse-erp/
 │   ├── party/
 │   ├── auth/
 │   ├── authorization/
+│   ├── catalog/
+│   ├── messaging/
 │   ├── sales/
 │   ├── procurement/
 │   ├── inventory/

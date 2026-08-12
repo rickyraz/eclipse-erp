@@ -6,9 +6,10 @@
 > static process validation, definition governance, compensation metadata, and the staged Process
 > Studio roadmap.
 >
-> **Implementation status:** The contract-only catalog protocol and two bounded Level 3 domain
-> capability slices are implemented. Process IR, aggregation/release persistence, runtime, and the
-> designer remain planned behind the roadmap gates.
+> **Implementation status:** The contract-only catalog protocol, one bounded Level 3 Inventory
+> action slice, and an Accounting PUBLIC event contributor are implemented. The second Level 3
+> action provider, Process IR, aggregation/release persistence, runtime, and designer remain planned
+> behind the roadmap gates.
 >
 > **Related documents**
 >
@@ -73,7 +74,8 @@ Process Studio never replaces domain ownership or turns a process definition int
 A domain-local lifecycle is owned by the domain that protects its invariant:
 
 ```text
-SalesOrder: Draft -> Confirmed -> Fulfilled -> Cancelled
+SalesOrder: Draft -> Confirmed -> Cancelled
+Order fulfillment: Process coordination -> Inventory reservation fulfilled
 ```
 
 It may use typed policy rules and local transitions without involving Process

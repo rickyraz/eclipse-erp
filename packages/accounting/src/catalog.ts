@@ -1,57 +1,11 @@
 import * as Schema from "effect/Schema"
 
-import { AuthorizationDenied } from "../../authorization/mod.ts"
-import { defineActionCatalogEntry, defineEventCatalogEntry } from "../../catalog/mod.ts"
-import { DatabaseFailure } from "../../kernel/mod.ts"
-import { EventIdempotencyConflict } from "../../messaging/mod.ts"
-import { AccountingCapabilities } from "./capabilities.ts"
-import {
-  AccountingPeriodNotOpen,
-  JournalEntry,
-  JournalIdempotencyConflict,
-  PostRevenueForOrderInput,
-  RevenuePostingProfileNotFound,
-} from "./service.ts"
+import { defineEventCatalogEntry } from "../../catalog/mod.ts"
 
 export const RevenuePostedEventPayload = Schema.Struct({
   journalId: Schema.String,
   legalEntityId: Schema.String,
   orderId: Schema.String,
-})
-
-export const AccountingPostRevenueAction = defineActionCatalogEntry({
-  kind: "DomainAction",
-  id: "accounting.revenue.post",
-  version: 1,
-  owningDomain: "accounting",
-  title: "Post revenue",
-  description: "Post the configured revenue journal for an order.",
-  stability: "PUBLIC",
-  compatibilityRange: { minimumVersion: 1, maximumVersion: 1 },
-  inputSchema: PostRevenueForOrderInput,
-  outputSchema: JournalEntry,
-  errorSchemas: [
-    AccountingPeriodNotOpen,
-    EventIdempotencyConflict,
-    JournalIdempotencyConflict,
-    RevenuePostingProfileNotFound,
-    AuthorizationDenied,
-    DatabaseFailure,
-  ],
-  requiredCapability: AccountingCapabilities.revenuePost,
-  scope: ["tenant"],
-  idempotency: "inherent",
-  transactionSemantics: "local_atomic",
-  timeoutPolicy: { timeoutMs: 30_000 },
-  retryPolicy: { maxAttempts: 3 },
-  preconditions: [
-    "authorized",
-    "idempotency_key_stable",
-    "revenue_profile_configured",
-    "accounting_period_open",
-  ],
-  effects: ["revenue_journal_posted"],
-  compensation: { kind: "none", recovery: "manual" },
 })
 
 export const AccountingRevenuePostedEvent = defineEventCatalogEntry({
@@ -73,5 +27,5 @@ export const AccountingRevenuePostedEvent = defineEventCatalogEntry({
   sensitivity: "business_internal_minimized",
 })
 
-export const AccountingTypedActionCatalog = [AccountingPostRevenueAction] as const
+export const AccountingTypedActionCatalog = [] as const
 export const AccountingTypedEventCatalog = [AccountingRevenuePostedEvent] as const

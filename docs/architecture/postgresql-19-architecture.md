@@ -43,28 +43,28 @@ commands re-enter the command role and transaction path.
 
 ## Domain Ownership
 
-Each domain owns a PostgreSQL schema:
+The implemented schema registry is:
 
 ```text
-identity.*
-auth.*
-authorization.*
-crm.*
-sales.*
-procurement.*
-inventory.*
-accounting.*
-billing.*
-manufacturing.*
-projects.*
-hr.*
-workflow.*
-integration.*
-audit.*
+system.*         -> kernel
+identity.*       -> identity
+party.*          -> party
+auth.*           -> auth
+authorization.*  -> authorization
+sales.*          -> sales
+procurement.*    -> procurement
+inventory.*      -> inventory
+accounting.*     -> accounting
+process.*        -> process
+billing.*        -> billing
+integration.*    -> integrations
+messaging.*      -> messaging
 ```
 
-A module must not perform arbitrary mutations against another module's schema. It must call the
-owning module through a typed contract.
+`packages/catalog` is contract-only and owns no PostgreSQL schema. Planned domains do not receive a
+schema until a concrete invariant requires one and the ownership registry is updated. A module must
+not perform arbitrary mutations against another module's schema; it must call the owner through a
+typed public contract.
 
 ## Transactional Truth
 
