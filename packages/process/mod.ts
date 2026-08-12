@@ -1,12 +1,20 @@
 export { ProcessCapabilities } from "./src/capabilities.ts"
 
 export {
+  CancelOrderInput,
   ConfirmOrderConfirmationInput,
   DomainEventEnvelope,
+  FulfillOrderInput,
   makeProcessService,
   ManualRecoveryInput,
+  OrderCancellationPayload,
+  OrderCancellationResult,
+  OrderConfirmationCorrupt,
+  OrderConfirmationNotFound,
   OrderConfirmationPayload,
   OrderConfirmationResult,
+  OrderFulfillmentPayload,
+  OrderFulfillmentResult,
   ProcessJob,
   ProcessJobStatus,
   ProcessService,
@@ -21,7 +29,9 @@ export {
   WorkflowRunNotFound,
 } from "./src/service.ts"
 export type {
+  OrderCancellationResult as OrderCancellationResultType,
   OrderConfirmationResult as OrderConfirmationResultType,
+  OrderFulfillmentResult as OrderFulfillmentResultType,
   ProcessService as ProcessServiceShape,
   WorkflowRun as WorkflowRunType,
 } from "./src/service.ts"

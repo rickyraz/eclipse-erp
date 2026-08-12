@@ -418,6 +418,20 @@ export const ProcessHandlers = HttpApiBuilder.group(
             service.confirmOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
+      .handle("cancelOrder", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* ProcessService.use((service) =>
+            service.cancelOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        })))
+      .handle("fulfillOrder", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* ProcessService.use((service) =>
+            service.fulfillOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
+          )
+        })))
       .handle("recoverOrder", ({ headers, payload }) =>
         apiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal

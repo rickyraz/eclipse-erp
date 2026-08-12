@@ -22,6 +22,8 @@ it.effect("derives routing and OpenAPI from the Effect HttpApi contract", () =>
     assert.ok(specification.paths["/accounting/legal-entities/{id}/configuration"]?.post)
     assert.ok(specification.paths["/accounting/journals"]?.post)
     assert.ok(specification.paths["/process/order-confirmations"]?.post)
+    assert.ok(specification.paths["/process/order-cancellations"]?.post?.responses?.["201"])
+    assert.ok(specification.paths["/process/order-fulfillments"]?.post?.responses?.["201"])
     assert.ok(specification.paths["/process/order-confirmations/recover"]?.post)
     assert.ok(specification.paths["/process/order-confirmations/manual-recovery"]?.post)
     assert.ok(specification.components.securitySchemes.bearer)

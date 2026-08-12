@@ -21,8 +21,12 @@ import {
 } from "../../packages/party/mod.ts"
 import { Customer, Quotation, SalesOrder, SalesOrderLine } from "../../packages/sales/mod.ts"
 import {
+  OrderCancellationPayload,
+  OrderCancellationResult,
   OrderConfirmationPayload,
   OrderConfirmationResult,
+  OrderFulfillmentPayload,
+  OrderFulfillmentResult,
   WorkflowRun,
 } from "../../packages/process/mod.ts"
 import {
@@ -87,6 +91,8 @@ const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
 const CreatedTenantMembership = TenantMembership.pipe(HttpApiSchema.status(201))
 const CreatedOrderConfirmation = OrderConfirmationResult.pipe(HttpApiSchema.status(201))
+const CreatedOrderCancellation = OrderCancellationResult.pipe(HttpApiSchema.status(201))
+const CreatedOrderFulfillment = OrderFulfillmentResult.pipe(HttpApiSchema.status(201))
 
 const Health = HttpApiGroup.make("Health").add(
   HttpApiEndpoint.get("health", "/health", {
@@ -290,6 +296,18 @@ const Process = HttpApiGroup.make("Process").add(
     headers: tenantHeaders,
     payload: OrderConfirmationPayload,
     success: CreatedOrderConfirmation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("cancelOrder", "/process/order-cancellations", {
+    headers: tenantHeaders,
+    payload: OrderCancellationPayload,
+    success: CreatedOrderCancellation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("fulfillOrder", "/process/order-fulfillments", {
+    headers: tenantHeaders,
+    payload: OrderFulfillmentPayload,
+    success: CreatedOrderFulfillment,
     error: errors,
   }).middleware(BearerAuth),
   HttpApiEndpoint.post("recoverOrder", "/process/order-confirmations/recover", {

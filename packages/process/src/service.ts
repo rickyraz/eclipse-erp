@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -13,6 +13,7 @@ import {
   AccountingService,
   JournalEntry,
   JournalIdempotencyConflict,
+  RevenueJournalNotFound,
   RevenuePostingProfileNotFound,
 } from "../../accounting/mod.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
@@ -21,6 +22,8 @@ import {
   InventoryService,
   StockReservation,
   StockReservationIdempotencyConflict,
+  StockReservationInvalidState,
+  StockReservationNotFound,
   StockUnavailable,
 } from "../../inventory/mod.ts"
 import {
@@ -36,6 +39,12 @@ const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const workflowType = "sales.order.confirmation"
 const eventType = "process.order_confirmation.completed"
 const jobType = "process.order_confirmation.post_commit"
+const cancellationWorkflowType = "sales.order.cancellation"
+const cancellationEventType = "process.order_cancellation.completed"
+const cancellationJobType = "process.order_cancellation.post_commit"
+const fulfillmentWorkflowType = "sales.order.fulfillment"
+const fulfillmentEventType = "process.order_fulfillment.completed"
+const fulfillmentJobType = "process.order_fulfillment.post_commit"
 
 export const OrderConfirmationPayload = Schema.Struct({
   orderId: Schema.String,
@@ -59,6 +68,27 @@ export const ConfirmOrderConfirmationInput = Schema.Struct({
   ...OrderConfirmationPayload.fields,
 })
 export const RecoverOrderConfirmationInput = ConfirmOrderConfirmationInput
+
+const OrderLifecyclePayloadFields = {
+  orderId: Schema.String,
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.NullOr(NonEmptyString).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  idempotencyKey: NonEmptyString,
+}
+
+export const OrderCancellationPayload = Schema.Struct(OrderLifecyclePayloadFields)
+export const CancelOrderInput = Schema.Struct({
+  ...ScopedInput,
+  ...OrderCancellationPayload.fields,
+})
+export const OrderFulfillmentPayload = Schema.Struct(OrderLifecyclePayloadFields)
+export const FulfillOrderInput = Schema.Struct({
+  ...ScopedInput,
+  ...OrderFulfillmentPayload.fields,
+})
 export const ManualRecoveryInput = Schema.Struct({
   ...ScopedInput,
   idempotencyKey: NonEmptyString,
@@ -107,10 +137,37 @@ export const OrderConfirmationResult = Schema.Struct({
   eventId: Schema.String,
   jobId: Schema.String,
 })
+export const OrderCancellationResult = Schema.Struct({
+  workflowRunId: Schema.String,
+  order: SalesOrder,
+  releasedReservations: Schema.Array(StockReservation),
+  reversalJournal: JournalEntry,
+  eventId: Schema.String,
+  jobId: Schema.String,
+})
+export const OrderFulfillmentResult = Schema.Struct({
+  workflowRunId: Schema.String,
+  order: SalesOrder,
+  fulfilledReservations: Schema.Array(StockReservation),
+  eventId: Schema.String,
+  jobId: Schema.String,
+})
 
 export type WorkflowRun = Schema.Schema.Type<typeof WorkflowRun>
 export type OrderConfirmationResult = Schema.Schema.Type<typeof OrderConfirmationResult>
+export type OrderCancellationResult = Schema.Schema.Type<typeof OrderCancellationResult>
+export type OrderFulfillmentResult = Schema.Schema.Type<typeof OrderFulfillmentResult>
 
+export class OrderConfirmationNotFound
+  extends Schema.TaggedErrorClass<OrderConfirmationNotFound>()("OrderConfirmationNotFound", {
+    tenantId: Schema.String,
+    orderId: Schema.String,
+  }) {}
+export class OrderConfirmationCorrupt
+  extends Schema.TaggedErrorClass<OrderConfirmationCorrupt>()("OrderConfirmationCorrupt", {
+    tenantId: Schema.String,
+    orderId: Schema.String,
+  }) {}
 export class WorkflowRunNotFound
   extends Schema.TaggedErrorClass<WorkflowRunNotFound>()("WorkflowRunNotFound", {
     tenantId: Schema.String,
@@ -174,10 +231,35 @@ type OrderConfirmationFailure =
   | WorkflowResultCorrupt
   | WorkflowRunNotFound
 
+type OrderLifecycleFailure =
+  | AccountingPeriodNotOpen
+  | AuthorizationDenied
+  | DatabaseFailure
+  | EventIdempotencyConflict
+  | OrderConfirmationCorrupt
+  | OrderConfirmationNotFound
+  | RevenueJournalNotFound
+  | RevenuePostingProfileNotFound
+  | SalesOrderInvalidState
+  | SalesOrderNotFound
+  | Schema.SchemaError
+  | StockReservationInvalidState
+  | StockReservationNotFound
+  | WorkflowAlreadyInProgress
+  | WorkflowIdempotencyConflict
+  | WorkflowOutcomeUnknown
+  | WorkflowResultCorrupt
+
 export interface ProcessService {
   readonly confirmOrder: (
     input: unknown,
   ) => Effect.Effect<OrderConfirmationResult, OrderConfirmationFailure>
+  readonly cancelOrder: (
+    input: unknown,
+  ) => Effect.Effect<OrderCancellationResult, OrderLifecycleFailure>
+  readonly fulfillOrder: (
+    input: unknown,
+  ) => Effect.Effect<OrderFulfillmentResult, OrderLifecycleFailure>
   readonly recoverOrder: (
     input: unknown,
   ) => Effect.Effect<OrderConfirmationResult, OrderConfirmationFailure>
@@ -256,6 +338,18 @@ const canonicalize = (value: unknown): unknown => {
 
 const payloadMatches = (stored: unknown, current: unknown) =>
   JSON.stringify(canonicalize(stored)) === JSON.stringify(canonicalize(current))
+
+const lifecyclePayload = (
+  input:
+    | Schema.Schema.Type<typeof CancelOrderInput>
+    | Schema.Schema.Type<typeof FulfillOrderInput>,
+) => ({
+  orderId: input.orderId,
+  commandId: input.commandId,
+  correlationId: input.correlationId,
+  causationId: input.causationId,
+  idempotencyKey: input.idempotencyKey,
+})
 
 export const makeProcessService = Effect.gen(function* () {
   const database = yield* Database
@@ -337,6 +431,97 @@ export const makeProcessService = Effect.gen(function* () {
         )
       }
       return yield* resolveExisting(row, input, payload)
+    })
+
+  const loadConfirmation = (tenantId: string, orderId: string) =>
+    Effect.gen(function* () {
+      const rows = yield* database.query(
+        (db) =>
+          db.select(workflowRunSelection)
+            .from(workflowRuns)
+            .where(
+              and(
+                eq(workflowRuns.tenantId, tenantId),
+                eq(workflowRuns.workflowType, workflowType),
+                eq(workflowRuns.aggregateId, orderId),
+                eq(workflowRuns.status, "succeeded"),
+              ),
+            )
+            .for("update"),
+        "process.order-confirmation.lock",
+      )
+      if (rows.length === 0) {
+        return yield* Effect.fail(new OrderConfirmationNotFound({ tenantId, orderId }))
+      }
+      if (rows.length !== 1) {
+        return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
+      }
+      const row = rows[0]!
+      const payload = yield* Schema.decodeUnknownEffect(OrderConfirmationPayload)(row.payload).pipe(
+        Effect.mapError(() => new OrderConfirmationCorrupt({ tenantId, orderId })),
+      )
+      const result = yield* Schema.decodeUnknownEffect(OrderConfirmationResult)(row.result).pipe(
+        Effect.mapError(() => new OrderConfirmationCorrupt({ tenantId, orderId })),
+      )
+      if (
+        row.tenantId !== tenantId || row.aggregateId !== orderId || payload.orderId !== orderId ||
+        result.workflowRunId !== row.id || result.order.id !== orderId ||
+        result.order.tenantId !== tenantId ||
+        result.reservations.some((reservation) => reservation.tenantId !== tenantId) ||
+        result.journal.tenantId !== tenantId
+      ) {
+        return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
+      }
+      return { payload, result }
+    })
+
+  const resolveLifecycleExisting = <A>(
+    rows: ReadonlyArray<WorkflowRunRow>,
+    input: Schema.Schema.Type<typeof CancelOrderInput>,
+    payload: unknown,
+    decodeResult: (value: unknown) => Effect.Effect<A, Schema.SchemaError>,
+  ): Effect.Effect<
+    A | undefined,
+    WorkflowAlreadyInProgress | WorkflowIdempotencyConflict | WorkflowResultCorrupt
+  > =>
+    Effect.gen(function* () {
+      if (rows.length === 0) return undefined
+      const exact = rows.filter((row) =>
+        row.aggregateId === input.orderId && row.idempotencyKey === input.idempotencyKey
+      )
+      if (rows.length !== 1 || exact.length !== 1 || !payloadMatches(exact[0]!.payload, payload)) {
+        return yield* Effect.fail(
+          new WorkflowIdempotencyConflict({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
+      const row = exact[0]!
+      if (row.status === "running") {
+        return yield* Effect.fail(
+          new WorkflowAlreadyInProgress({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
+      if (row.status !== "succeeded" || row.result === null) {
+        return yield* Effect.fail(
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
+      return yield* decodeResult(row.result).pipe(
+        Effect.mapError(() =>
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          })
+        ),
+      )
     })
 
   const execute = (input: unknown) =>
@@ -492,6 +677,283 @@ export const makeProcessService = Effect.gen(function* () {
       return result.success
     })
 
+  const cancelOrder = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
+      const payload = lifecyclePayload(decoded)
+      const outcome = yield* database.withTransaction(
+        Effect.gen(function* () {
+          const confirmation = yield* loadConfirmation(decoded.tenantId, decoded.orderId)
+          const existingRows = yield* database.query(
+            (db) =>
+              db.select(workflowRunSelection).from(workflowRuns).where(and(
+                eq(workflowRuns.tenantId, decoded.tenantId),
+                eq(workflowRuns.workflowType, cancellationWorkflowType),
+                or(
+                  eq(workflowRuns.aggregateId, decoded.orderId),
+                  eq(workflowRuns.idempotencyKey, decoded.idempotencyKey),
+                ),
+              )),
+            "process.order-cancellation.lookup",
+          )
+          const existing = yield* resolveLifecycleExisting(
+            existingRows,
+            decoded,
+            payload,
+            Schema.decodeUnknownEffect(OrderCancellationResult),
+          )
+          if (existing !== undefined) return existing
+
+          const [run] = yield* database.query(
+            (db) =>
+              db.insert(workflowRuns).values({
+                tenantId: decoded.tenantId,
+                workflowType: cancellationWorkflowType,
+                idempotencyKey: decoded.idempotencyKey,
+                aggregateId: decoded.orderId,
+                payload,
+              }).returning({ id: workflowRuns.id }),
+            "process.order-cancellation.start",
+          ).pipe(
+            Effect.mapError((error) =>
+              isDatabaseConstraint(error, "workflow_runs_tenant_type_key")
+                ? new WorkflowIdempotencyConflict({
+                  tenantId: decoded.tenantId,
+                  idempotencyKey: decoded.idempotencyKey,
+                })
+                : error
+            ),
+          )
+
+          const order = yield* sales.cancelOrder({
+            principal: decoded.principal,
+            tenantId: decoded.tenantId,
+            orderId: decoded.orderId,
+          })
+          const releasedReservations = yield* Effect.forEach(
+            confirmation.result.reservations.toSorted((a, b) => a.id.localeCompare(b.id)),
+            (reservation) =>
+              inventory.releaseReservation({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                reservationId: reservation.id,
+              }),
+          )
+          const reversalJournal = yield* accounting.reverseRevenueForOrder({
+            principal: decoded.principal,
+            tenantId: decoded.tenantId,
+            legalEntityId: confirmation.payload.legalEntityId,
+            orderId: decoded.orderId,
+          })
+          const event = yield* messaging.append({
+            eventId: crypto.randomUUID(),
+            eventType: cancellationEventType,
+            eventVersion: 1,
+            tenantId: decoded.tenantId,
+            aggregateType: "sales_order",
+            aggregateId: decoded.orderId,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+            actorPrincipalId: decoded.principal.userAccountId,
+            occurredAt: now().toISOString(),
+            payload: {
+              workflowRunId: run!.id,
+              confirmationWorkflowRunId: confirmation.result.workflowRunId,
+              orderId: decoded.orderId,
+              reservationIds: releasedReservations.map(({ id }) => id),
+              reversalJournalId: reversalJournal.id,
+            },
+          })
+          const [job] = yield* database.query(
+            (db) =>
+              db.insert(processJobs).values({
+                tenantId: decoded.tenantId,
+                jobType: cancellationJobType,
+                idempotencyKey: decoded.idempotencyKey,
+                priority: 100,
+                payload: {
+                  eventId: event.eventId,
+                  workflowRunId: run!.id,
+                  commandId: decoded.commandId,
+                  correlationId: decoded.correlationId,
+                  causationId: decoded.causationId,
+                  idempotencyKey: decoded.idempotencyKey,
+                },
+                correlationId: decoded.correlationId,
+              }).returning({ id: processJobs.id }),
+            "process.order-cancellation.job.enqueue",
+          )
+          const result: OrderCancellationResult = {
+            workflowRunId: run!.id,
+            order,
+            releasedReservations,
+            reversalJournal,
+            eventId: event.eventId,
+            jobId: job!.id,
+          }
+          yield* database.query(
+            (db) =>
+              db.update(workflowRuns).set({
+                status: "succeeded",
+                result,
+                completedAt: now(),
+                updatedAt: now(),
+              }).where(eq(workflowRuns.id, run!.id)),
+            "process.order-cancellation.complete",
+          )
+          return result
+        }),
+        "process.sales.order.cancellation",
+      ).pipe(Effect.result)
+
+      if (Result.isFailure(outcome)) {
+        if (outcome.failure instanceof DatabaseFailure) {
+          return yield* Effect.fail(
+            new WorkflowOutcomeUnknown({
+              tenantId: decoded.tenantId,
+              idempotencyKey: decoded.idempotencyKey,
+            }),
+          )
+        }
+        return yield* Effect.fail(outcome.failure)
+      }
+      return outcome.success
+    })
+
+  const fulfillOrder = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(FulfillOrderInput)(input)
+      const payload = lifecyclePayload(decoded)
+      const outcome = yield* database.withTransaction(
+        Effect.gen(function* () {
+          const confirmation = yield* loadConfirmation(decoded.tenantId, decoded.orderId)
+          const existingRows = yield* database.query(
+            (db) =>
+              db.select(workflowRunSelection).from(workflowRuns).where(and(
+                eq(workflowRuns.tenantId, decoded.tenantId),
+                eq(workflowRuns.workflowType, fulfillmentWorkflowType),
+                or(
+                  eq(workflowRuns.aggregateId, decoded.orderId),
+                  eq(workflowRuns.idempotencyKey, decoded.idempotencyKey),
+                ),
+              )),
+            "process.order-fulfillment.lookup",
+          )
+          const existing = yield* resolveLifecycleExisting(
+            existingRows,
+            decoded,
+            payload,
+            Schema.decodeUnknownEffect(OrderFulfillmentResult),
+          )
+          if (existing !== undefined) return existing
+
+          const [run] = yield* database.query(
+            (db) =>
+              db.insert(workflowRuns).values({
+                tenantId: decoded.tenantId,
+                workflowType: fulfillmentWorkflowType,
+                idempotencyKey: decoded.idempotencyKey,
+                aggregateId: decoded.orderId,
+                payload,
+              }).returning({ id: workflowRuns.id }),
+            "process.order-fulfillment.start",
+          ).pipe(
+            Effect.mapError((error) =>
+              isDatabaseConstraint(error, "workflow_runs_tenant_type_key")
+                ? new WorkflowIdempotencyConflict({
+                  tenantId: decoded.tenantId,
+                  idempotencyKey: decoded.idempotencyKey,
+                })
+                : error
+            ),
+          )
+
+          const fulfilledReservations = yield* Effect.forEach(
+            confirmation.result.reservations.toSorted((a, b) => a.id.localeCompare(b.id)),
+            (reservation) =>
+              inventory.fulfillReservation({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                reservationId: reservation.id,
+              }),
+          )
+          const event = yield* messaging.append({
+            eventId: crypto.randomUUID(),
+            eventType: fulfillmentEventType,
+            eventVersion: 1,
+            tenantId: decoded.tenantId,
+            aggregateType: "sales_order",
+            aggregateId: decoded.orderId,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+            actorPrincipalId: decoded.principal.userAccountId,
+            occurredAt: now().toISOString(),
+            payload: {
+              workflowRunId: run!.id,
+              confirmationWorkflowRunId: confirmation.result.workflowRunId,
+              orderId: decoded.orderId,
+              reservationIds: fulfilledReservations.map(({ id }) => id),
+            },
+          })
+          const [job] = yield* database.query(
+            (db) =>
+              db.insert(processJobs).values({
+                tenantId: decoded.tenantId,
+                jobType: fulfillmentJobType,
+                idempotencyKey: decoded.idempotencyKey,
+                priority: 100,
+                payload: {
+                  eventId: event.eventId,
+                  workflowRunId: run!.id,
+                  commandId: decoded.commandId,
+                  correlationId: decoded.correlationId,
+                  causationId: decoded.causationId,
+                  idempotencyKey: decoded.idempotencyKey,
+                },
+                correlationId: decoded.correlationId,
+              }).returning({ id: processJobs.id }),
+            "process.order-fulfillment.job.enqueue",
+          )
+          const result: OrderFulfillmentResult = {
+            workflowRunId: run!.id,
+            order: confirmation.result.order,
+            fulfilledReservations,
+            eventId: event.eventId,
+            jobId: job!.id,
+          }
+          yield* database.query(
+            (db) =>
+              db.update(workflowRuns).set({
+                status: "succeeded",
+                result,
+                completedAt: now(),
+                updatedAt: now(),
+              }).where(eq(workflowRuns.id, run!.id)),
+            "process.order-fulfillment.complete",
+          )
+          return result
+        }),
+        "process.sales.order.fulfillment",
+      ).pipe(Effect.result)
+
+      if (Result.isFailure(outcome)) {
+        if (outcome.failure instanceof DatabaseFailure) {
+          return yield* Effect.fail(
+            new WorkflowOutcomeUnknown({
+              tenantId: decoded.tenantId,
+              idempotencyKey: decoded.idempotencyKey,
+            }),
+          )
+        }
+        return yield* Effect.fail(outcome.failure)
+      }
+      return outcome.success
+    })
+
   const markManualRecovery = (input: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(ManualRecoveryInput)(input)
@@ -544,6 +1006,8 @@ export const makeProcessService = Effect.gen(function* () {
 
   return {
     confirmOrder: execute,
+    cancelOrder,
+    fulfillOrder,
     recoverOrder: (input: unknown) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(RecoverOrderConfirmationInput)(input)

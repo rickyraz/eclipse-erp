@@ -2,7 +2,13 @@ import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { DomainEventEnvelope, OrderConfirmationPayload, ProcessJob } from "../mod.ts"
+import {
+  DomainEventEnvelope,
+  OrderCancellationPayload,
+  OrderConfirmationPayload,
+  OrderFulfillmentPayload,
+  ProcessJob,
+} from "../mod.ts"
 
 it.effect("defines versioned post-commit event and leased job contracts", () =>
   Effect.gen(function* () {
@@ -52,6 +58,21 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
       4,
     )
     assert.strictEqual(job.status, "pending")
+  }))
+
+it.effect("defines cancellation and fulfillment command payloads", () =>
+  Effect.gen(function* () {
+    const input = {
+      orderId: "order-1",
+      commandId: "command-1",
+      correlationId: "correlation-1",
+      idempotencyKey: "lifecycle-1",
+    }
+    const cancellation = yield* Schema.decodeUnknownEffect(OrderCancellationPayload)(input)
+    const fulfillment = yield* Schema.decodeUnknownEffect(OrderFulfillmentPayload)(input)
+
+    assert.deepStrictEqual(cancellation, { ...input, causationId: null })
+    assert.deepStrictEqual(fulfillment, cancellation)
   }))
 
 it.effect("defines the server-derived order confirmation payload", () =>
