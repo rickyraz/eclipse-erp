@@ -74,6 +74,9 @@ describe("catalog compatibility", () => {
         adjustment: "-2",
         unitOfMeasure: "EA",
         reason: "cycle count",
+        commandId: "command-1",
+        correlationId: "correlation-1",
+        causationId: null,
         idempotencyKey: "correction-1",
       })
       yield* Schema.decodeUnknownEffect(InventoryAdjustStockAction.outputSchema)({

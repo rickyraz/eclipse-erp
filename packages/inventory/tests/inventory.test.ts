@@ -3,6 +3,12 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { DatabaseFailure } from "../../kernel/mod.ts"
+import {
+  type EventEnvelope,
+  makeMessagingTestLayer,
+  MessagingService,
+} from "../../messaging/mod.ts"
 import {
   InventoryCapabilities,
   InventoryService,
@@ -17,8 +23,13 @@ import {
 } from "../mod.ts"
 
 const principal = { userAccountId: "keeper", sessionId: "session" }
-const tenantId = "tenant-a"
+const tenantId = "00000000-0000-4000-8000-000000000001"
 const legalEntityId = "legal-entity-a"
+const correctionMetadata = {
+  commandId: "inventory-command-1",
+  correlationId: "inventory-correlation-1",
+  causationId: null,
+} as const
 const capabilities = [
   InventoryCapabilities.warehouseCreate,
   InventoryCapabilities.itemCreate,
@@ -34,11 +45,12 @@ const capabilities = [
 const withInventory = <A, E>(
   program: Effect.Effect<A, E, InventoryService>,
   grantedCapabilities: readonly string[] = capabilities,
+  messaging = makeMessagingTestLayer(),
 ) =>
   Effect.provide(
     program,
     makeInventoryTestLayer().pipe(
-      Layer.provide(
+      Layer.provide(Layer.merge(
         makeAuthorizationTestLayer(
           grantedCapabilities.map((capability) => ({
             userAccountId: principal.userAccountId,
@@ -46,9 +58,41 @@ const withInventory = <A, E>(
             capability: capability as (typeof capabilities)[number],
           })),
         ),
-      ),
+        messaging,
+      )),
     ),
   )
+
+const makeRecordingMessagingLayer = (events: EventEnvelope[]) =>
+  Layer.effect(
+    MessagingService,
+    Effect.map(MessagingService, (messaging) => ({
+      ...messaging,
+      append: (input: unknown) =>
+        messaging.append(input).pipe(
+          Effect.tap((event) => Effect.sync(() => events.push(event))),
+        ),
+    })),
+  ).pipe(Layer.provide(makeMessagingTestLayer()))
+
+const makeFailOnceMessagingLayer = () => {
+  let fail = true
+  return Layer.effect(
+    MessagingService,
+    Effect.map(MessagingService, (messaging) => ({
+      ...messaging,
+      append: (input: unknown) => {
+        if (fail) {
+          fail = false
+          return Effect.fail(
+            new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
+          )
+        }
+        return messaging.append(input)
+      },
+    })),
+  ).pipe(Layer.provide(makeMessagingTestLayer()))
+}
 
 describe("inventory contract", () => {
   it.effect("receives and atomically reserves available stock", () =>
@@ -137,6 +181,7 @@ describe("inventory contract", () => {
         adjustment: "-6",
         unitOfMeasure: "box",
         reason: "  Count correction  ",
+        ...correctionMetadata,
         idempotencyKey: " correction-1 ",
       })
       const repeated = yield* inventory.adjustStock({
@@ -147,6 +192,7 @@ describe("inventory contract", () => {
         adjustment: "-6",
         unitOfMeasure: "BOX",
         reason: "Count correction",
+        ...correctionMetadata,
         idempotencyKey: "correction-1",
       })
       assert.strictEqual(correction.id, repeated.id)
@@ -161,6 +207,7 @@ describe("inventory contract", () => {
           adjustment: "-1",
           unitOfMeasure: "BOX",
           reason: "Below reservation",
+          ...correctionMetadata,
           idempotencyKey: "correction-2",
         })),
         StockUnavailable,
@@ -174,6 +221,7 @@ describe("inventory contract", () => {
           adjustment: "1",
           unitOfMeasure: "EA",
           reason: "Wrong unit",
+          ...correctionMetadata,
           idempotencyKey: "correction-3",
         })),
         InventoryUnitOfMeasureMismatch,
@@ -187,11 +235,131 @@ describe("inventory contract", () => {
           adjustment: "1",
           unitOfMeasure: "BOX",
           reason: "Changed payload",
+          ...correctionMetadata,
           idempotencyKey: "correction-1",
         })),
         StockCorrectionIdempotencyConflict,
       )
     })))
+
+  it.effect("stock corrected atomic publication preserves metadata and one event on retry", () => {
+    const events: EventEnvelope[] = []
+    return withInventory(
+      Effect.gen(function* () {
+        const inventory = yield* InventoryService
+        const warehouse = yield* inventory.createWarehouse({
+          principal,
+          tenantId,
+          legalEntityId,
+          name: "Atomic Event",
+        })
+        const item = yield* inventory.createItem({
+          principal,
+          tenantId,
+          sku: "atomic-event",
+          name: "Atomic Event Item",
+        })
+        const input = {
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          adjustment: "5",
+          unitOfMeasure: "EA",
+          reason: "Cycle count",
+          commandId: "stock-correction-command",
+          correlationId: "stock-correction-correlation",
+          causationId: "stock-count-requested",
+          idempotencyKey: "stock-correction-idempotency",
+        }
+        const correction = yield* inventory.adjustStock(input)
+        const retry = yield* inventory.adjustStock({
+          ...input,
+          commandId: "stock-correction-retry-command",
+          correlationId: "stock-correction-retry-correlation",
+        })
+
+        assert.strictEqual(retry.id, correction.id)
+        assert.strictEqual(events.length, 1)
+        assert.deepStrictEqual(events[0], {
+          eventId: correction.id,
+          eventType: "inventory.stock.corrected",
+          eventVersion: 1,
+          tenantId,
+          aggregateType: "stock_correction",
+          aggregateId: correction.id,
+          commandId: input.commandId,
+          correlationId: input.correlationId,
+          causationId: input.causationId,
+          idempotencyKey: input.idempotencyKey,
+          actorPrincipalId: principal.userAccountId,
+          occurredAt: events[0]!.occurredAt,
+          payload: {
+            correctionId: correction.id,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+          },
+          publishedAt: null,
+          attempts: 0,
+        })
+        assert.ok(Number.isFinite(new Date(events[0]!.occurredAt).getTime()))
+      }),
+      capabilities,
+      makeRecordingMessagingLayer(events),
+    )
+  })
+
+  it.effect("stock corrected atomic publication rolls back when messaging append fails", () =>
+    withInventory(
+      Effect.gen(function* () {
+        const inventory = yield* InventoryService
+        const warehouse = yield* inventory.createWarehouse({
+          principal,
+          tenantId,
+          legalEntityId,
+          name: "Atomic Rollback",
+        })
+        const item = yield* inventory.createItem({
+          principal,
+          tenantId,
+          sku: "atomic-rollback",
+          name: "Atomic Rollback Item",
+        })
+        const input = {
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          adjustment: "5",
+          unitOfMeasure: "EA",
+          reason: "Cycle count",
+          ...correctionMetadata,
+          idempotencyKey: "stock-correction-rollback",
+        }
+
+        assert.instanceOf(yield* Effect.flip(inventory.adjustStock(input)), DatabaseFailure)
+        yield* inventory.adjustStock(input)
+        yield* inventory.reserveStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          quantity: "5",
+        })
+        assert.instanceOf(
+          yield* Effect.flip(inventory.reserveStock({
+            principal,
+            tenantId,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+            quantity: "1",
+          })),
+          StockUnavailable,
+        )
+      }),
+      capabilities,
+      makeFailOnceMessagingLayer(),
+    ))
 
   it.effect("requires the stock adjustment capability", () =>
     withInventory(
@@ -206,6 +374,7 @@ describe("inventory contract", () => {
             adjustment: "1",
             unitOfMeasure: "EA",
             reason: "Correction",
+            ...correctionMetadata,
             idempotencyKey: "correction-denied",
           })),
           AuthorizationDenied,

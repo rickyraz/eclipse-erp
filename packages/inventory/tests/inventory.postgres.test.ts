@@ -15,7 +15,14 @@ import {
   StockUnavailable,
   WarehouseBranchNotFound,
 } from "../mod.ts"
-import { Database, makePostgresDatabase, runMigrations, WebCryptoLive } from "../../kernel/mod.ts"
+import {
+  Database,
+  DatabaseFailure,
+  makePostgresDatabase,
+  runMigrations,
+  WebCryptoLive,
+} from "../../kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -74,7 +81,7 @@ const createLegalEntityScope = (tenantId: string, name: string) =>
   })
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "keeps stock corrections idempotent under competing negative adjustments",
+  "stock corrected atomic publication stays idempotent and rolls back messaging failures",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -89,6 +96,9 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `adjust-${crypto.randomUUID()}` })
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
         const authorizationLayer = makeAuthorizationTestLayer(
           capabilities.map((capability) => ({
             userAccountId: principal.userAccountId,
@@ -98,9 +108,10 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const requirements = Layer.merge(
+          const requirements = Layer.mergeAll(
             Layer.succeed(Database, database),
             Layer.succeed(AuthorizationService, authorization),
+            Layer.succeed(MessagingService, messaging),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const scope = yield* Effect.provideService(
@@ -144,6 +155,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             adjustment: "-3",
             unitOfMeasure: "BOX",
             reason: "Count correction",
+            commandId: "correction-command-1",
+            correlationId: "correction-correlation-1",
+            causationId: null,
             idempotencyKey: "correction-1",
           }
           const duplicates = yield* Effect.all(
@@ -187,6 +201,85 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(movementCount?.count, "1")
+
+          const [event] = yield* Effect.promise(() =>
+            client<{
+              id: string
+              event_type: string
+              event_version: number
+              aggregate_type: string
+              aggregate_id: string
+              command_id: string
+              correlation_id: string
+              causation_id: string | null
+              idempotency_key: string
+              actor_principal_id: string
+              occurred_at: string
+              payload: unknown
+            }[]>`
+              select id, event_type, event_version, aggregate_type, aggregate_id,
+                command_id, correlation_id, causation_id, idempotency_key,
+                actor_principal_id, occurred_at, payload
+              from messaging.event_outbox
+              where tenant_id = ${tenant.id} and idempotency_key = 'correction-1'
+            `
+          )
+          assert.deepStrictEqual(event, {
+            id: duplicates[0].id,
+            event_type: "inventory.stock.corrected",
+            event_version: 1,
+            aggregate_type: "stock_correction",
+            aggregate_id: duplicates[0].id,
+            command_id: correctionInput.commandId,
+            correlation_id: correctionInput.correlationId,
+            causation_id: null,
+            idempotency_key: correctionInput.idempotencyKey,
+            actor_principal_id: principal.userAccountId,
+            occurred_at: event!.occurred_at,
+            payload: {
+              correctionId: duplicates[0].id,
+              warehouseId: warehouse.id,
+              itemId: item.id,
+            },
+          })
+          assert.ok(Number.isFinite(new Date(event!.occurred_at).getTime()))
+
+          const failingInventory = yield* Effect.provide(
+            makeInventoryService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              Layer.succeed(AuthorizationService, authorization),
+              Layer.succeed(MessagingService, {
+                ...messaging,
+                append: () =>
+                  Effect.fail(
+                    new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
+                  ),
+              }),
+            ),
+          )
+          assert.instanceOf(
+            yield* Effect.flip(failingInventory.adjustStock({
+              ...correctionInput,
+              adjustment: "2",
+              commandId: "correction-rollback-command",
+              correlationId: "correction-rollback-correlation",
+              idempotencyKey: "correction-rollback",
+            })),
+            DatabaseFailure,
+          )
+          const [rolledBackBalance] = yield* Effect.promise(() => readBalances(client, tenant.id))
+          assert.strictEqual(rolledBackBalance?.on_hand, "5")
+          const [rolledBackCounts] = yield* Effect.promise(() =>
+            client<{ movements: string; events: string }[]>`
+              select
+                (select count(*)::text from inventory.movements
+                  where tenant_id = ${tenant.id} and idempotency_key = 'correction-rollback') as movements,
+                (select count(*)::text from messaging.event_outbox
+                  where tenant_id = ${tenant.id} and idempotency_key = 'correction-rollback') as events
+            `
+          )
+          assert.deepStrictEqual(rolledBackCounts, { movements: "0", events: "0" })
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
@@ -216,9 +309,12 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const requirements = Layer.merge(
+          const requirements = Layer.mergeAll(
             Layer.succeed(Database, database),
             Layer.succeed(AuthorizationService, authorization),
+            Layer.effect(MessagingService, makeMessagingService).pipe(
+              Layer.provide(Layer.succeed(Database, database)),
+            ),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const scope = yield* Effect.provideService(
@@ -374,9 +470,12 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const requirements = Layer.merge(
+          const requirements = Layer.mergeAll(
             Layer.succeed(Database, database),
             Layer.succeed(AuthorizationService, authorization),
+            Layer.effect(MessagingService, makeMessagingService).pipe(
+              Layer.provide(Layer.succeed(Database, database)),
+            ),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const scope = yield* Effect.provideService(
@@ -486,9 +585,12 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const requirements = Layer.merge(
+          const requirements = Layer.mergeAll(
             Layer.succeed(Database, database),
             Layer.succeed(AuthorizationService, authorization),
+            Layer.effect(MessagingService, makeMessagingService).pipe(
+              Layer.provide(Layer.succeed(Database, database)),
+            ),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const sourceScope = yield* Effect.provideService(

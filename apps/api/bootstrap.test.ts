@@ -20,6 +20,7 @@ import {
   makeInventoryTestLayer,
   StockTransferDifferentLegalEntity,
 } from "../../packages/inventory/mod.ts"
+import { makeMessagingTestLayer } from "../../packages/messaging/mod.ts"
 import { bootstrapTenant } from "./bootstrap.ts"
 
 const principal = { userAccountId: "bootstrap-admin", sessionId: "session" }
@@ -51,7 +52,7 @@ const withBootstrap = <A, E>(
     makePartyTestLayer(),
     makeAccountingTestLayer(),
     makeInventoryTestLayer(),
-  ).pipe(Layer.provide(authorizationLayer))
+  ).pipe(Layer.provide(Layer.merge(authorizationLayer, makeMessagingTestLayer())))
   return Effect.provide(
     program,
     Layer.mergeAll(makeAuthTestLayer(), authorizationLayer, businessLayers),

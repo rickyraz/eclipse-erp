@@ -18,6 +18,7 @@ import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import { InventoryCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 const SignedQuantity = Schema.String.check(Schema.isPattern(/^-?[1-9]\d*$/))
@@ -122,6 +123,9 @@ export const AdjustStockInput = Schema.Struct({
   adjustment: SignedQuantity,
   unitOfMeasure: UnitOfMeasureInput,
   reason: NonEmptyString,
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.optionalKey(Schema.NullOr(NonEmptyString)),
   idempotencyKey: NonEmptyString,
 })
 export const ReserveStockInput = Schema.Struct({
@@ -286,6 +290,7 @@ export interface InventoryService {
     | InventoryUnitOfMeasureMismatch
     | StockCorrectionIdempotencyConflict
     | StockUnavailable
+    | EventIdempotencyConflict
     | CommonFailure
   >
   readonly reserveStock: (
@@ -437,6 +442,7 @@ const mapTransferCreateError = (
 export const makeInventoryService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
+  const messaging = yield* MessagingService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
@@ -595,104 +601,145 @@ export const makeInventoryService = Effect.gen(function* () {
         })
         const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
         const reason = decoded.reason.trim()
+        const commandId = decoded.commandId.trim()
+        const correlationId = decoded.correlationId.trim()
+        const causationId = decoded.causationId?.trim() ?? null
         const idempotencyKey = decoded.idempotencyKey.trim()
-        const result = yield* database.transaction(
-          async (tx) => {
-            const [existing] = await tx.select(correctionSelection)
-              .from(movements)
-              .where(
-                and(
-                  eq(movements.tenantId, decoded.tenantId),
-                  eq(movements.idempotencyKey, idempotencyKey),
-                ),
-              )
-              .for("update")
-            if (existing !== undefined) {
-              if (
-                existing.warehouseId !== decoded.warehouseId ||
-                existing.itemId !== decoded.itemId ||
-                existing.adjustment !== decoded.adjustment ||
-                existing.unitOfMeasure !== unitOfMeasure ||
-                existing.reason !== reason
-              ) return { _tag: "idempotency-conflict" as const }
-              return { _tag: "existing" as const, correction: toStockCorrection(existing) }
-            }
+        const result = yield* database.withTransaction(
+          Effect.gen(function* () {
+            const mutation = yield* database.transaction(
+              async (tx) => {
+                const [existing] = await tx.select(correctionSelection)
+                  .from(movements)
+                  .where(
+                    and(
+                      eq(movements.tenantId, decoded.tenantId),
+                      eq(movements.idempotencyKey, idempotencyKey),
+                    ),
+                  )
+                  .for("update")
+                if (existing !== undefined) {
+                  if (
+                    existing.warehouseId !== decoded.warehouseId ||
+                    existing.itemId !== decoded.itemId ||
+                    existing.adjustment !== decoded.adjustment ||
+                    existing.unitOfMeasure !== unitOfMeasure ||
+                    existing.reason !== reason
+                  ) return { _tag: "idempotency-conflict" as const }
+                  return { _tag: "existing" as const, correction: toStockCorrection(existing) }
+                }
 
-            const [item] = await tx.select({ unitOfMeasure: items.unitOfMeasure })
-              .from(items)
-              .where(and(eq(items.tenantId, decoded.tenantId), eq(items.id, decoded.itemId)))
-              .for("update")
-            const [warehouse] = await tx.select({ id: warehouses.id })
-              .from(warehouses)
-              .where(
-                and(
-                  eq(warehouses.tenantId, decoded.tenantId),
-                  eq(warehouses.id, decoded.warehouseId),
-                ),
-              )
-            if (item === undefined || warehouse === undefined) return { _tag: "not-found" as const }
-            if (item.unitOfMeasure !== unitOfMeasure) {
-              return {
-                _tag: "uom-mismatch" as const,
-                expected: item.unitOfMeasure,
-                actual: unitOfMeasure,
-              }
-            }
+                const [item] = await tx.select({ unitOfMeasure: items.unitOfMeasure })
+                  .from(items)
+                  .where(and(eq(items.tenantId, decoded.tenantId), eq(items.id, decoded.itemId)))
+                  .for("update")
+                const [warehouse] = await tx.select({ id: warehouses.id })
+                  .from(warehouses)
+                  .where(
+                    and(
+                      eq(warehouses.tenantId, decoded.tenantId),
+                      eq(warehouses.id, decoded.warehouseId),
+                    ),
+                  )
+                if (item === undefined || warehouse === undefined) {
+                  return { _tag: "not-found" as const }
+                }
+                if (item.unitOfMeasure !== unitOfMeasure) {
+                  return {
+                    _tag: "uom-mismatch" as const,
+                    expected: item.unitOfMeasure,
+                    actual: unitOfMeasure,
+                  }
+                }
 
-            const adjustment = BigInt(decoded.adjustment)
-            const timestamp = now()
-            if (adjustment < 0n) {
-              const [balance] = await tx.select({
-                onHand: stockBalances.onHand,
-                reserved: stockBalances.reserved,
-              }).from(stockBalances).where(
-                and(
-                  eq(stockBalances.tenantId, decoded.tenantId),
-                  eq(stockBalances.warehouseId, decoded.warehouseId),
-                  eq(stockBalances.itemId, decoded.itemId),
-                ),
-              ).for("update")
-              if (
-                balance === undefined ||
-                BigInt(balance.onHand) + adjustment < BigInt(balance.reserved)
-              ) return { _tag: "unavailable" as const }
-              await tx.update(stockBalances).set({
-                onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
-                updatedAt: timestamp,
-              }).where(
-                and(
-                  eq(stockBalances.tenantId, decoded.tenantId),
-                  eq(stockBalances.warehouseId, decoded.warehouseId),
-                  eq(stockBalances.itemId, decoded.itemId),
-                ),
-              )
-            } else {
-              await tx.insert(stockBalances).values({
+                const adjustment = BigInt(decoded.adjustment)
+                const occurredAt = now()
+                if (adjustment < 0n) {
+                  const [balance] = await tx.select({
+                    onHand: stockBalances.onHand,
+                    reserved: stockBalances.reserved,
+                  }).from(stockBalances).where(
+                    and(
+                      eq(stockBalances.tenantId, decoded.tenantId),
+                      eq(stockBalances.warehouseId, decoded.warehouseId),
+                      eq(stockBalances.itemId, decoded.itemId),
+                    ),
+                  ).for("update")
+                  if (
+                    balance === undefined ||
+                    BigInt(balance.onHand) + adjustment < BigInt(balance.reserved)
+                  ) return { _tag: "unavailable" as const }
+                  await tx.update(stockBalances).set({
+                    onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
+                    updatedAt: occurredAt,
+                  }).where(
+                    and(
+                      eq(stockBalances.tenantId, decoded.tenantId),
+                      eq(stockBalances.warehouseId, decoded.warehouseId),
+                      eq(stockBalances.itemId, decoded.itemId),
+                    ),
+                  )
+                } else {
+                  await tx.insert(stockBalances).values({
+                    tenantId: decoded.tenantId,
+                    warehouseId: decoded.warehouseId,
+                    itemId: decoded.itemId,
+                    onHand: decoded.adjustment,
+                  }).onConflictDoUpdate({
+                    target: [
+                      stockBalances.tenantId,
+                      stockBalances.warehouseId,
+                      stockBalances.itemId,
+                    ],
+                    set: {
+                      onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
+                      updatedAt: occurredAt,
+                    },
+                  })
+                }
+                const [correction] = await tx.insert(movements).values({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.warehouseId,
+                  itemId: decoded.itemId,
+                  quantity: decoded.adjustment,
+                  kind: adjustment < 0n ? "issue" : "receipt",
+                  unitOfMeasure,
+                  reason,
+                  idempotencyKey,
+                }).returning(correctionSelection)
+                return {
+                  _tag: "created" as const,
+                  correction: toStockCorrection(correction!),
+                  occurredAt,
+                }
+              },
+              "inventory.stock.adjust",
+            )
+
+            if (mutation._tag === "created") {
+              yield* messaging.append({
+                eventId: mutation.correction.id,
+                eventType: "inventory.stock.corrected",
+                eventVersion: 1,
                 tenantId: decoded.tenantId,
-                warehouseId: decoded.warehouseId,
-                itemId: decoded.itemId,
-                onHand: decoded.adjustment,
-              }).onConflictDoUpdate({
-                target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
-                set: {
-                  onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
-                  updatedAt: timestamp,
+                aggregateType: "stock_correction",
+                aggregateId: mutation.correction.id,
+                commandId,
+                correlationId,
+                causationId,
+                idempotencyKey,
+                actorPrincipalId: decoded.principal.userAccountId,
+                occurredAt: mutation.occurredAt.toISOString(),
+                payload: {
+                  correctionId: mutation.correction.id,
+                  warehouseId: mutation.correction.warehouseId,
+                  itemId: mutation.correction.itemId,
                 },
               })
             }
-            const [correction] = await tx.insert(movements).values({
-              tenantId: decoded.tenantId,
-              warehouseId: decoded.warehouseId,
-              itemId: decoded.itemId,
-              quantity: decoded.adjustment,
-              kind: adjustment < 0n ? "issue" : "receipt",
-              unitOfMeasure,
-              reason,
-              idempotencyKey,
-            }).returning(correctionSelection)
-            return { _tag: "created" as const, correction: toStockCorrection(correction!) }
-          },
-          "inventory.stock.adjust",
+            return mutation
+          }),
+          "inventory.stock.adjust.atomic",
         ).pipe(
           Effect.catch((error) => {
             if (!isDatabaseConstraint(error, "movements_tenant_idempotency_key")) {
@@ -1378,6 +1425,7 @@ export const makeInventoryTestLayer = () =>
     InventoryService,
     Effect.gen(function* () {
       const authorization = yield* AuthorizationService
+      const messaging = yield* MessagingService
       const clock = yield* Clock.Clock
       const now = () => new Date(clock.currentTimeMillisUnsafe())
       const storedWarehouses = new Map<string, Warehouse>()
@@ -1478,6 +1526,9 @@ export const makeInventoryTestLayer = () =>
             yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockAdjust)
             const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
             const reason = decoded.reason.trim()
+            const commandId = decoded.commandId.trim()
+            const correlationId = decoded.correlationId.trim()
+            const causationId = decoded.causationId?.trim() ?? null
             const idempotencyKey = decoded.idempotencyKey.trim()
             const key = `${decoded.tenantId}:${idempotencyKey}`
             const existing = correctionsByIdempotencyKey.get(key)
@@ -1530,10 +1581,8 @@ export const makeInventoryTestLayer = () =>
                 }),
               )
             }
-            balance.onHand += adjustment
-            balances.set(balanceKey, balance)
             const correction: StockCorrection = {
-              id: nextId(),
+              id: crypto.randomUUID(),
               tenantId: decoded.tenantId,
               warehouseId: decoded.warehouseId,
               itemId: decoded.itemId,
@@ -1542,6 +1591,27 @@ export const makeInventoryTestLayer = () =>
               reason,
               idempotencyKey,
             }
+            yield* messaging.append({
+              eventId: correction.id,
+              eventType: "inventory.stock.corrected",
+              eventVersion: 1,
+              tenantId: decoded.tenantId,
+              aggregateType: "stock_correction",
+              aggregateId: correction.id,
+              commandId,
+              correlationId,
+              causationId,
+              idempotencyKey,
+              actorPrincipalId: decoded.principal.userAccountId,
+              occurredAt: now().toISOString(),
+              payload: {
+                correctionId: correction.id,
+                warehouseId: correction.warehouseId,
+                itemId: correction.itemId,
+              },
+            })
+            balance.onHand += adjustment
+            balances.set(balanceKey, balance)
             correctionsByIdempotencyKey.set(key, correction)
             return correction
           }),

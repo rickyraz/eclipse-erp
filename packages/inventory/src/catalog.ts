@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import { AuthorizationDenied } from "../../authorization/mod.ts"
 import { defineActionCatalogEntry, defineEventCatalogEntry } from "../../catalog/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
+import { EventIdempotencyConflict } from "../../messaging/mod.ts"
 import { InventoryCapabilities } from "./capabilities.ts"
 import {
   AdjustStockInput,
@@ -35,6 +36,7 @@ export const InventoryAdjustStockAction = defineActionCatalogEntry({
     InventoryUnitOfMeasureMismatch,
     StockCorrectionIdempotencyConflict,
     StockUnavailable,
+    EventIdempotencyConflict,
     AuthorizationDenied,
     DatabaseFailure,
   ],
@@ -54,7 +56,7 @@ export const InventoryStockCorrectedEvent = defineEventCatalogEntry({
   owningDomain: "inventory",
   title: "Stock corrected",
   description: "Stock was corrected by its owning Inventory transaction.",
-  stability: "EXPERIMENTAL",
+  stability: "PUBLIC",
   compatibilityRange: { minimumVersion: 1, maximumVersion: 1 },
   payloadSchema: StockCorrectedEventPayload,
   scope: ["tenant"],

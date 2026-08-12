@@ -7,6 +7,7 @@ import { AuthorizationService, makeAuthorizationService } from "../../packages/a
 import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
 import { makeUserAccountService, UserAccountService } from "../../packages/identity/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
+import { makeMessagingService, MessagingService } from "../../packages/messaging/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import {
   Database,
@@ -45,7 +46,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const party = yield* Effect.provide(makePartyService, businessRequirements)
         const accounting = yield* Effect.provide(makeAccountingService, businessRequirements)
-        const inventory = yield* Effect.provide(makeInventoryService, businessRequirements)
+        const messaging = yield* Effect.provide(makeMessagingService, databaseLayer)
+        const inventory = yield* Effect.provide(
+          makeInventoryService,
+          Layer.merge(businessRequirements, Layer.succeed(MessagingService, messaging)),
+        )
         const services = Layer.mergeAll(
           Layer.succeed(AuthService, auth),
           authorizationLayer,

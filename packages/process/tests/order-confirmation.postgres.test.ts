@@ -80,11 +80,14 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const sales = yield* Effect.provide(makeSalesService, requirements)
-          const inventory = yield* Effect.provide(makeInventoryService, requirements)
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
           )
+          const inventory = yield* Effect.provide(
+            makeInventoryService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
+          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -334,11 +337,14 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const sales = yield* Effect.provide(makeSalesService, requirements)
-          const inventory = yield* Effect.provide(makeInventoryService, requirements)
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
           )
+          const inventory = yield* Effect.provide(
+            makeInventoryService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
+          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -443,11 +449,14 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const party = yield* Effect.provide(makePartyService, requirements)
           const sales = yield* Effect.provide(makeSalesService, requirements)
-          const inventory = yield* Effect.provide(makeInventoryService, requirements)
-          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
           )
+          const inventory = yield* Effect.provide(
+            makeInventoryService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
+          const accounting = yield* Effect.provide(makeAccountingService, requirements)
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
