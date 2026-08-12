@@ -17,6 +17,7 @@ import {
   validatePostgresVersion,
   WebCryptoLive,
 } from "../../packages/kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../packages/messaging/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
@@ -58,8 +59,12 @@ const serviceLayers = (client: Sql) => {
     Layer.provide(businessRequirements),
   )
 
+  const messaging = Layer.effect(MessagingService, makeMessagingService).pipe(
+    Layer.provide(database),
+  )
+
   const process = Layer.effect(ProcessService, makeProcessService).pipe(
-    Layer.provide(Layer.mergeAll(businessRequirements, sales, inventory, accounting)),
+    Layer.provide(Layer.mergeAll(businessRequirements, sales, inventory, accounting, messaging)),
   )
 
   return Layer.mergeAll(
@@ -70,6 +75,7 @@ const serviceLayers = (client: Sql) => {
     sales,
     inventory,
     accounting,
+    messaging,
     process,
   )
 }

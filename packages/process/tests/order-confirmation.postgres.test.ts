@@ -15,6 +15,7 @@ import {
   makeInventoryService,
 } from "../../inventory/mod.ts"
 import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import { makeProcessService, ProcessCapabilities, WorkflowManualRecoveryRequired } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -47,7 +48,7 @@ const readCounts = (client: Sql, tenantId: string) =>
   client<{ workflow_runs: string; events: string; jobs: string }[]>`
     select
       (select count(*)::text from process.workflow_runs where tenant_id = ${tenantId}) as workflow_runs,
-      (select count(*)::text from process.event_outbox where tenant_id = ${tenantId}) as events,
+      (select count(*)::text from messaging.event_outbox where tenant_id = ${tenantId}) as events,
       (select count(*)::text from process.jobs where tenant_id = ${tenantId}) as jobs
   `
 
@@ -81,6 +82,9 @@ it.effect.skipIf(databaseUrl === undefined)(
           const sales = yield* Effect.provide(makeSalesService, requirements)
           const inventory = yield* Effect.provide(makeInventoryService, requirements)
           const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -89,6 +93,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(SalesService, sales),
               Layer.succeed(InventoryService, inventory),
               Layer.succeed(AccountingService, accounting),
+              Layer.succeed(MessagingService, messaging),
             ),
           )
 
@@ -187,6 +192,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             orderId: order.id,
             warehouseId: warehouse.id,
             legalEntityId: legalEntity.id,
+            commandId: "command-order-confirmation-1",
+            correlationId: "correlation-order-confirmation-1",
+            causationId: "causation-order-confirmation-1",
             idempotencyKey: "order-confirmation-1",
           }
 
@@ -207,8 +215,16 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(counts.events, "1")
           assert.strictEqual(counts.jobs, "1")
           const [event] = yield* Effect.promise(() =>
-            client<{ payload: { reservationIds: string[]; journalId: string } }[]>`
-              select payload from process.event_outbox where id = ${result.eventId}
+            client<{
+              command_id: string
+              correlation_id: string
+              causation_id: string | null
+              idempotency_key: string
+              payload: { reservationIds: string[]; journalId: string }
+            }[]>`
+              select command_id, correlation_id, causation_id, idempotency_key, payload
+              from messaging.event_outbox
+              where id = ${result.eventId}
             `
           )
           assert.deepStrictEqual(
@@ -216,6 +232,59 @@ it.effect.skipIf(databaseUrl === undefined)(
             result.reservations.map(({ id }) => id),
           )
           assert.strictEqual(event?.payload.journalId, result.journal.id)
+          assert.deepStrictEqual(
+            [
+              event?.command_id,
+              event?.correlation_id,
+              event?.causation_id,
+              event?.idempotency_key,
+            ],
+            [
+              input.commandId,
+              input.correlationId,
+              input.causationId,
+              input.idempotencyKey,
+            ],
+          )
+          assert.strictEqual(
+            new Set([
+              event?.command_id,
+              event?.correlation_id,
+              event?.causation_id,
+              event?.idempotency_key,
+            ]).size,
+            4,
+          )
+          const [job] = yield* Effect.promise(() =>
+            client<{
+              correlation_id: string
+              idempotency_key: string
+              payload: {
+                eventId: string
+                workflowRunId: string
+                commandId: string
+                correlationId: string
+                causationId: string | null
+                idempotencyKey: string
+              }
+            }[]>`
+              select correlation_id, idempotency_key, payload
+              from process.jobs
+              where id = ${result.jobId}
+            `
+          )
+          assert.deepStrictEqual(job, {
+            correlation_id: input.correlationId,
+            idempotency_key: input.idempotencyKey,
+            payload: {
+              eventId: result.eventId,
+              workflowRunId: result.workflowRunId,
+              commandId: input.commandId,
+              correlationId: input.correlationId,
+              causationId: input.causationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          })
 
           const balances = yield* Effect.promise(() =>
             client<{ item_id: string; on_hand: string; reserved: string }[]>`
@@ -267,6 +336,9 @@ it.effect.skipIf(databaseUrl === undefined)(
           const sales = yield* Effect.provide(makeSalesService, requirements)
           const inventory = yield* Effect.provide(makeInventoryService, requirements)
           const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -275,6 +347,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(SalesService, sales),
               Layer.succeed(InventoryService, inventory),
               Layer.succeed(AccountingService, accounting),
+              Layer.succeed(MessagingService, messaging),
             ),
           )
           const organization = yield* party.create({
@@ -325,6 +398,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             orderId: order.id,
             warehouseId: warehouse.id,
             legalEntityId: legalEntity.id,
+            commandId: "command-rollback-confirmation-1",
+            correlationId: "correlation-rollback-confirmation-1",
             idempotencyKey: "rollback-confirmation-1",
           }))
           assert.strictEqual(error._tag, "StockUnavailable")
@@ -370,6 +445,9 @@ it.effect.skipIf(databaseUrl === undefined)(
           const sales = yield* Effect.provide(makeSalesService, requirements)
           const inventory = yield* Effect.provide(makeInventoryService, requirements)
           const accounting = yield* Effect.provide(makeAccountingService, requirements)
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
+          )
           const process = yield* Effect.provide(
             makeProcessService,
             Layer.mergeAll(
@@ -378,6 +456,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(SalesService, sales),
               Layer.succeed(InventoryService, inventory),
               Layer.succeed(AccountingService, accounting),
+              Layer.succeed(MessagingService, messaging),
             ),
           )
           const organization = yield* party.create({
@@ -465,6 +544,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             orderId: order.id,
             warehouseId: warehouse.id,
             legalEntityId: legalEntity.id,
+            commandId: "command-concurrent-confirmation-1",
+            correlationId: "correlation-concurrent-confirmation-1",
+            causationId: null,
             idempotencyKey: "concurrent-confirmation-1",
           }
           const results = yield* Effect.all(
@@ -484,6 +566,9 @@ it.effect.skipIf(databaseUrl === undefined)(
                 orderId: order.id,
                 warehouseId: warehouse.id,
                 legalEntityId: legalEntity.id,
+                commandId: "command-manual-confirmation-1",
+                correlationId: "correlation-manual-confirmation-1",
+                causationId: null,
                 idempotencyKey: "manual-confirmation-1",
               })
             }::jsonb, 'operator review required')
@@ -502,6 +587,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             orderId: order.id,
             warehouseId: warehouse.id,
             legalEntityId: legalEntity.id,
+            commandId: "command-manual-confirmation-1",
+            correlationId: "correlation-manual-confirmation-1",
+            causationId: null,
             idempotencyKey: "manual-confirmation-1",
           }))
           assert.instanceOf(recovery, WorkflowManualRecoveryRequired)

@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
-import { eventOutbox, processJobs, workflowRuns } from "../../../db/schema/process.ts"
+import { processJobs, workflowRuns } from "../../../db/schema/process.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import {
@@ -16,6 +16,7 @@ import {
   RevenuePostingProfileNotFound,
 } from "../../accounting/mod.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import {
   InventoryService,
   StockReservation,
@@ -40,6 +41,11 @@ export const OrderConfirmationPayload = Schema.Struct({
   orderId: Schema.String,
   warehouseId: Schema.String,
   legalEntityId: Schema.String,
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.NullOr(NonEmptyString).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   idempotencyKey: NonEmptyString,
 })
 
@@ -59,19 +65,7 @@ export const ManualRecoveryInput = Schema.Struct({
   reason: NonEmptyString,
 })
 
-export const DomainEventEnvelope = Schema.Struct({
-  eventId: Schema.String,
-  eventType: Schema.String,
-  eventVersion: Schema.Int,
-  tenantId: Schema.String,
-  aggregateType: Schema.String,
-  aggregateId: Schema.String,
-  correlationId: Schema.String,
-  causationId: Schema.NullOr(Schema.String),
-  actorPrincipalId: Schema.String,
-  occurredAt: Schema.String,
-  payload: Schema.Unknown,
-})
+export const DomainEventEnvelope = EventEnvelope
 
 export const ProcessJobStatus = Schema.Literals([
   "pending",
@@ -163,6 +157,7 @@ type OrderConfirmationFailure =
   | AccountingPeriodNotOpen
   | AuthorizationDenied
   | DatabaseFailure
+  | EventIdempotencyConflict
   | JournalIdempotencyConflict
   | RevenuePostingProfileNotFound
   | SalesOrderConfirmationIdempotencyConflict
@@ -241,6 +236,9 @@ const businessPayload = (input: Schema.Schema.Type<typeof ConfirmOrderConfirmati
   orderId: input.orderId,
   warehouseId: input.warehouseId,
   legalEntityId: input.legalEntityId,
+  commandId: input.commandId,
+  correlationId: input.correlationId,
+  causationId: input.causationId,
   idempotencyKey: input.idempotencyKey,
 })
 
@@ -265,6 +263,7 @@ export const makeProcessService = Effect.gen(function* () {
   const sales = yield* SalesService
   const inventory = yield* InventoryService
   const accounting = yield* AccountingService
+  const messaging = yield* MessagingService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
 
@@ -407,25 +406,26 @@ export const makeProcessService = Effect.gen(function* () {
             amount: order.total,
           })
 
-          const event = (yield* database.query(
-            (db) =>
-              db.insert(eventOutbox).values({
-                eventType,
-                eventVersion: 1,
-                tenantId: decoded.tenantId,
-                aggregateType: "sales_order",
-                aggregateId: order.id,
-                correlationId: decoded.idempotencyKey,
-                actorPrincipalId: decoded.principal.userAccountId,
-                payload: {
-                  workflowRunId: run[0]!.id,
-                  orderId: order.id,
-                  reservationIds: reservations.map((reservation) => reservation.id),
-                  journalId: journal.id,
-                },
-              }).returning({ id: eventOutbox.id }),
-            "process.event.append",
-          ))[0]!
+          const event = yield* messaging.append({
+            eventId: crypto.randomUUID(),
+            eventType,
+            eventVersion: 1,
+            tenantId: decoded.tenantId,
+            aggregateType: "sales_order",
+            aggregateId: order.id,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+            actorPrincipalId: decoded.principal.userAccountId,
+            occurredAt: now().toISOString(),
+            payload: {
+              workflowRunId: run[0]!.id,
+              orderId: order.id,
+              reservationIds: reservations.map((reservation) => reservation.id),
+              journalId: journal.id,
+            },
+          })
 
           const job = (yield* database.query(
             (db) =>
@@ -434,8 +434,15 @@ export const makeProcessService = Effect.gen(function* () {
                 jobType,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
-                payload: { eventId: event.id, workflowRunId: run[0]!.id },
-                correlationId: decoded.idempotencyKey,
+                payload: {
+                  eventId: event.eventId,
+                  workflowRunId: run[0]!.id,
+                  commandId: decoded.commandId,
+                  correlationId: decoded.correlationId,
+                  causationId: decoded.causationId,
+                  idempotencyKey: decoded.idempotencyKey,
+                },
+                correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
             "process.job.enqueue",
           ))[0]!
@@ -445,7 +452,7 @@ export const makeProcessService = Effect.gen(function* () {
             order,
             reservations,
             journal,
-            eventId: event.id,
+            eventId: event.eventId,
             jobId: job.id,
           }
           yield* database.query(
