@@ -51,7 +51,7 @@ contract and database tests
 | `party` | party and party relationships | `PARTIAL` | mature customer/supplier/employee roles and relationship contracts |
 | `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope |
 | `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.posted` v1 is a PUBLIC event contributor | Keep revenue posting out of the action catalog until amount provenance is owner-verifiable; generic journals, AP/AR, payment, tax, and settlement remain out of scope |
-| `sales` | customers, quotations, sales orders | `PARTIAL` | decide fulfillment, invoicing, credit policy, and customer-facing events |
+| `sales` | customers, quotations, sales orders | `PARTIAL` | Sales owns draft/confirmed/cancelled order state; Process coordinates fulfillment through Inventory; invoicing, returns, credit policy, and customer-facing events remain undecided |
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
 | `integrations` | external adapter and connector boundary | `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner |

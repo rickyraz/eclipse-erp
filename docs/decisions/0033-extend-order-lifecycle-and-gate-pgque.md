@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-09
 - Supersedes: ADR-0032
-- Superseded by: None
+- Superseded by: ADR-0038 (durable-delivery ownership only)
 
 > **Related documents**
 >
@@ -51,6 +51,10 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 - Cancellation creates a new, linked reversing journal. Posted journals are never deleted or edited.
 
 ### Durable delivery
+
+> This subsection is historical and is superseded by
+> [ADR-0038](./0038-move-internal-event-delivery-to-messaging.md). The current outbox is
+> `messaging.event_outbox`; the Process job decision below remains active.
 
 - `process.event_outbox` remains the transactionally persisted source for committed events.
 - `process.jobs` remains the leased work primitive. Workers use lease tokens, bounded retries, and
