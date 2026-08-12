@@ -21,7 +21,7 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
-const Precision = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 18 }))
+const Precision = Schema.Literal(2)
 const FiscalYearStartMonth = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 12 }))
 const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/))
 
@@ -388,7 +388,7 @@ export const makeAccountingService = Effect.gen(function* () {
             return error
           }),
         )
-        return rows[0]!
+        return { ...rows[0]!, precision: 2 as const }
       }),
     createAccount: (input) =>
       Effect.gen(function* () {

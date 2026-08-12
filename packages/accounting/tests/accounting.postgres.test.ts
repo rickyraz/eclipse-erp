@@ -1,7 +1,11 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Result from "effect/Result"
 
-import { runMigrations } from "../../kernel/mod.ts"
+import { AccountingCapabilities, AccountingPeriodNotOpen, makeAccountingService } from "../mod.ts"
+import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -60,6 +64,19 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(configuration!.fiscal_year_start_month, 1)
           assert.strictEqual(configuration!.posting_enabled, true)
 
+          const unsupportedPrecision = yield* postgresFailure(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set decimal_precision = 3
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          assert.strictEqual((unsupportedPrecision as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (unsupportedPrecision as { constraint_name?: string }).constraint_name,
+            "legal_entity_accounting_configurations_precision_check",
+          )
+
           const duplicate = yield* postgresFailure(() =>
             client`
               insert into accounting.legal_entity_accounting_configurations
@@ -92,6 +109,121 @@ it.effect.skipIf(databaseUrl === undefined)(
             (crossTenant as { constraint_name?: string }).constraint_name,
             "legal_entity_accounting_configurations_legal_entity_fkey",
           )
+        }),
+    ),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "serializes period close with revenue posting and rejects later posting",
+  () =>
+    withTemporaryDatabase(
+      databaseUrl!,
+      (client) =>
+        Effect.gen(function* () {
+          yield* runMigrations(client)
+          const database = makePostgresDatabase(client)
+          const [tenant] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+            `
+          )
+          const [organization] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.parties (tenant_id, kind, name)
+              values (${tenant!.id}, 'organization', 'Accounting Service Organization') returning id
+            `
+          )
+          const [legalEntity] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.legal_entities (tenant_id, organization_party_id)
+              values (${tenant!.id}, ${organization!.id}) returning id
+            `
+          )
+          const accounts = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounts (tenant_id, code, name, type)
+              values
+                (${tenant!.id}, 'RECEIVABLE', 'Receivable', 'asset'),
+                (${tenant!.id}, 'REVENUE', 'Revenue', 'revenue')
+              returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.legal_entity_accounting_configurations
+                (tenant_id, legal_entity_id, base_currency, decimal_precision,
+                 fiscal_year_start_month, posting_enabled)
+              values (${tenant!.id}, ${legalEntity!.id}, 'USD', 2, 1, true)
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.revenue_posting_profiles
+                (tenant_id, legal_entity_id, receivable_account_id, revenue_account_id)
+              values (${tenant!.id}, ${legalEntity!.id}, ${accounts[0]!.id}, ${accounts[1]!.id})
+            `
+          )
+          const [period] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on)
+              values (${tenant!.id}, ${legalEntity!.id}, '1900-01-01', '2100-12-31')
+              returning id
+            `
+          )
+          const principal = { userAccountId: "accounting-service", sessionId: "session" }
+          const authorizationLayer = makeAuthorizationTestLayer(
+            [AccountingCapabilities.periodClose, AccountingCapabilities.revenuePost].map(
+              (capability) => ({
+                userAccountId: principal.userAccountId,
+                tenantId: tenant!.id,
+                capability,
+              }),
+            ),
+          )
+
+          yield* Effect.gen(function* () {
+            const authorization = yield* AuthorizationService
+            const accounting = yield* Effect.provide(
+              makeAccountingService,
+              Layer.merge(
+                Layer.succeed(Database, database),
+                Layer.succeed(AuthorizationService, authorization),
+              ),
+            )
+            const [closeResult, postResult] = yield* Effect.all([
+              accounting.closePeriod({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                periodId: period!.id,
+              }).pipe(Effect.result),
+              accounting.postRevenueForOrder({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                orderId: "concurrent-order",
+                amount: "10.00",
+              }).pipe(Effect.result),
+            ], { concurrency: "unbounded" })
+
+            assert.isTrue(Result.isSuccess(closeResult))
+            if (Result.isFailure(postResult)) {
+              assert.instanceOf(postResult.failure, AccountingPeriodNotOpen)
+            } else {
+              assert.strictEqual(postResult.success.status, "posted")
+            }
+            assert.instanceOf(
+              yield* Effect.flip(accounting.postRevenueForOrder({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                orderId: "after-close",
+                amount: "10.00",
+              })),
+              AccountingPeriodNotOpen,
+            )
+          }).pipe(Effect.provide(authorizationLayer))
         }),
     ),
 )

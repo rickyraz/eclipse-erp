@@ -215,6 +215,9 @@ Exit criteria:
 
 ### P2 — Documents and Financial Semantics
 
+The baseline is decided by
+[`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md): documents remain owner-local; committed economic facts are corrected by new commands and reversals; the current executable posting flow is single-Legal-Entity, base-currency, fixed two-decimal money; and tax, invoices, AP/AR, payments, settlement, reopen, and adjusting periods remain explicitly out of scope until their owners and lifecycles are decided.
+
 Resolve before cataloging purchase, sales, billing, payment, or close actions:
 
 ```text

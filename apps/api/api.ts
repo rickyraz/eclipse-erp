@@ -233,7 +233,11 @@ const Inventory = HttpApiGroup.make("Inventory").add(
   }).middleware(BearerAuth),
   HttpApiEndpoint.post("createItem", "/inventory/items", {
     headers: tenantHeaders,
-    payload: Schema.Struct({ sku: Schema.String, name: Schema.String }),
+    payload: Schema.Struct({
+      sku: Schema.String,
+      name: Schema.String,
+      unitOfMeasure: Schema.optionalKey(Schema.String),
+    }),
     success: CreatedItem,
     error: errors,
   }).middleware(BearerAuth),
@@ -308,7 +312,7 @@ const Accounting = HttpApiGroup.make("Accounting").add(
     headers: tenantHeaders,
     payload: Schema.Struct({
       baseCurrency: Schema.String,
-      precision: Schema.Int,
+      precision: Schema.Literal(2),
       fiscalYearStartMonth: Schema.Int,
       postingEnabled: Schema.Boolean,
     }),

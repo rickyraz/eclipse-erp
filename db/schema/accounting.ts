@@ -61,7 +61,7 @@ export const legalEntityAccountingConfigurations = accountingSchema.table(
     ),
     check(
       "legal_entity_accounting_configurations_precision_check",
-      sql`${table.precision} between 0 and 18`,
+      sql`${table.precision} = 2`,
     ),
     check(
       "legal_entity_accounting_configurations_fiscal_month_check",

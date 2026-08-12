@@ -44,7 +44,7 @@ export const BootstrapTenantInput = Schema.Struct({
   dedicatedJournalCode: Schema.optionalKey(NonBlankString),
   warehouseName: NonBlankString,
   baseCurrency: Schema.String,
-  precision: Schema.Int,
+  precision: Schema.Literal(2),
   fiscalYearStartMonth: Schema.Int,
   postingEnabled: Schema.Boolean,
 })
