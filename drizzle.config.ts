@@ -28,6 +28,7 @@ export default defineConfig({
     "inventory",
     "accounting",
     "process",
+    "messaging",
   ],
   breakpoints: true,
   strict: true,
