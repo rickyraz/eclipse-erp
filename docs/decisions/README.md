@@ -57,5 +57,6 @@ current system; ADRs preserve decision history.
 | [`0032`](./0032-order-confirmation-cross-domain-workflow.md)         | Define atomic Sales + Inventory + Accounting order confirmation | Superseded |
 | [`0033`](./0033-extend-order-lifecycle-and-gate-pgque.md)            | Extend order lifecycle and gate PgQue activation                | Accepted   |
 | [`0034`](./0034-adopt-non-interference-overload-isolation.md)        | Adopt non-interference as the overload-isolation target         | Accepted   |
+| [`0035`](./0035-define-p1-inventory-primitives.md)                   | Define the P1 inventory primitive baseline                      | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

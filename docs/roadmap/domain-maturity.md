@@ -53,7 +53,8 @@ contract and database tests
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
 | `integrations` | external adapter and connector boundary | `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner |
-| `workflow` | no implemented package | `PLANNED` | create only after Process Studio primitive and runtime gates are approved |
+| `process` | bounded order-lifecycle application coordinator | `PARTIAL` | keep orchestration behind public domain contracts; do not treat it as Process Studio or a new domain owner |
+| `workflow` | no implemented Process Studio runtime package | `PLANNED` | create only after Process Studio primitive and runtime gates are approved |
 
 ## Maturity Levels
 

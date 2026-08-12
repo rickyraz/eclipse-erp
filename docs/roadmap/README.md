@@ -56,6 +56,9 @@ Business domains:
 Scaffolds or partial domains:
   procurement, billing
 
+Application coordinator only:
+  process (bounded order lifecycle; not Process Studio)
+
 Not yet implemented as a runtime package:
   workflow / Process Studio
 ```

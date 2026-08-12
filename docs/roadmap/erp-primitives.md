@@ -82,7 +82,7 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 | Document and lifecycle | Orders, quotations, journals, reservations, and transfers use local states | `PARTIAL` | Decide cross-document references, correction/reversal, immutable facts, lifecycle compatibility, and versioning |
 | Quantity and movement | Inventory balances, reservations, movements, and transfers exist | `PARTIAL` | Decide negative-stock policy, traceability, lot/serial scope, reservation semantics, movement correction, and valuation boundary |
 | Money and obligation | Accounting journals exist; billing is a scaffold | `PARTIAL` | Decide currency, precision, tax scope, payable, receivable, invoice, payment, settlement, and rounding ownership |
-| Fiscal period and close | Accounting domain exists; period-close behavior is not implemented | `UNKNOWN` | Decide open/closed period rules, posting eligibility, close/reopen policy, concurrency with posting, and audit requirements |
+| Fiscal period and close | Accounting owns open/closed periods, posting eligibility, and revenue-posting checks; reopen and advanced close policy remain deferred | `PARTIAL` | Complete reopen/adjusting-period policy, broader posting-date semantics, close concurrency proof, and audit requirements before cataloging period actions |
 | Policy and authorization | Capability-based authorization and ADR-0031 capability naming are implemented for current actions | `READY` for current actions | Extend owner metadata, approval/override semantics, and separation of duties when new irreversible actions and Process Studio catalogs require them |
 | Audit and correlation | Process workflow events/jobs carry tenant, actor, aggregate, correlation, and causation fields | `PARTIAL` | Decide authoritative audit ownership, retention, and delivery/consumer observability |
 | Typed actions and events | Process package exposes versioned event and job contracts; full catalogs remain planned | `PARTIAL` | Add catalog registration, compatibility, contributor ownership, and public-contract verification |
@@ -91,6 +91,8 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 ## Decision Order
 
 ### P0 — Scope and User Accounts
+
+**P0 baseline status: `READY`.** All P0-01 through P0-10 tasks have public contracts and executable proof. Deployment of historical databases remains conditional on the explicit operator-supplied identifier and Legal Entity mappings described below; readiness does not authorize inferred backfills.
 
 The initial scope and user-account decisions are recorded in
 [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md).
@@ -188,6 +190,9 @@ failure boundaries; atomic rollback across domains remains a separate
 transaction-contract requirement.
 
 ### P1 — Product, Quantity, and Location
+
+The baseline is decided by
+[`../decisions/0035-define-p1-inventory-primitives.md`](../decisions/0035-define-p1-inventory-primitives.md): Inventory owns discrete stock Items with one immutable stock UOM, whole-number quantities, Warehouse-level location, no negative stock, and append-oriented corrections. Unit conversion, fractional stock, bins, lot/serial traceability, and valuation remain explicitly out of scope until required.
 
 Resolve before adding procurement, manufacturing, or advanced inventory actions:
 
