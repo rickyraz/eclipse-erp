@@ -43,12 +43,14 @@ contract and database tests
 | Package | Current role | Readiness | Roadmap action |
 |---|---|---:|---|
 | `kernel` | database, transaction, migration, infrastructure failures | `FOUNDATION` | stabilize transaction context, capability-level failures, probes, and recovery tests |
+| `catalog` | contract-only action/event declaration protocol | `FOUNDATION` | remain a dependency leaf; future Process Studio owns aggregation and release state |
+| `messaging` | event envelope, transactional outbox, completed consumer receipts | `FOUNDATION` | add PgQue adapter only after its activation gates; never own domain event meaning |
 | `auth` | authentication principals and sessions | `FOUNDATION` | preserve separation from authorization and expose only public identity contracts |
 | `authorization` | scoped capability decisions | `FOUNDATION` | add capabilities only with protected business actions and denial tests |
 | `identity` | identity domain | `PARTIAL` | clarify identity lifecycle and external identity boundaries |
 | `party` | party and party relationships | `PARTIAL` | mature customer/supplier/employee roles and relationship contracts |
-| `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL` | decide UOM, traceability, valuation, correction, and publish typed actions/events |
-| `accounting` | accounts and journal posting | `PARTIAL` | add period, close, AP/AR, payment, tax, and reversal semantics only when decided |
+| `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope |
+| `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.post` v1 is a Level 3 slice | Keep generic journals and period actions out of Process Studio; AP/AR, payment, tax, and settlement remain out of scope |
 | `sales` | customers, quotations, sales orders | `PARTIAL` | decide fulfillment, invoicing, credit policy, and customer-facing events |
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
@@ -105,7 +107,9 @@ The package additionally publishes:
 - compensation metadata;
 - catalog compatibility tests against public contracts.
 
-Only Level 3 packages may appear as production Process Studio actions/events.
+Only Level 3 capabilities may appear as production Process Studio actions/events. A package may remain
+`PARTIAL` while one narrow capability satisfies Level 3; maturity is not inherited by sibling
+commands.
 
 A plugin follows the same maturity levels, with additional requirements from
 its trust level: owned schema and migration isolation for trusted extensions,
@@ -195,6 +199,26 @@ HR/payroll
 They remain `OPTIONAL` until a concrete product capability requires them. A
 package is created only when it owns an invariant that cannot remain in an
 existing domain.
+
+## Current Level 3 Evidence
+
+The bounded internal catalog currently has two Level 3 capability slices:
+
+```text
+inventory.stock.adjust v1
+  -> PUBLIC action + inventory.stock.corrected v1
+  -> owner-controlled atomic publication
+  -> idempotent correction and rollback proofs
+
+accounting.revenue.post v1
+  -> PUBLIC action + accounting.revenue.posted v1
+  -> owner-controlled atomic publication
+  -> open-period, reversal, idempotency, and rollback proofs
+```
+
+This satisfies the two-domain catalog evidence requirement for bounded internal Process Studio 0.8
+work. It does not make all Inventory or Accounting commands process-safe, activate PgQue, implement
+external connectors, or authorize a broad workflow runtime.
 
 ## Domain Gate Before Workflow Runtime
 

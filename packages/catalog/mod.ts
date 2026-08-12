@@ -17,6 +17,23 @@ export type ActionCompensation =
   | { readonly kind: "action"; readonly actionId: string; readonly version: number }
   | { readonly kind: "none"; readonly recovery: "manual" }
 
+export type ActionPrecondition =
+  | "authorized"
+  | "idempotency_key_stable"
+  | "stock_reference_exists"
+  | "stock_unit_matches"
+  | "stock_remains_available"
+  | "revenue_profile_configured"
+  | "accounting_period_open"
+
+export type ActionEffect =
+  | "stock_balance_adjusted"
+  | "stock_correction_recorded"
+  | "revenue_journal_posted"
+
+export type EventDeliveryExpectation = "at_least_once"
+export type EventSensitivity = "business_internal_minimized"
+
 export interface CompatibilityRange {
   readonly minimumVersion: number
   readonly maximumVersion: number
@@ -40,6 +57,8 @@ export interface DomainActionCatalogEntry {
   readonly transactionSemantics: ActionTransactionSemantics
   readonly timeoutPolicy: { readonly timeoutMs: number }
   readonly retryPolicy: { readonly maxAttempts: number }
+  readonly preconditions: readonly [ActionPrecondition, ...ReadonlyArray<ActionPrecondition>]
+  readonly effects: readonly [ActionEffect, ...ReadonlyArray<ActionEffect>]
   readonly compensation: ActionCompensation
 }
 
@@ -58,6 +77,8 @@ export interface DomainEventCatalogEntry {
   readonly correlationFields: ReadonlyArray<string>
   readonly filterableFields: ReadonlyArray<string>
   readonly occurredAtSemantics: "owner_commit_time"
+  readonly deliveryExpectation: EventDeliveryExpectation
+  readonly sensitivity: EventSensitivity
 }
 
 export type ActionCatalogEntry = DomainActionCatalogEntry

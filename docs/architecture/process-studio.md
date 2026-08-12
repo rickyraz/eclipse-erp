@@ -6,8 +6,9 @@
 > static process validation, definition governance, compensation metadata, and the staged Process
 > Studio roadmap.
 >
-> **Implementation status:** Planned. The roadmap begins only after the prerequisite domain
-> contracts and runtime gates are implemented and verified.
+> **Implementation status:** The contract-only catalog protocol and two bounded Level 3 domain
+> capability slices are implemented. Process IR, aggregation/release persistence, runtime, and the
+> designer remain planned behind the roadmap gates.
 >
 > **Related documents**
 >

@@ -9,6 +9,8 @@ const migrationsDirectory = "db/migrations"
 const migrationNamePattern = /^\d{14}_[a-z0-9]+(?:_[a-z0-9]+)*$/
 const checksumPattern = /^[a-f0-9]{64}$/
 const rootSnapshotId = "00000000-0000-0000-0000-000000000000"
+const retireProcessEventOutboxMigration =
+  "db/migrations/20260812175716_retire_process_event_outbox/migration.sql"
 
 type SnapshotMetadata = {
   readonly id: string
@@ -83,6 +85,22 @@ describe("migration discovery", () => {
 })
 
 describe("migration integrity", () => {
+  it.effect("fails closed before retiring the legacy process event outbox", () =>
+    Effect.gen(function* () {
+      const sql = yield* Effect.promise(() => Deno.readTextFile(retireProcessEventOutboxMigration))
+
+      assert.match(
+        sql,
+        /LOCK TABLE "process"\."event_outbox" IN ACCESS EXCLUSIVE MODE/,
+      )
+      assert.match(sql, /IF EXISTS \(SELECT 1 FROM "process"\."event_outbox"\)/)
+      assert.match(
+        sql,
+        /RAISE EXCEPTION\s+'process\.event_outbox contains legacy rows; operator migration\/review is required before retirement'/,
+      )
+      assert.match(sql, /DROP TABLE "process"\."event_outbox"/)
+    }))
+
   it.effect("matches every loader checksum to migration.sql", () =>
     Effect.gen(function* () {
       const migrations = readMigrationFiles({ migrationsFolder: migrationsDirectory })

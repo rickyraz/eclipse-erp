@@ -46,6 +46,14 @@ export const InventoryAdjustStockAction = defineActionCatalogEntry({
   transactionSemantics: "local_atomic",
   timeoutPolicy: { timeoutMs: 30_000 },
   retryPolicy: { maxAttempts: 3 },
+  preconditions: [
+    "authorized",
+    "idempotency_key_stable",
+    "stock_reference_exists",
+    "stock_unit_matches",
+    "stock_remains_available",
+  ],
+  effects: ["stock_balance_adjusted", "stock_correction_recorded"],
   compensation: { kind: "none", recovery: "manual" },
 })
 
@@ -64,6 +72,8 @@ export const InventoryStockCorrectedEvent = defineEventCatalogEntry({
   correlationFields: ["correctionId"],
   filterableFields: ["correctionId", "warehouseId", "itemId"],
   occurredAtSemantics: "owner_commit_time",
+  deliveryExpectation: "at_least_once",
+  sensitivity: "business_internal_minimized",
 })
 
 export const InventoryTypedActionCatalog = [InventoryAdjustStockAction] as const

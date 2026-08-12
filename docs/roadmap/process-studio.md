@@ -67,6 +67,11 @@ If any item is material `UNKNOWN`, remain in the primitive/domain roadmap. Exter
 integration details are governed by
 [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md).
 
+Current evidence closes the bounded internal primitive and two-domain catalog prerequisites:
+`inventory.stock.adjust` v1 and `accounting.revenue.post` v1 are PUBLIC Level 3 slices with
+owner-published events and compatibility tests. This permits bounded 0.8 catalog work; it does not
+activate PgQue, external connectors, Process IR, event waits, or the broad workflow runtime.
+
 ## 0.8 — Capability Metadata
 
 Source of truth for the semantic contents is

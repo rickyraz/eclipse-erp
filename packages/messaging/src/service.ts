@@ -1,5 +1,4 @@
 import { and, eq, or } from "drizzle-orm"
-import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Equal from "effect/Equal"

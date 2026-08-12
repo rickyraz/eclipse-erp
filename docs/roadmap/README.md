@@ -48,7 +48,7 @@ The repository currently has these package families:
 
 ```text
 Foundation:
-  kernel, auth, authorization, identity, party, integrations
+  kernel, auth, authorization, identity, party, catalog, messaging, integrations
 
 Business domains:
   inventory, accounting, sales
@@ -63,10 +63,11 @@ Not yet implemented as a runtime package:
   workflow / Process Studio
 ```
 
-The current inventory, accounting, and sales capabilities are useful vertical
-slices, not a complete ERP primitive set. `procurement` and `billing` must not be
-advertised as Process Studio action providers until their public contracts and
-invariant tests exist.
+The P0-P3 bounded primitive baseline is ready for the selected internal slices. Inventory
+`stock.adjust` v1 and Accounting `revenue.post` v1 provide the first two Level 3 catalog entries;
+their packages remain partial and no sibling command inherits that maturity. `procurement` and
+`billing` must not be advertised as Process Studio action providers until their public contracts and
+invariant tests exist. PgQue, external connectors, and the broad workflow runtime remain gated.
 
 ## Roadmap Tracks
 

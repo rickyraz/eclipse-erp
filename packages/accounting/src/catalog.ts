@@ -44,6 +44,13 @@ export const AccountingPostRevenueAction = defineActionCatalogEntry({
   transactionSemantics: "local_atomic",
   timeoutPolicy: { timeoutMs: 30_000 },
   retryPolicy: { maxAttempts: 3 },
+  preconditions: [
+    "authorized",
+    "idempotency_key_stable",
+    "revenue_profile_configured",
+    "accounting_period_open",
+  ],
+  effects: ["revenue_journal_posted"],
   compensation: { kind: "none", recovery: "manual" },
 })
 
@@ -62,6 +69,8 @@ export const AccountingRevenuePostedEvent = defineEventCatalogEntry({
   correlationFields: ["orderId"],
   filterableFields: ["journalId", "legalEntityId", "orderId"],
   occurredAtSemantics: "owner_commit_time",
+  deliveryExpectation: "at_least_once",
+  sensitivity: "business_internal_minimized",
 })
 
 export const AccountingTypedActionCatalog = [AccountingPostRevenueAction] as const

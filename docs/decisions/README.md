@@ -60,5 +60,6 @@ current system; ADRs preserve decision history.
 | [`0035`](./0035-define-p1-inventory-primitives.md)                   | Define the P1 inventory primitive baseline                      | Accepted   |
 | [`0036`](./0036-define-p2-document-and-financial-baseline.md)        | Define the P2 document and financial baseline                   | Accepted   |
 | [`0037`](./0037-define-p3-audit-event-and-delivery-boundary.md)      | Define the P3 audit, event, and delivery boundary               | Accepted   |
+| [`0038`](./0038-move-internal-event-delivery-to-messaging.md)        | Move internal event delivery ownership to Messaging             | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

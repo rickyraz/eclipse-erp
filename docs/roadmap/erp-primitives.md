@@ -75,18 +75,18 @@ Level 3 provider gate in [`domain-maturity.md`](./domain-maturity.md).
 
 | Primitive family | Current repository evidence | Current state | Decision before Process Studio |
 |---|---|---|---|
-| Scope and organization | Tenant-scoped contracts and composite tenant keys exist | `PARTIAL` | Decide tenant, legal entity, company, branch, warehouse, fiscal, currency, and timezone scope without collapsing them into one identifier |
-| Party and relationships | `party`, `identity`, sales customers, auth principals | `PARTIAL` | Decide customer, supplier, employee, contact, and role ownership; define relationship validity and external identifiers |
-| Product/service and UOM | Inventory items and SKUs exist | `PARTIAL` | Decide product/service identity, UOM, conversion, category, and whether quantity semantics are integer-only or extensible |
-| Location and resource | Inventory warehouses exist | `PARTIAL` | Decide warehouse hierarchy, bins/locations, branch ownership, and resource identity before adding routing or manufacturing |
-| Document and lifecycle | Orders, quotations, journals, reservations, and transfers use local states | `PARTIAL` | Decide cross-document references, correction/reversal, immutable facts, lifecycle compatibility, and versioning |
-| Quantity and movement | Inventory balances, reservations, movements, and transfers exist | `PARTIAL` | Decide negative-stock policy, traceability, lot/serial scope, reservation semantics, movement correction, and valuation boundary |
-| Money and obligation | Accounting journals exist; billing is a scaffold | `PARTIAL` | Decide currency, precision, tax scope, payable, receivable, invoice, payment, settlement, and rounding ownership |
-| Fiscal period and close | Accounting owns open/closed periods, posting eligibility, and revenue-posting checks; reopen and advanced close policy remain deferred | `PARTIAL` | Complete reopen/adjusting-period policy, broader posting-date semantics, close concurrency proof, and audit requirements before cataloging period actions |
-| Policy and authorization | Capability-based authorization and ADR-0031 capability naming are implemented for current actions | `READY` for current actions | Extend owner metadata, approval/override semantics, and separation of duties when new irreversible actions and Process Studio catalogs require them |
-| Audit and correlation | Process workflow events/jobs carry tenant, actor, aggregate, correlation, and causation fields | `PARTIAL` | Decide authoritative audit ownership, retention, and delivery/consumer observability |
-| Typed actions and events | Process package exposes versioned event and job contracts; full catalogs remain planned | `PARTIAL` | Add catalog registration, compatibility, contributor ownership, and public-contract verification |
-| Compensation and recovery | Order confirmation has idempotent replay and explicit manual-recovery state | `PARTIAL` | Add domain compensation commands for future non-atomic or external effects |
+| Scope and organization | P0 contracts, composite keys, Legal Entity configuration, Branch and Warehouse scope | `READY` (bounded baseline) | Add new scope only through its semantic owner and a superseding decision when required |
+| Party and relationships | PartyRole, PartyRelationship, PartyRepresentation, and scoped external identifiers | `READY` (P0 baseline) | Employee-specific policy remains out of scope until requested |
+| Product/service and UOM | Inventory Item has immutable stock UOM and typed whole-number stock contracts | `READY` (P1 baseline) | Unit conversion, fractional stock, services, and classification require a later decision |
+| Location and resource | Warehouse is the lowest authoritative stock location and is Legal Entity scoped | `READY` (P1 baseline) | Bins, staging locations, routing, and manufacturing resources remain out of scope |
+| Document and lifecycle | Owner-local orders, reservations, transfers, journals, cancellation, fulfillment, and reversal | `READY` (bounded P2 baseline) | New document families need owner-specific identity, lifecycle, correction, and version decisions |
+| Quantity and movement | Non-negative balances, concurrent reservations/transfers, UOM validation, append-oriented corrections | `READY` (P1 baseline) | Lot/serial, valuation, and fractional quantity remain out of scope |
+| Money and obligation | Fixed two-decimal Legal Entity base-currency revenue posting and reversal | `READY` (bounded P2 baseline) | Tax, invoices, AP/AR, payments, FX, and settlement remain explicitly out of scope |
+| Fiscal period and close | Non-overlapping open/closed periods serialize with revenue posting | `READY` (bounded P2 baseline) | Reopen, adjusting periods, arbitrary posting dates, and advanced close remain out of scope |
+| Policy and authorization | Capability catalog and deny-by-default checks cover current actions | `READY` for current actions | Add approval, override, and SoD policy only with new high-risk actions |
+| Audit and correlation | Messaging envelopes preserve actor, Tenant, command, correlation, causation, idempotency, and time | `READY` (bounded P3 baseline) | Deployment retention duration and external-provider audit remain gated operational decisions |
+| Typed actions and events | Inventory and Accounting publish domain-owned PUBLIC v1 actions/events with compatibility tests | `READY` for selected slices | Future Process Studio owns aggregation/release; other actions remain unregistered |
+| Compensation and recovery | Order cancellation releases reservations and reverses revenue; fulfillment and manual recovery are explicit | `READY` (bounded lifecycle) | Returns, credits, and external compensation require later owner decisions |
 
 ## Decision Order
 
@@ -239,8 +239,11 @@ Exit criteria:
 
 ### P3 — Audit, Events, and Integration
 
+**P3 baseline status: `READY` for the bounded PostgreSQL-internal baseline.** Inventory stock correction and Accounting revenue posting publish owner-controlled PUBLIC v1 events atomically; Process publishes only its own confirmation, cancellation, and fulfillment lifecycle facts; completed consumer receipts make PostgreSQL-local delivery duplicate-safe. PgQue activation, external connectors, Process event waits, and deployment-specific retention remain gated and are not implied by this status.
+
 The baseline is decided by
-[`../decisions/0037-define-p3-audit-event-and-delivery-boundary.md`](../decisions/0037-define-p3-audit-event-and-delivery-boundary.md): owner-domain facts remain business audit authority; the bounded Process coordinator owns its audit/delivery envelopes; catalog entries are domain-owned through a neutral typed contributor contract; delivery is at-least-once with durable consumer receipts; payloads are minimized and redacted; and PgQue plus external connectors remain behind their existing activation gates.
+[`../decisions/0037-define-p3-audit-event-and-delivery-boundary.md`](../decisions/0037-define-p3-audit-event-and-delivery-boundary.md) and
+[`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md): owner-domain facts remain business audit authority; Messaging owns shared envelope/outbox/receipt infrastructure; catalog declarations remain domain-owned through a neutral typed contributor contract; delivery is at-least-once with durable consumer receipts; payloads are minimized and redacted; and PgQue plus external connectors remain behind their existing activation gates.
 
 Resolve before durable process execution:
 

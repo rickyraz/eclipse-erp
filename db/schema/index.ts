@@ -54,7 +54,6 @@ export {
   salesSchema,
 } from "./sales.ts"
 export {
-  eventOutbox,
   processJobs,
   processJobStatus,
   processSchema,

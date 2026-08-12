@@ -48,6 +48,8 @@ describe("catalog compatibility", () => {
       for (const entry of [...actions, ...events]) assertCompatibleVersion(entry)
 
       for (const action of actions) {
+        assert.ok(action.preconditions.length > 0)
+        assert.ok(action.effects.length > 0)
         assert.ok(isKnownCapability(action.requiredCapability))
         const capability = getCapabilityDefinition(action.requiredCapability)
         assert.ok(capability)
@@ -55,6 +57,11 @@ describe("catalog compatibility", () => {
         assert.strictEqual(action.version, capability.version)
         assert.strictEqual(action.stability, capability.stability)
         assert.deepStrictEqual(action.scope, capability.scope)
+      }
+
+      for (const event of events) {
+        assert.strictEqual(event.deliveryExpectation, "at_least_once")
+        assert.strictEqual(event.sensitivity, "business_internal_minimized")
       }
 
       assert.strictEqual(InventoryAdjustStockAction.inputSchema, AdjustStockInput)

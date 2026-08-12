@@ -47,6 +47,8 @@
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
 > - Order lifecycle and PgQue activation gate:
 >   [`../decisions/0033-extend-order-lifecycle-and-gate-pgque.md`](../decisions/0033-extend-order-lifecycle-and-gate-pgque.md)
+> - Internal event delivery ownership:
+>   [`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md)
 > - Non-interference overload isolation:
 >   [`../decisions/0034-adopt-non-interference-overload-isolation.md`](../decisions/0034-adopt-non-interference-overload-isolation.md)
 

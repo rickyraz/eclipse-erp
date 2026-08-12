@@ -56,31 +56,6 @@ export const workflowRuns = processSchema.table("workflow_runs", {
   ),
 ])
 
-export const eventOutbox = processSchema.table("event_outbox", {
-  id: id(),
-  eventType: text("event_type").notNull(),
-  eventVersion: integer("event_version").notNull(),
-  tenantId: uuid("tenant_id").notNull(),
-  aggregateType: text("aggregate_type").notNull(),
-  aggregateId: uuid("aggregate_id").notNull(),
-  correlationId: text("correlation_id").notNull(),
-  causationId: text("causation_id"),
-  actorPrincipalId: text("actor_principal_id").notNull(),
-  occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
-  payload: jsonb("payload").notNull(),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
-  attempts: integer("attempts").notNull().default(0),
-  createdAt: createdAt(),
-}, (table) => [
-  foreignKey({
-    columns: [table.tenantId],
-    foreignColumns: [tenants.id],
-    name: "event_outbox_tenant_id_fkey",
-  }).onDelete("cascade"),
-  check("event_outbox_event_version_check", sql`${table.eventVersion} > 0`),
-  check("event_outbox_attempts_check", sql`${table.attempts} >= 0`),
-])
-
 export const processJobs = processSchema.table("jobs", {
   id: id(),
   tenantId: uuid("tenant_id").notNull(),
