@@ -239,6 +239,9 @@ Exit criteria:
 
 ### P3 — Audit, Events, and Integration
 
+The baseline is decided by
+[`../decisions/0037-define-p3-audit-event-and-delivery-boundary.md`](../decisions/0037-define-p3-audit-event-and-delivery-boundary.md): owner-domain facts remain business audit authority; the bounded Process coordinator owns its audit/delivery envelopes; catalog entries are domain-owned through a neutral typed contributor contract; delivery is at-least-once with durable consumer receipts; payloads are minimized and redacted; and PgQue plus external connectors remain behind their existing activation gates.
+
 Resolve before durable process execution:
 
 ```text

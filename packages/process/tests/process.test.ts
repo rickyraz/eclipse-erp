@@ -8,7 +8,7 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
   Effect.gen(function* () {
     const event = yield* Schema.decodeUnknownEffect(DomainEventEnvelope)({
       eventId: "event-1",
-      eventType: "sales.order.confirmed",
+      eventType: "process.order_confirmation.completed",
       eventVersion: 1,
       tenantId: "tenant-1",
       aggregateType: "sales_order",

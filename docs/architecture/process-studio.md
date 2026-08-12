@@ -452,10 +452,10 @@ triggers select catalog entries; they never accept an unvalidated free-form even
 Example identities:
 
 ```text
-inventory.stock_transfer.confirmed.v1
-sales.invoice.finalized.v1
-accounting.journal.posted.v1
-procurement.goods_received.v1
+inventory.stock_transfer.confirmed + version 1
+sales.invoice.finalized + version 1
+accounting.journal.posted + version 1
+procurement.goods_received + version 1
 ```
 
 A catalog entry has this conceptual contract:
@@ -497,7 +497,7 @@ The designer may express:
 
 ```text
 Wait for:
-  Inventory.StockTransferConfirmed.v1
+  inventory.stock_transfer.confirmed + version 1
 
 Filter:
   transferId = ${process.transferId}

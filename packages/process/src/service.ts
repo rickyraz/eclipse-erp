@@ -33,7 +33,7 @@ import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const workflowType = "sales.order.confirmation"
-const eventType = "sales.order.confirmed"
+const eventType = "process.order_confirmation.completed"
 const jobType = "process.order_confirmation.post_commit"
 
 export const OrderConfirmationPayload = Schema.Struct({

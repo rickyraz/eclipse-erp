@@ -1,4 +1,11 @@
 export { InventoryCapabilities } from "./src/capabilities.ts"
+export {
+  InventoryAdjustStockAction,
+  InventoryStockCorrectedEvent,
+  InventoryTypedActionCatalog,
+  InventoryTypedEventCatalog,
+  StockCorrectedEventPayload,
+} from "./src/catalog.ts"
 
 export {
   AdjustStockInput,
