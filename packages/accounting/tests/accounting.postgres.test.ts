@@ -114,7 +114,7 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "serializes period close with revenue posting and rejects later posting",
+  "serializes period close with revenue posting and rejects later closed period posting",
   () =>
     withTemporaryDatabase(
       databaseUrl!,
