@@ -1,6 +1,7 @@
 export { InventoryCapabilities } from "./src/capabilities.ts"
 
 export {
+  AdjustStockInput,
   CompleteStockTransferInput,
   ConfirmStockTransferInput,
   CreateItemInput,
@@ -9,6 +10,7 @@ export {
   FulfillReservationInput,
   InventoryReferenceNotFound,
   InventoryService,
+  InventoryUnitOfMeasureMismatch,
   Item,
   ItemAlreadyExists,
   makeInventoryService,
@@ -17,6 +19,8 @@ export {
   ReleaseReservationInput,
   ReserveStockInput,
   StockBalance,
+  StockCorrection,
+  StockCorrectionIdempotencyConflict,
   StockReservation,
   StockReservationIdempotencyConflict,
   StockReservationInvalidState,
@@ -42,6 +46,7 @@ export type {
   InventoryService as InventoryServiceShape,
   Item as ItemType,
   StockBalance as StockBalanceType,
+  StockCorrection as StockCorrectionType,
   StockReservation as StockReservationType,
   StockTransfer as StockTransferType,
   StockTransferLine as StockTransferLineType,

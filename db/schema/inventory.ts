@@ -67,6 +67,7 @@ export const items = inventorySchema.table("items", {
   tenantId: uuid("tenant_id").notNull(),
   sku: text("sku").notNull(),
   name: text("name").notNull(),
+  unitOfMeasure: text("unit_of_measure").notNull().default("EA"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -77,6 +78,10 @@ export const items = inventorySchema.table("items", {
     foreignColumns: [tenants.id],
     name: "items_tenant_id_fkey",
   }).onDelete("cascade"),
+  check(
+    "items_unit_of_measure_check",
+    sql`${table.unitOfMeasure} <> '' and ${table.unitOfMeasure} = upper(trim(${table.unitOfMeasure}))`,
+  ),
 ])
 
 export const stockBalances = inventorySchema.table("stock_balances", {
@@ -196,6 +201,9 @@ export const movements = inventorySchema.table("movements", {
   quantity: bigint("quantity", { mode: "string" }).notNull(),
   kind: movementKind("kind").notNull(),
   referenceId: uuid("reference_id"),
+  unitOfMeasure: text("unit_of_measure"),
+  reason: text("reason"),
+  idempotencyKey: text("idempotency_key"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -209,5 +217,11 @@ export const movements = inventorySchema.table("movements", {
     foreignColumns: [items.tenantId, items.id],
     name: "movements_item_fkey",
   }),
+  unique("movements_tenant_idempotency_key").on(table.tenantId, table.idempotencyKey),
   check("movements_quantity_check", sql`${table.quantity} <> 0`),
+  check(
+    "movements_correction_metadata_check",
+    sql`(${table.idempotencyKey} is null and ${table.unitOfMeasure} is null and ${table.reason} is null) or
+      (${table.idempotencyKey} is not null and ${table.unitOfMeasure} is not null and ${table.reason} is not null and ${table.reason} <> '' and ${table.kind} in ('receipt', 'issue'))`,
+  ),
 ])

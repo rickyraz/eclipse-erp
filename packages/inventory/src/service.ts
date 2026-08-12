@@ -20,6 +20,13 @@ import { InventoryCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
+const SignedQuantity = Schema.String.check(Schema.isPattern(/^-?[1-9]\d*$/))
+const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
+const UnitOfMeasure = Schema.String.check(Schema.isPattern(/^[A-Z][A-Z0-9_-]*$/))
+const UnitOfMeasureInput = NonEmptyString
+const DefaultUnitOfMeasure = UnitOfMeasureInput.pipe(
+  Schema.withDecodingDefaultKey(Effect.succeed("EA")),
+)
 
 export const Warehouse = Schema.Struct({
   id: Schema.String,
@@ -33,6 +40,7 @@ export const Item = Schema.Struct({
   tenantId: Schema.String,
   sku: Schema.String,
   name: Schema.String,
+  unitOfMeasure: UnitOfMeasure,
 })
 export const StockBalance = Schema.Struct({
   tenantId: Schema.String,
@@ -40,6 +48,17 @@ export const StockBalance = Schema.Struct({
   itemId: Schema.String,
   onHand: Schema.String,
   reserved: Schema.String,
+  unitOfMeasure: UnitOfMeasure,
+})
+export const StockCorrection = Schema.Struct({
+  id: Schema.String,
+  tenantId: Schema.String,
+  warehouseId: Schema.String,
+  itemId: Schema.String,
+  adjustment: SignedQuantity,
+  unitOfMeasure: UnitOfMeasure,
+  reason: NonEmptyString,
+  idempotencyKey: NonEmptyString,
 })
 export const StockReservationStatus = Schema.Literals(["active", "released", "fulfilled"])
 export const StockReservation = Schema.Struct({
@@ -71,6 +90,7 @@ export const StockTransfer = Schema.Struct({
 export type Warehouse = Schema.Schema.Type<typeof Warehouse>
 export type Item = Schema.Schema.Type<typeof Item>
 export type StockBalance = Schema.Schema.Type<typeof StockBalance>
+export type StockCorrection = Schema.Schema.Type<typeof StockCorrection>
 export type StockReservation = Schema.Schema.Type<typeof StockReservation>
 export type StockTransferStatus = Schema.Schema.Type<typeof StockTransferStatus>
 export type StockTransferLine = Schema.Schema.Type<typeof StockTransferLine>
@@ -87,12 +107,22 @@ export const CreateItemInput = Schema.Struct({
   ...ScopedInput,
   sku: Schema.String,
   name: Schema.String,
+  unitOfMeasure: DefaultUnitOfMeasure,
 })
 export const ReceiveStockInput = Schema.Struct({
   ...ScopedInput,
   warehouseId: Schema.String,
   itemId: Schema.String,
   quantity: Quantity,
+})
+export const AdjustStockInput = Schema.Struct({
+  ...ScopedInput,
+  warehouseId: Schema.String,
+  itemId: Schema.String,
+  adjustment: SignedQuantity,
+  unitOfMeasure: UnitOfMeasureInput,
+  reason: NonEmptyString,
+  idempotencyKey: NonEmptyString,
 })
 export const ReserveStockInput = Schema.Struct({
   ...ScopedInput,
@@ -152,6 +182,24 @@ export class StockUnavailable
     itemId: Schema.String,
     requested: Schema.String,
   }) {}
+export class InventoryUnitOfMeasureMismatch
+  extends Schema.TaggedErrorClass<InventoryUnitOfMeasureMismatch>()(
+    "InventoryUnitOfMeasureMismatch",
+    {
+      tenantId: Schema.String,
+      itemId: Schema.String,
+      expected: UnitOfMeasure,
+      actual: UnitOfMeasure,
+    },
+  ) {}
+export class StockCorrectionIdempotencyConflict
+  extends Schema.TaggedErrorClass<StockCorrectionIdempotencyConflict>()(
+    "StockCorrectionIdempotencyConflict",
+    {
+      tenantId: Schema.String,
+      idempotencyKey: Schema.String,
+    },
+  ) {}
 export class StockReservationIdempotencyConflict
   extends Schema.TaggedErrorClass<StockReservationIdempotencyConflict>()(
     "StockReservationIdempotencyConflict",
@@ -230,6 +278,16 @@ export interface InventoryService {
   readonly receiveStock: (
     input: unknown,
   ) => Effect.Effect<StockBalance, InventoryReferenceNotFound | CommonFailure>
+  readonly adjustStock: (
+    input: unknown,
+  ) => Effect.Effect<
+    StockCorrection,
+    | InventoryReferenceNotFound
+    | InventoryUnitOfMeasureMismatch
+    | StockCorrectionIdempotencyConflict
+    | StockUnavailable
+    | CommonFailure
+  >
   readonly reserveStock: (
     input: unknown,
   ) => Effect.Effect<
@@ -281,6 +339,39 @@ export const InventoryService = Context.Service<InventoryService>("EclipseERP/In
 
 const referenceFailure = (tenantId: string, warehouseId: string, itemId: string) =>
   new InventoryReferenceNotFound({ tenantId, warehouseId, itemId })
+
+const correctionSelection = {
+  id: movements.id,
+  tenantId: movements.tenantId,
+  kind: movements.kind,
+  warehouseId: movements.warehouseId,
+  itemId: movements.itemId,
+  adjustment: movements.quantity,
+  unitOfMeasure: movements.unitOfMeasure,
+  reason: movements.reason,
+  idempotencyKey: movements.idempotencyKey,
+}
+
+const toStockCorrection = (row: {
+  readonly id: string
+  readonly tenantId: string
+  readonly kind: "receipt" | "issue" | "reservation" | "release"
+  readonly warehouseId: string
+  readonly itemId: string
+  readonly adjustment: string
+  readonly unitOfMeasure: string | null
+  readonly reason: string | null
+  readonly idempotencyKey: string | null
+}): StockCorrection => ({
+  id: row.id,
+  tenantId: row.tenantId,
+  warehouseId: row.warehouseId,
+  itemId: row.itemId,
+  adjustment: row.adjustment,
+  unitOfMeasure: row.unitOfMeasure!,
+  reason: row.reason!,
+  idempotencyKey: row.idempotencyKey!,
+})
 
 const reservationSelection = {
   id: reservations.id,
@@ -409,15 +500,21 @@ export const makeInventoryService = Effect.gen(function* () {
           capability: InventoryCapabilities.itemCreate,
         })
         const sku = decoded.sku.trim().toUpperCase()
+        const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
         const rows = yield* database.query(
           (db) =>
-            db.insert(items).values({ tenantId: decoded.tenantId, sku, name: decoded.name.trim() })
-              .returning({
-                id: items.id,
-                tenantId: items.tenantId,
-                sku: items.sku,
-                name: items.name,
-              }),
+            db.insert(items).values({
+              tenantId: decoded.tenantId,
+              sku,
+              name: decoded.name.trim(),
+              unitOfMeasure,
+            }).returning({
+              id: items.id,
+              tenantId: items.tenantId,
+              sku: items.sku,
+              name: items.name,
+              unitOfMeasure: items.unitOfMeasure,
+            }),
           "inventory.item.create",
         ).pipe(
           Effect.mapError((error) =>
@@ -438,6 +535,10 @@ export const makeInventoryService = Effect.gen(function* () {
         })
         const balance = yield* database.transaction(
           async (tx) => {
+            const [item] = await tx.select({ unitOfMeasure: items.unitOfMeasure })
+              .from(items)
+              .where(and(eq(items.tenantId, decoded.tenantId), eq(items.id, decoded.itemId)))
+            if (item === undefined) return undefined
             const rows = await tx.insert(stockBalances)
               .values({
                 tenantId: decoded.tenantId,
@@ -466,7 +567,7 @@ export const makeInventoryService = Effect.gen(function* () {
               quantity: decoded.quantity,
               kind: "receipt",
             })
-            return rows[0]!
+            return { ...rows[0]!, unitOfMeasure: item.unitOfMeasure }
           },
           "inventory.stock.receive",
         ).pipe(
@@ -477,7 +578,181 @@ export const makeInventoryService = Effect.gen(function* () {
               : error
           ),
         )
+        if (balance === undefined) {
+          return yield* Effect.fail(
+            referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
+          )
+        }
         return balance
+      }),
+    adjustStock: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(AdjustStockInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: InventoryCapabilities.stockAdjust,
+        })
+        const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
+        const reason = decoded.reason.trim()
+        const idempotencyKey = decoded.idempotencyKey.trim()
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [existing] = await tx.select(correctionSelection)
+              .from(movements)
+              .where(
+                and(
+                  eq(movements.tenantId, decoded.tenantId),
+                  eq(movements.idempotencyKey, idempotencyKey),
+                ),
+              )
+              .for("update")
+            if (existing !== undefined) {
+              if (
+                existing.warehouseId !== decoded.warehouseId ||
+                existing.itemId !== decoded.itemId ||
+                existing.adjustment !== decoded.adjustment ||
+                existing.unitOfMeasure !== unitOfMeasure ||
+                existing.reason !== reason
+              ) return { _tag: "idempotency-conflict" as const }
+              return { _tag: "existing" as const, correction: toStockCorrection(existing) }
+            }
+
+            const [item] = await tx.select({ unitOfMeasure: items.unitOfMeasure })
+              .from(items)
+              .where(and(eq(items.tenantId, decoded.tenantId), eq(items.id, decoded.itemId)))
+              .for("update")
+            const [warehouse] = await tx.select({ id: warehouses.id })
+              .from(warehouses)
+              .where(
+                and(
+                  eq(warehouses.tenantId, decoded.tenantId),
+                  eq(warehouses.id, decoded.warehouseId),
+                ),
+              )
+            if (item === undefined || warehouse === undefined) return { _tag: "not-found" as const }
+            if (item.unitOfMeasure !== unitOfMeasure) {
+              return {
+                _tag: "uom-mismatch" as const,
+                expected: item.unitOfMeasure,
+                actual: unitOfMeasure,
+              }
+            }
+
+            const adjustment = BigInt(decoded.adjustment)
+            const timestamp = now()
+            if (adjustment < 0n) {
+              const [balance] = await tx.select({
+                onHand: stockBalances.onHand,
+                reserved: stockBalances.reserved,
+              }).from(stockBalances).where(
+                and(
+                  eq(stockBalances.tenantId, decoded.tenantId),
+                  eq(stockBalances.warehouseId, decoded.warehouseId),
+                  eq(stockBalances.itemId, decoded.itemId),
+                ),
+              ).for("update")
+              if (
+                balance === undefined ||
+                BigInt(balance.onHand) + adjustment < BigInt(balance.reserved)
+              ) return { _tag: "unavailable" as const }
+              await tx.update(stockBalances).set({
+                onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
+                updatedAt: timestamp,
+              }).where(
+                and(
+                  eq(stockBalances.tenantId, decoded.tenantId),
+                  eq(stockBalances.warehouseId, decoded.warehouseId),
+                  eq(stockBalances.itemId, decoded.itemId),
+                ),
+              )
+            } else {
+              await tx.insert(stockBalances).values({
+                tenantId: decoded.tenantId,
+                warehouseId: decoded.warehouseId,
+                itemId: decoded.itemId,
+                onHand: decoded.adjustment,
+              }).onConflictDoUpdate({
+                target: [stockBalances.tenantId, stockBalances.warehouseId, stockBalances.itemId],
+                set: {
+                  onHand: sql`${stockBalances.onHand} + ${decoded.adjustment}`,
+                  updatedAt: timestamp,
+                },
+              })
+            }
+            const [correction] = await tx.insert(movements).values({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              quantity: decoded.adjustment,
+              kind: adjustment < 0n ? "issue" : "receipt",
+              unitOfMeasure,
+              reason,
+              idempotencyKey,
+            }).returning(correctionSelection)
+            return { _tag: "created" as const, correction: toStockCorrection(correction!) }
+          },
+          "inventory.stock.adjust",
+        ).pipe(
+          Effect.catch((error) => {
+            if (!isDatabaseConstraint(error, "movements_tenant_idempotency_key")) {
+              return Effect.fail(error)
+            }
+            return database.query(
+              (db) =>
+                db.select(correctionSelection).from(movements).where(
+                  and(
+                    eq(movements.tenantId, decoded.tenantId),
+                    eq(movements.idempotencyKey, idempotencyKey),
+                  ),
+                ),
+              "inventory.stock.adjust.idempotency",
+            ).pipe(
+              Effect.map((rows) => {
+                const existing = rows[0]
+                return existing !== undefined &&
+                    existing.warehouseId === decoded.warehouseId &&
+                    existing.itemId === decoded.itemId &&
+                    existing.adjustment === decoded.adjustment &&
+                    existing.unitOfMeasure === unitOfMeasure &&
+                    existing.reason === reason
+                  ? { _tag: "existing" as const, correction: toStockCorrection(existing) }
+                  : { _tag: "idempotency-conflict" as const }
+              }),
+            )
+          }),
+        )
+        if (result._tag === "idempotency-conflict") {
+          return yield* Effect.fail(
+            new StockCorrectionIdempotencyConflict({ tenantId: decoded.tenantId, idempotencyKey }),
+          )
+        }
+        if (result._tag === "not-found") {
+          return yield* Effect.fail(
+            referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
+          )
+        }
+        if (result._tag === "uom-mismatch") {
+          return yield* Effect.fail(
+            new InventoryUnitOfMeasureMismatch({
+              tenantId: decoded.tenantId,
+              itemId: decoded.itemId,
+              expected: result.expected,
+              actual: result.actual,
+            }),
+          )
+        }
+        if (result._tag === "unavailable") {
+          return yield* Effect.fail(
+            new StockUnavailable({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              requested: decoded.adjustment,
+            }),
+          )
+        }
+        return result.correction
       }),
     reserveStock: (input) =>
       Effect.gen(function* () {
@@ -1111,6 +1386,7 @@ export const makeInventoryTestLayer = () =>
       const storedTransfers = new Map<string, StockTransfer>()
       const storedReservations = new Map<string, StockReservation>()
       const reservationIdsByIdempotencyKey = new Map<string, string>()
+      const correctionsByIdempotencyKey = new Map<string, StockCorrection>()
       let sequence = 1
       const nextId = () => `inventory-test-${sequence++}`
       const authorize = (principal: unknown, tenantId: string, capability: string) =>
@@ -1149,6 +1425,7 @@ export const makeInventoryTestLayer = () =>
             const decoded = yield* Schema.decodeUnknownEffect(CreateItemInput)(input)
             yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.itemCreate)
             const sku = decoded.sku.trim().toUpperCase()
+            const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
             if (
               [...storedItems.values()].some((value) =>
                 value.tenantId === decoded.tenantId && value.sku === sku
@@ -1161,6 +1438,7 @@ export const makeInventoryTestLayer = () =>
               tenantId: decoded.tenantId,
               sku,
               name: decoded.name.trim(),
+              unitOfMeasure,
             }
             storedItems.set(value.id, value)
             return value
@@ -1191,7 +1469,81 @@ export const makeInventoryTestLayer = () =>
               itemId: decoded.itemId,
               onHand: String(balance.onHand),
               reserved: String(balance.reserved),
+              unitOfMeasure: storedItems.get(decoded.itemId)!.unitOfMeasure,
             }
+          }),
+        adjustStock: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(AdjustStockInput)(input)
+            yield* authorize(decoded.principal, decoded.tenantId, InventoryCapabilities.stockAdjust)
+            const unitOfMeasure = decoded.unitOfMeasure.trim().toUpperCase()
+            const reason = decoded.reason.trim()
+            const idempotencyKey = decoded.idempotencyKey.trim()
+            const key = `${decoded.tenantId}:${idempotencyKey}`
+            const existing = correctionsByIdempotencyKey.get(key)
+            if (existing !== undefined) {
+              if (
+                existing.warehouseId !== decoded.warehouseId ||
+                existing.itemId !== decoded.itemId ||
+                existing.adjustment !== decoded.adjustment ||
+                existing.unitOfMeasure !== unitOfMeasure ||
+                existing.reason !== reason
+              ) {
+                return yield* Effect.fail(
+                  new StockCorrectionIdempotencyConflict({
+                    tenantId: decoded.tenantId,
+                    idempotencyKey,
+                  }),
+                )
+              }
+              return existing
+            }
+            const item = storedItems.get(decoded.itemId)
+            if (
+              storedWarehouses.get(decoded.warehouseId)?.tenantId !== decoded.tenantId ||
+              item?.tenantId !== decoded.tenantId
+            ) {
+              return yield* Effect.fail(
+                referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
+              )
+            }
+            if (item.unitOfMeasure !== unitOfMeasure) {
+              return yield* Effect.fail(
+                new InventoryUnitOfMeasureMismatch({
+                  tenantId: decoded.tenantId,
+                  itemId: decoded.itemId,
+                  expected: item.unitOfMeasure,
+                  actual: unitOfMeasure,
+                }),
+              )
+            }
+            const balanceKey = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`
+            const balance = balances.get(balanceKey) ?? { onHand: 0n, reserved: 0n }
+            const adjustment = BigInt(decoded.adjustment)
+            if (balance.onHand + adjustment < balance.reserved) {
+              return yield* Effect.fail(
+                new StockUnavailable({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.warehouseId,
+                  itemId: decoded.itemId,
+                  requested: decoded.adjustment,
+                }),
+              )
+            }
+            balance.onHand += adjustment
+            balances.set(balanceKey, balance)
+            const correction: StockCorrection = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              itemId: decoded.itemId,
+              adjustment: decoded.adjustment,
+              unitOfMeasure,
+              reason,
+              idempotencyKey,
+            }
+            correctionsByIdempotencyKey.set(key, correction)
+            return correction
           }),
         reserveStock: (input) =>
           Effect.gen(function* () {

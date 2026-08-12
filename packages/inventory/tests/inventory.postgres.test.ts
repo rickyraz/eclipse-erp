@@ -10,6 +10,7 @@ import { makeUserAccountService, UserAccountService } from "../../identity/mod.t
 import {
   InventoryCapabilities,
   makeInventoryService,
+  StockCorrectionIdempotencyConflict,
   StockTransferDifferentLegalEntity,
   StockUnavailable,
   WarehouseBranchNotFound,
@@ -26,6 +27,8 @@ const capabilities = [
   InventoryCapabilities.warehouseCreate,
   InventoryCapabilities.itemCreate,
   InventoryCapabilities.stockReceive,
+  InventoryCapabilities.stockAdjust,
+  InventoryCapabilities.stockReserve,
   InventoryCapabilities.stockTransferCreate,
   InventoryCapabilities.stockTransferConfirm,
   InventoryCapabilities.stockTransferComplete,
@@ -69,6 +72,124 @@ const createLegalEntityScope = (tenantId: string, name: string) =>
     })
     return { legalEntity, branch }
   })
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "keeps stock corrections idempotent under competing negative adjustments",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const database = makePostgresDatabase(client)
+        const userAccountService = yield* makeUserAccountService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+          Effect.provideService(UserAccountService, userAccountService),
+        )
+        const tenant = yield* auth.createTenant({ slug: `adjust-${crypto.randomUUID()}` })
+        const authorizationLayer = makeAuthorizationTestLayer(
+          capabilities.map((capability) => ({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability,
+          })),
+        )
+        yield* Effect.gen(function* () {
+          const authorization = yield* AuthorizationService
+          const requirements = Layer.merge(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
+          )
+          const party = yield* Effect.provide(makePartyService, requirements)
+          const scope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Adjustment"),
+            PartyService,
+            party,
+          )
+          const inventory = yield* Effect.provide(makeInventoryService, requirements)
+          const warehouse = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
+            name: "Adjustment Warehouse",
+          })
+          const item = yield* inventory.createItem({
+            principal,
+            tenantId: tenant.id,
+            sku: "ADJUSTMENT",
+            name: "Adjustment Item",
+            unitOfMeasure: "box",
+          })
+          yield* inventory.receiveStock({
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+            quantity: "10",
+          })
+          yield* inventory.reserveStock({
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+            quantity: "4",
+          })
+          const correctionInput = {
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+            adjustment: "-3",
+            unitOfMeasure: "BOX",
+            reason: "Count correction",
+            idempotencyKey: "correction-1",
+          }
+          const duplicates = yield* Effect.all(
+            [inventory.adjustStock(correctionInput), inventory.adjustStock(correctionInput)],
+            { concurrency: "unbounded" },
+          )
+          assert.strictEqual(duplicates[0].id, duplicates[1].id)
+          assert.instanceOf(
+            yield* Effect.flip(inventory.adjustStock({
+              ...correctionInput,
+              adjustment: "1",
+            })),
+            StockCorrectionIdempotencyConflict,
+          )
+          const competing = yield* Effect.all([
+            Effect.result(inventory.adjustStock({
+              ...correctionInput,
+              adjustment: "-2",
+              idempotencyKey: "correction-2",
+            })),
+            Effect.result(inventory.adjustStock({
+              ...correctionInput,
+              adjustment: "-2",
+              idempotencyKey: "correction-3",
+            })),
+          ], { concurrency: "unbounded" })
+          assert.strictEqual(competing.filter((result) => result._tag === "Success").length, 1)
+          assert.strictEqual(competing.filter((result) => result._tag === "Failure").length, 1)
+          const [balance] = yield* Effect.promise(() => readBalances(client, tenant.id))
+          assert.deepStrictEqual(balance, {
+            warehouse_id: warehouse.id,
+            item_id: item.id,
+            on_hand: "5",
+            reserved: "4",
+          })
+          const [movementCount] = yield* Effect.promise(() =>
+            client<{ count: string }[]>`
+              select count(*)::text as count
+              from inventory.movements
+              where tenant_id = ${tenant.id} and idempotency_key = 'correction-1'
+            `
+          )
+          assert.strictEqual(movementCount?.count, "1")
+        }).pipe(Effect.provide(authorizationLayer))
+      })),
+)
 
 it.effect.skipIf(databaseUrl === undefined)(
   "moves transfer lines only at confirmation and completion",

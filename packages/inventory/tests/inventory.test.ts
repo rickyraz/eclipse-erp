@@ -6,7 +6,9 @@ import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authoriza
 import {
   InventoryCapabilities,
   InventoryService,
+  InventoryUnitOfMeasureMismatch,
   makeInventoryTestLayer,
+  StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
   StockReservationInvalidState,
   StockTransferDifferentLegalEntity,
@@ -21,6 +23,7 @@ const capabilities = [
   InventoryCapabilities.warehouseCreate,
   InventoryCapabilities.itemCreate,
   InventoryCapabilities.stockReceive,
+  InventoryCapabilities.stockAdjust,
   InventoryCapabilities.stockReserve,
   InventoryCapabilities.stockRelease,
   InventoryCapabilities.stockFulfill,
@@ -87,11 +90,129 @@ describe("inventory contract", () => {
         idempotencyKey: "reservation-1",
       })
 
+      assert.strictEqual(item.unitOfMeasure, "EA")
       assert.strictEqual(balance.onHand, "10")
+      assert.strictEqual(balance.unitOfMeasure, "EA")
       assert.strictEqual(reservation.quantity, "4")
       assert.strictEqual(reservation.idempotencyKey, "reservation-1")
       assert.strictEqual(reservation.id, repeated.id)
     })))
+
+  it.effect("applies normalized UOM corrections once and preserves reserved stock", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Adjustments",
+      })
+      const item = yield* inventory.createItem({
+        principal,
+        tenantId,
+        sku: "adjustment-item",
+        name: "Adjustment Item",
+        unitOfMeasure: "box",
+      })
+      assert.strictEqual(item.unitOfMeasure, "BOX")
+      yield* inventory.receiveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "10",
+      })
+      yield* inventory.reserveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "4",
+      })
+      const correction = yield* inventory.adjustStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        adjustment: "-6",
+        unitOfMeasure: "box",
+        reason: "  Count correction  ",
+        idempotencyKey: " correction-1 ",
+      })
+      const repeated = yield* inventory.adjustStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        adjustment: "-6",
+        unitOfMeasure: "BOX",
+        reason: "Count correction",
+        idempotencyKey: "correction-1",
+      })
+      assert.strictEqual(correction.id, repeated.id)
+      assert.strictEqual(correction.unitOfMeasure, "BOX")
+      assert.strictEqual(correction.reason, "Count correction")
+      assert.instanceOf(
+        yield* Effect.flip(inventory.adjustStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          adjustment: "-1",
+          unitOfMeasure: "BOX",
+          reason: "Below reservation",
+          idempotencyKey: "correction-2",
+        })),
+        StockUnavailable,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(inventory.adjustStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          adjustment: "1",
+          unitOfMeasure: "EA",
+          reason: "Wrong unit",
+          idempotencyKey: "correction-3",
+        })),
+        InventoryUnitOfMeasureMismatch,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(inventory.adjustStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          adjustment: "1",
+          unitOfMeasure: "BOX",
+          reason: "Changed payload",
+          idempotencyKey: "correction-1",
+        })),
+        StockCorrectionIdempotencyConflict,
+      )
+    })))
+
+  it.effect("requires the stock adjustment capability", () =>
+    withInventory(
+      Effect.gen(function* () {
+        const inventory = yield* InventoryService
+        assert.instanceOf(
+          yield* Effect.flip(inventory.adjustStock({
+            principal,
+            tenantId,
+            warehouseId: "warehouse",
+            itemId: "item",
+            adjustment: "1",
+            unitOfMeasure: "EA",
+            reason: "Correction",
+            idempotencyKey: "correction-denied",
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      capabilities.filter((capability) => capability !== InventoryCapabilities.stockAdjust),
+    ))
 
   it.effect("releases and fulfills active reservations exactly once", () =>
     withInventory(Effect.gen(function* () {
