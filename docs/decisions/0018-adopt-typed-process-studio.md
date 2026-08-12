@@ -15,6 +15,8 @@
 > - Durable execution:
 >   [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Messaging: [`../architecture/pgque-messaging.md`](../architecture/pgque-messaging.md)
+> - Current internal delivery ownership:
+>   [`./0038-move-internal-event-delivery-to-messaging.md`](./0038-move-internal-event-delivery-to-messaging.md)
 > - Plugin trust: [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
 
 ## Context
@@ -38,7 +40,8 @@ The repository already defines:
 - public typed domain contracts;
 - capability-based authorization;
 - PostgreSQL transactions for synchronous invariants;
-- PgQue for committed events;
+- the Messaging-owned transactional outbox and consumer receipts for current committed-event delivery;
+- PgQue as the selected future fan-out adapter after its activation gates pass;
 - job tables for leased work;
 - a gated durable workflow engine;
 - declarative tenant extensions;
@@ -68,7 +71,9 @@ Process triggers and waits select versioned Typed Event Catalog entries with pay
 ownership, tenant scope, correlation fields, and safe filterable fields. Free-form event names are
 not executable process contracts.
 
-PgQue remains the event-delivery mechanism; the catalog supplies typed process metadata.
+The current internal path is the Messaging-owned transactional outbox and consumer receipts. PgQue
+remains the selected future fan-out adapter after its activation gates pass; the catalog supplies
+typed process metadata without owning delivery.
 
 ### Compensation
 
