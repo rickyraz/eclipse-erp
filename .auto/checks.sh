@@ -7,3 +7,4 @@ rtk deno task skills:check >/dev/null
 rtk deno task boundary:test >/dev/null
 rtk deno task boundary:lint >/dev/null
 rtk deno task test:contract >/dev/null
+rtk deno task test >/dev/null
