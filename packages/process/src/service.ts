@@ -9,14 +9,11 @@ import { eventOutbox, processJobs, workflowRuns } from "../../../db/schema/proce
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import {
+  AccountingPeriodNotOpen,
   AccountingService,
-  AccountNotFound,
-  InvalidJournalLine,
   JournalEntry,
   JournalIdempotencyConflict,
-  JournalLine,
-  JournalReferenceAlreadyExists,
-  UnbalancedJournal,
+  RevenuePostingProfileNotFound,
 } from "../../accounting/mod.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import {
@@ -35,7 +32,6 @@ import {
 import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
-const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 const workflowType = "sales.order.confirmation"
 const eventType = "sales.order.confirmed"
 const jobType = "process.order_confirmation.post_commit"
@@ -43,9 +39,7 @@ const jobType = "process.order_confirmation.post_commit"
 export const OrderConfirmationPayload = Schema.Struct({
   orderId: Schema.String,
   warehouseId: Schema.String,
-  itemId: Schema.String,
-  quantity: Quantity,
-  journalLines: Schema.Array(JournalLine),
+  legalEntityId: Schema.String,
   idempotencyKey: NonEmptyString,
 })
 
@@ -114,7 +108,7 @@ export const WorkflowRun = Schema.Struct({
 export const OrderConfirmationResult = Schema.Struct({
   workflowRunId: Schema.String,
   order: SalesOrder,
-  reservation: StockReservation,
+  reservations: Schema.Array(StockReservation),
   journal: JournalEntry,
   eventId: Schema.String,
   jobId: Schema.String,
@@ -166,13 +160,11 @@ export class WorkflowAlreadyCompleted
 class WorkflowRunAlreadyExists extends Error {}
 
 type OrderConfirmationFailure =
-  | AccountNotFound
+  | AccountingPeriodNotOpen
   | AuthorizationDenied
   | DatabaseFailure
-  | InvalidJournalLine
   | JournalIdempotencyConflict
-  | JournalReferenceAlreadyExists
-  | UnbalancedJournal
+  | RevenuePostingProfileNotFound
   | SalesOrderConfirmationIdempotencyConflict
   | SalesOrderInvalidState
   | SalesOrderNotFound
@@ -248,9 +240,7 @@ const toWorkflowRun = (row: WorkflowRunRow): WorkflowRun => ({
 const businessPayload = (input: Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>) => ({
   orderId: input.orderId,
   warehouseId: input.warehouseId,
-  itemId: input.itemId,
-  quantity: input.quantity,
-  journalLines: input.journalLines,
+  legalEntityId: input.legalEntityId,
   idempotencyKey: input.idempotencyKey,
 })
 
@@ -397,19 +387,24 @@ export const makeProcessService = Effect.gen(function* () {
             orderId: decoded.orderId,
             idempotencyKey: decoded.idempotencyKey,
           })
-          const reservation = yield* inventory.reserveStock({
+          const reservations = yield* Effect.forEach(
+            order.lines,
+            (line, index) =>
+              inventory.reserveStock({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                warehouseId: decoded.warehouseId,
+                itemId: line.itemId,
+                quantity: line.quantity,
+                idempotencyKey: `${decoded.idempotencyKey}:line:${index}`,
+              }),
+          )
+          const journal = yield* accounting.postRevenueForOrder({
             principal: decoded.principal,
             tenantId: decoded.tenantId,
-            warehouseId: decoded.warehouseId,
-            itemId: decoded.itemId,
-            quantity: decoded.quantity,
-            idempotencyKey: decoded.idempotencyKey,
-          })
-          const journal = yield* accounting.postJournal({
-            principal: decoded.principal,
-            tenantId: decoded.tenantId,
-            reference: `sales.order.confirmation:${decoded.orderId}:${decoded.idempotencyKey}`,
-            lines: decoded.journalLines,
+            legalEntityId: decoded.legalEntityId,
+            orderId: order.id,
+            amount: order.total,
           })
 
           const event = (yield* database.query(
@@ -425,7 +420,7 @@ export const makeProcessService = Effect.gen(function* () {
                 payload: {
                   workflowRunId: run[0]!.id,
                   orderId: order.id,
-                  reservationId: reservation.id,
+                  reservationIds: reservations.map((reservation) => reservation.id),
                   journalId: journal.id,
                 },
               }).returning({ id: eventOutbox.id }),
@@ -448,7 +443,7 @@ export const makeProcessService = Effect.gen(function* () {
           const result: OrderConfirmationResult = {
             workflowRunId: run[0]!.id,
             order,
-            reservation,
+            reservations,
             journal,
             eventId: event.id,
             jobId: job.id,

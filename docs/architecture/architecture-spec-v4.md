@@ -45,8 +45,8 @@
 > - Typed Process Studio:
 >   [`../decisions/0018-adopt-typed-process-studio.md`](../decisions/0018-adopt-typed-process-studio.md)
 > - ADR index: [`../decisions/README.md`](../decisions/README.md)
-> - Atomic order confirmation workflow:
->   [`../decisions/0032-order-confirmation-cross-domain-workflow.md`](../decisions/0032-order-confirmation-cross-domain-workflow.md)
+> - Order lifecycle and PgQue activation gate:
+>   [`../decisions/0033-extend-order-lifecycle-and-gate-pgque.md`](../decisions/0033-extend-order-lifecycle-and-gate-pgque.md)
 > - Non-interference overload isolation:
 >   [`../decisions/0034-adopt-non-interference-overload-isolation.md`](../decisions/0034-adopt-non-interference-overload-isolation.md)
 

@@ -34,8 +34,11 @@ const capabilities = [
   InventoryCapabilities.itemCreate,
   InventoryCapabilities.stockReceive,
   InventoryCapabilities.stockReserve,
+  AccountingCapabilities.legalEntityConfigure,
   AccountingCapabilities.accountCreate,
-  AccountingCapabilities.journalPost,
+  AccountingCapabilities.revenueConfigure,
+  AccountingCapabilities.periodOpen,
+  AccountingCapabilities.revenuePost,
   ProcessCapabilities.orderConfirmationRecover,
   ProcessCapabilities.orderConfirmationManualRecovery,
 ] as const
@@ -106,24 +109,31 @@ it.effect.skipIf(databaseUrl === undefined)(
             legalEntityId: legalEntity.id,
             name: "Main Warehouse",
           })
-          const item = yield* inventory.createItem({
+          const widget = yield* inventory.createItem({
             principal,
             tenantId: tenant!.id,
             sku: "ORDER-WIDGET",
             name: "Order Widget",
           })
-          yield* inventory.receiveStock({
+          const cable = yield* inventory.createItem({
             principal,
             tenantId: tenant!.id,
-            warehouseId: warehouse.id,
-            itemId: item.id,
-            quantity: "10",
+            sku: "ORDER-CABLE",
+            name: "Order Cable",
           })
-          const cash = yield* accounting.createAccount({
+          yield* Effect.forEach([widget, cable], (item) =>
+            inventory.receiveStock({
+              principal,
+              tenantId: tenant!.id,
+              warehouseId: warehouse.id,
+              itemId: item.id,
+              quantity: "10",
+            }))
+          const receivable = yield* accounting.createAccount({
             principal,
             tenantId: tenant!.id,
             code: "1000",
-            name: "Cash",
+            name: "Accounts Receivable",
             type: "asset",
           })
           const revenue = yield* accounting.createAccount({
@@ -132,6 +142,29 @@ it.effect.skipIf(databaseUrl === undefined)(
             code: "4000",
             name: "Revenue",
             type: "revenue",
+          })
+          yield* accounting.configureLegalEntity({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            baseCurrency: "USD",
+            precision: 2,
+            fiscalYearStartMonth: 1,
+            postingEnabled: true,
+          })
+          yield* accounting.configureRevenuePosting({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            receivableAccountId: receivable.id,
+            revenueAccountId: revenue.id,
+          })
+          yield* accounting.openPeriod({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            startsOn: "1900-01-01",
+            endsOn: "2099-12-31",
           })
           const customer = yield* sales.createCustomer({
             principal,
@@ -143,43 +176,63 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            lines: [{ itemId: item.id, quantity: "1", unitPrice: "100.00" }],
+            lines: [
+              { itemId: widget.id, quantity: "2", unitPrice: "50.00" },
+              { itemId: cable.id, quantity: "1", unitPrice: "25.00" },
+            ],
           })
           const input = {
             principal,
             tenantId: tenant!.id,
             orderId: order.id,
             warehouseId: warehouse.id,
-            itemId: item.id,
-            quantity: "4",
+            legalEntityId: legalEntity.id,
             idempotencyKey: "order-confirmation-1",
-            journalLines: [
-              { accountId: cash.id, debit: "100.00", credit: "0" },
-              { accountId: revenue.id, debit: "0", credit: "100.00" },
-            ],
           }
 
           const result = yield* process.confirmOrder(input)
           const repeated = yield* process.confirmOrder(input)
           const counts = (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0]!
           assert.strictEqual(result.workflowRunId, repeated.workflowRunId)
-          assert.strictEqual(result.reservation.id, repeated.reservation.id)
+          assert.deepStrictEqual(
+            result.reservations.map(({ id }) => id),
+            repeated.reservations.map(({ id }) => id),
+          )
+          assert.strictEqual(result.reservations.length, 2)
           assert.strictEqual(result.journal.id, repeated.journal.id)
           assert.strictEqual(result.order.status, "confirmed")
+          assert.strictEqual(result.order.total, "125.00")
+          assert.strictEqual(result.journal.lines[0]?.debit, "125.00")
           assert.strictEqual(counts.workflow_runs, "1")
           assert.strictEqual(counts.events, "1")
           assert.strictEqual(counts.jobs, "1")
+          const [event] = yield* Effect.promise(() =>
+            client<{ payload: { reservationIds: string[]; journalId: string } }[]>`
+              select payload from process.event_outbox where id = ${result.eventId}
+            `
+          )
+          assert.deepStrictEqual(
+            event?.payload.reservationIds,
+            result.reservations.map(({ id }) => id),
+          )
+          assert.strictEqual(event?.payload.journalId, result.journal.id)
 
-          const [balance] = yield* Effect.promise(() =>
-            client<{ on_hand: string; reserved: string }[]>`
-              select on_hand::text, reserved::text
+          const balances = yield* Effect.promise(() =>
+            client<{ item_id: string; on_hand: string; reserved: string }[]>`
+              select item_id, on_hand::text, reserved::text
               from inventory.stock_balances
               where tenant_id = ${tenant!.id}
                 and warehouse_id = ${warehouse.id}
-                and item_id = ${item.id}
+              order by item_id
             `
           )
-          assert.deepStrictEqual(balance, { on_hand: "10", reserved: "4" })
+          assert.deepStrictEqual(
+            balances,
+            [
+              { item_id: widget.id, on_hand: "10", reserved: "2" },
+              { item_id: cable.id, on_hand: "10", reserved: "1" },
+            ].toSorted((a, b) => a.item_id.localeCompare(b.item_id)),
+          )
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
@@ -254,20 +307,6 @@ it.effect.skipIf(databaseUrl === undefined)(
             itemId: item.id,
             quantity: "1",
           })
-          const cash = yield* accounting.createAccount({
-            principal,
-            tenantId: tenant!.id,
-            code: "1001",
-            name: "Rollback Cash",
-            type: "asset",
-          })
-          const revenue = yield* accounting.createAccount({
-            principal,
-            tenantId: tenant!.id,
-            code: "4001",
-            name: "Rollback Revenue",
-            type: "revenue",
-          })
           const customer = yield* sales.createCustomer({
             principal,
             tenantId: tenant!.id,
@@ -278,20 +317,15 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            lines: [{ itemId: item.id, quantity: "1", unitPrice: "100.00" }],
+            lines: [{ itemId: item.id, quantity: "2", unitPrice: "100.00" }],
           })
           const error = yield* Effect.flip(process.confirmOrder({
             principal,
             tenantId: tenant!.id,
             orderId: order.id,
             warehouseId: warehouse.id,
-            itemId: item.id,
-            quantity: "2",
+            legalEntityId: legalEntity.id,
             idempotencyKey: "rollback-confirmation-1",
-            journalLines: [
-              { accountId: cash.id, debit: "100.00", credit: "0" },
-              { accountId: revenue.id, debit: "0", credit: "100.00" },
-            ],
           }))
           assert.strictEqual(error._tag, "StockUnavailable")
           const [storedOrder] = yield* Effect.promise(() =>
@@ -376,11 +410,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             itemId: item.id,
             quantity: "5",
           })
-          const cash = yield* accounting.createAccount({
+          const receivable = yield* accounting.createAccount({
             principal,
             tenantId: tenant!.id,
             code: "1002",
-            name: "Concurrency Cash",
+            name: "Concurrency Receivable",
             type: "asset",
           })
           const revenue = yield* accounting.createAccount({
@@ -389,6 +423,29 @@ it.effect.skipIf(databaseUrl === undefined)(
             code: "4002",
             name: "Concurrency Revenue",
             type: "revenue",
+          })
+          yield* accounting.configureLegalEntity({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            baseCurrency: "USD",
+            precision: 2,
+            fiscalYearStartMonth: 1,
+            postingEnabled: true,
+          })
+          yield* accounting.configureRevenuePosting({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            receivableAccountId: receivable.id,
+            revenueAccountId: revenue.id,
+          })
+          yield* accounting.openPeriod({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity.id,
+            startsOn: "1900-01-01",
+            endsOn: "2099-12-31",
           })
           const customer = yield* sales.createCustomer({
             principal,
@@ -407,13 +464,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant!.id,
             orderId: order.id,
             warehouseId: warehouse.id,
-            itemId: item.id,
-            quantity: "2",
+            legalEntityId: legalEntity.id,
             idempotencyKey: "concurrent-confirmation-1",
-            journalLines: [
-              { accountId: cash.id, debit: "50.00", credit: "0" },
-              { accountId: revenue.id, debit: "0", credit: "50.00" },
-            ],
           }
           const results = yield* Effect.all(
             [process.confirmOrder(input), process.confirmOrder(input)],
@@ -431,10 +483,8 @@ it.effect.skipIf(databaseUrl === undefined)(
               JSON.stringify({
                 orderId: order.id,
                 warehouseId: warehouse.id,
-                itemId: item.id,
-                quantity: "2",
+                legalEntityId: legalEntity.id,
                 idempotencyKey: "manual-confirmation-1",
-                journalLines: input.journalLines,
               })
             }::jsonb, 'operator review required')
             `
@@ -451,10 +501,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant!.id,
             orderId: order.id,
             warehouseId: warehouse.id,
-            itemId: item.id,
-            quantity: "2",
+            legalEntityId: legalEntity.id,
             idempotencyKey: "manual-confirmation-1",
-            journalLines: input.journalLines,
           }))
           assert.instanceOf(recovery, WorkflowManualRecoveryRequired)
         }).pipe(Effect.provide(authorizationLayer))
