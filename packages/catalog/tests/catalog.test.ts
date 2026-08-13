@@ -61,6 +61,7 @@ describe("catalog compatibility", () => {
         assert.ok(isKnownCapability(action.requiredCapability))
         const capability = getCapabilityDefinition(action.requiredCapability)
         assert.ok(capability)
+        assert.strictEqual(action.id, action.requiredCapability)
         assert.strictEqual(action.owningDomain, capability.owner)
         assert.strictEqual(action.version, capability.version)
         assert.strictEqual(action.stability, capability.stability)
