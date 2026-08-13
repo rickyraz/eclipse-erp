@@ -385,7 +385,7 @@ export const makeSalesService = Effect.gen(function* () {
             )
             if (mutation._tag === "confirmed") {
               yield* messaging.append({
-                eventId: mutation.order.id,
+                eventId: crypto.randomUUID(),
                 eventType: "sales.order.confirmed",
                 eventVersion: 1,
                 tenantId: decoded.tenantId,
@@ -640,7 +640,7 @@ export const makeSalesTestLayer = () =>
               confirmedAt: new Date().toISOString(),
             }
             yield* messaging.append({
-              eventId: confirmed.id,
+              eventId: crypto.randomUUID(),
               eventType: "sales.order.confirmed",
               eventVersion: 1,
               tenantId: decoded.tenantId,

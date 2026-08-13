@@ -104,8 +104,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(events.length, 1)
+          assert.notStrictEqual(events[0]?.id, order.id)
           assert.deepStrictEqual(events[0], {
-            id: order.id,
+            id: events[0]!.id,
             event_type: "sales.order.confirmed",
             command_id: input.commandId,
             correlation_id: input.correlationId,
@@ -153,7 +154,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             }[]>`
               select o.status, o.confirmed_at, o.confirmation_idempotency_key,
                 (select count(*)::integer from messaging.event_outbox e
-                  where e.tenant_id = o.tenant_id and e.id = o.id) as events
+                  where e.tenant_id = o.tenant_id
+                    and e.aggregate_type = 'sales_order'
+                    and e.aggregate_id = o.id
+                    and e.event_type = 'sales.order.confirmed') as events
               from sales.orders o
               where o.tenant_id = ${tenant!.id} and o.id = ${rollbackOrder.id}
             `
@@ -175,7 +179,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             client<{ count: number }[]>`
               select count(*)::integer as count
               from messaging.event_outbox
-              where tenant_id = ${tenant!.id} and id = ${rollbackOrder.id}
+              where tenant_id = ${tenant!.id}
+                and aggregate_type = 'sales_order'
+                and aggregate_id = ${rollbackOrder.id}
+                and event_type = 'sales.order.confirmed'
             `
           )
           assert.strictEqual(retryEvents[0]?.count, 1)
