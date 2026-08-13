@@ -265,6 +265,60 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "lets distinct consumers independently complete the same event",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const source = yield* messaging.append(event(tenant!.id))
+        const mutation = database.query(
+          (db) =>
+            db.execute(sql`
+              update messaging.event_outbox
+              set attempts = attempts + 1
+              where tenant_id = ${tenant!.id} and id = ${source.eventId}
+            `),
+          "messaging.test.distinct-consumer-mutation",
+        )
+
+        const results = yield* Effect.all([
+          messaging.consumeOnce({
+            tenantId: tenant!.id,
+            consumerId: "accounting.consumer-a",
+            eventId: source.eventId,
+          }, mutation),
+          messaging.consumeOnce({
+            tenantId: tenant!.id,
+            consumerId: "inventory.consumer-b",
+            eventId: source.eventId,
+          }, mutation),
+        ], { concurrency: "unbounded" })
+        assert.isFalse(results[0].duplicate)
+        assert.isFalse(results[1].duplicate)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ attempts: number; receipts: number }[]>`
+            select e.attempts,
+              (select count(*)::integer from messaging.consumer_receipts r
+                where r.tenant_id = e.tenant_id and r.event_id = e.id) as receipts
+            from messaging.event_outbox e
+            where e.tenant_id = ${tenant!.id} and e.id = ${source.eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ attempts: 2, receipts: 2 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "rolls back the losing concurrent consumer's non-idempotent local mutation",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
