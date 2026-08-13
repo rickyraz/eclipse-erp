@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 
 import { EventIdempotencyConflict, makeMessagingService } from "../mod.ts"
-import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -96,6 +96,55 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         assert.deepStrictEqual(rows, [{ count: 2 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rejects cross-tenant receipts and rolls back their local mutation",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const tenants = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug)
+            values (${crypto.randomUUID()}), (${crypto.randomUUID()})
+            returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const source = yield* messaging.append(event(tenants[0]!.id))
+        const mutation = database.query(
+          (db) =>
+            db.execute(sql`
+              update messaging.event_outbox
+              set attempts = attempts + 1
+              where tenant_id = ${tenants[0]!.id} and id = ${source.eventId}
+            `),
+          "messaging.test.cross-tenant-mutation",
+        )
+
+        const failure = yield* Effect.flip(messaging.consumeOnce({
+          tenantId: tenants[1]!.id,
+          consumerId: "accounting.cross-tenant",
+          eventId: source.eventId,
+        }, mutation))
+        assert.instanceOf(failure, DatabaseFailure)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ attempts: number; receipts: number }[]>`
+            select e.attempts,
+              (select count(*)::integer from messaging.consumer_receipts r
+                where r.consumer_id = 'accounting.cross-tenant'
+                  and r.event_id = e.id) as receipts
+            from messaging.event_outbox e
+            where e.tenant_id = ${tenants[0]!.id} and e.id = ${source.eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ attempts: 0, receipts: 0 }])
       })),
 )
 
