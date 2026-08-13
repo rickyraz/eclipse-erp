@@ -37,6 +37,13 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
         attempts: 0,
       }),
     )
+    const invalidAttempts = yield* Effect.flip(
+      Schema.decodeUnknownEffect(EventEnvelope)({
+        ...event(),
+        publishedAt: null,
+        attempts: -1,
+      }),
+    )
     const invalidReceipt = yield* Effect.flip(
       Schema.decodeUnknownEffect(ConsumerReceipt)({
         tenantId: event().tenantId,
@@ -47,6 +54,7 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
     )
 
     assert.strictEqual(invalidEnvelope._tag, "SchemaError")
+    assert.strictEqual(invalidAttempts._tag, "SchemaError")
     assert.strictEqual(invalidReceipt._tag, "SchemaError")
   }))
 

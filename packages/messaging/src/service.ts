@@ -11,6 +11,7 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
+const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const InstantString = Schema.String.check(
   Schema.makeFilter((value) => !Number.isNaN(new Date(value).getTime()), {
     expected: "an ISO-compatible timestamp",
@@ -36,7 +37,7 @@ export const AppendEventInput = Schema.Struct({
 export const EventEnvelope = Schema.Struct({
   ...AppendEventInput.fields,
   publishedAt: Schema.NullOr(InstantString),
-  attempts: Schema.Int,
+  attempts: NonNegativeInt,
 })
 
 export const ConsumeOnceInput = Schema.Struct({
