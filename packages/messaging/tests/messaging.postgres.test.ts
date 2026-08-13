@@ -1,4 +1,5 @@
 import { assert, it } from "@effect/vitest"
+import { sql } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 
 import { EventIdempotencyConflict, makeMessagingService } from "../mod.ts"
@@ -112,6 +113,59 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         assert.deepStrictEqual(rolledBack, [{ events: 0, receipts: 0 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rolls back the losing concurrent consumer's non-idempotent local mutation",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const source = yield* messaging.append(event(tenant!.id))
+        const input = {
+          tenantId: tenant!.id,
+          consumerId: "accounting.increment-attempts",
+          eventId: source.eventId,
+        }
+        const mutation = database.query(
+          (db) =>
+            db.execute(sql`
+              update messaging.event_outbox
+              set attempts = attempts + 1
+              where tenant_id = ${tenant!.id} and id = ${source.eventId}
+            `),
+          "messaging.test.increment-attempts",
+        )
+
+        const results = yield* Effect.all([
+          messaging.consumeOnce(input, mutation),
+          messaging.consumeOnce(input, mutation),
+        ], { concurrency: "unbounded" })
+        assert.strictEqual(results.filter((result) => !result.duplicate).length, 1)
+        assert.strictEqual(results.filter((result) => result.duplicate).length, 1)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ attempts: number; receipts: number }[]>`
+            select e.attempts,
+              (select count(*)::integer from messaging.consumer_receipts r
+                where r.tenant_id = e.tenant_id
+                  and r.consumer_id = ${input.consumerId}
+                  and r.event_id = e.id) as receipts
+            from messaging.event_outbox e
+            where e.tenant_id = ${tenant!.id} and e.id = ${source.eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ attempts: 1, receipts: 1 }])
       })),
 )
 
