@@ -70,6 +70,12 @@ describe("catalog compatibility", () => {
 
       for (const event of events) {
         assert.ok(event.id.startsWith(`${event.owningDomain}.`))
+        assert.ok(event.correlationFields.length > 0)
+        assert.strictEqual(new Set(event.correlationFields).size, event.correlationFields.length)
+        assert.strictEqual(new Set(event.filterableFields).size, event.filterableFields.length)
+        for (const field of event.correlationFields) {
+          assert.ok(event.filterableFields.includes(field))
+        }
         assert.strictEqual(event.deliveryExpectation, "at_least_once")
         assert.strictEqual(event.sensitivity, "business_internal_minimized")
       }
