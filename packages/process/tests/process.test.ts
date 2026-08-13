@@ -64,7 +64,14 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         attempts: -1,
       }),
     )
+    const invalidSchedule = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        scheduledAt: "2026-08-09",
+      }),
+    )
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
+    assert.strictEqual(invalidSchedule._tag, "SchemaError")
   }))
 
 it.effect("defines cancellation and fulfillment command payloads", () =>

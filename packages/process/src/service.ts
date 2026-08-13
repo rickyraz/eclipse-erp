@@ -37,6 +37,7 @@ import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const InstantString = EventEnvelope.fields.occurredAt
 const workflowType = "sales.order.confirmation"
 const eventType = "process.order_confirmation.completed"
 const jobType = "process.order_confirmation.post_commit"
@@ -112,8 +113,8 @@ export const ProcessJob = Schema.Struct({
   idempotencyKey: Schema.String,
   priority: Schema.Int,
   status: ProcessJobStatus,
-  scheduledAt: Schema.String,
-  leaseUntil: Schema.NullOr(Schema.String),
+  scheduledAt: InstantString,
+  leaseUntil: Schema.NullOr(InstantString),
   attempts: NonNegativeInt,
   payload: Schema.Unknown,
   correlationId: Schema.String,
@@ -127,7 +128,7 @@ export const WorkflowRun = Schema.Struct({
   aggregateId: Schema.String,
   status: Schema.Literals(["running", "succeeded", "manual_recovery"]),
   recoveryReason: Schema.NullOr(Schema.String),
-  completedAt: Schema.NullOr(Schema.String),
+  completedAt: Schema.NullOr(InstantString),
 })
 
 export const OrderConfirmationResult = Schema.Struct({
