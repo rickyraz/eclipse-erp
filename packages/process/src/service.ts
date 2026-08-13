@@ -36,6 +36,7 @@ import {
 import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
+const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const workflowType = "sales.order.confirmation"
 const eventType = "process.order_confirmation.completed"
 const jobType = "process.order_confirmation.post_commit"
@@ -113,7 +114,7 @@ export const ProcessJob = Schema.Struct({
   status: ProcessJobStatus,
   scheduledAt: Schema.String,
   leaseUntil: Schema.NullOr(Schema.String),
-  attempts: Schema.Int,
+  attempts: NonNegativeInt,
   payload: Schema.Unknown,
   correlationId: Schema.String,
 })
