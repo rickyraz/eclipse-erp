@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=25
+total=26
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -27,6 +27,7 @@ gate bash -c 'grep -q "keeps event and idempotency identities tenant-scoped" pac
 gate bash -c 'grep -q "rejects cross-tenant receipts and rolls back their local mutation" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.instanceOf(failure, DatabaseFailure)" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.deepStrictEqual(rows, [{ attempts: 0, receipts: 0 }])" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -q "lets distinct consumers independently complete the same event" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.isFalse(results[0].duplicate)" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.deepStrictEqual(rows, [{ attempts: 2, receipts: 2 }])" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -q "concurrent event ID collision produces one event and one typed conflict" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "eventType: \"inventory.stock.corrected\"" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "where tenant_id = \${tenant!.id} and id = \${eventId}" packages/messaging/tests/messaging.postgres.test.ts'
+gate bash -c 'grep -q "scopes event idempotency by event type and version" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "{ eventVersion: 2, idempotencyKey }" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "[{ event_version: 1 }, { event_version: 2 }]" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -q "consumerReceipts" db/schema/messaging.ts && grep -Rqs "duplicate event\|consumer receipt" packages/messaging/tests && grep -Rqs "rolls back.*receipt\|receipt.*rolls back" packages/messaging/tests'
 gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "fulfillOrder" packages/process/src/service.ts && grep -Rqs "cancellation.*atomic\|atomic.*cancellation" packages/process/tests && grep -Rqs "fulfillment" packages/process/tests'
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'

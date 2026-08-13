@@ -61,6 +61,41 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "scopes event idempotency by event type and version",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+        const idempotencyKey = crypto.randomUUID()
+        const envelopes = yield* Effect.all([
+          messaging.append(event(tenant!.id, { eventVersion: 1, idempotencyKey })),
+          messaging.append(event(tenant!.id, { eventVersion: 2, idempotencyKey })),
+        ], { concurrency: "unbounded" })
+        assert.deepStrictEqual(envelopes.map((envelope) => envelope.eventVersion).sort(), [1, 2])
+
+        const rows = yield* Effect.promise(() =>
+          client<{ event_version: number }[]>`
+            select event_version
+            from messaging.event_outbox
+            where tenant_id = ${tenant!.id}
+              and event_type = 'sales.order.confirmed'
+              and idempotency_key = ${idempotencyKey}
+            order by event_version
+          `
+        )
+        assert.deepStrictEqual([...rows], [{ event_version: 1 }, { event_version: 2 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "keeps event and idempotency identities tenant-scoped",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
