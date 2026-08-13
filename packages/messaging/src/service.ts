@@ -11,6 +11,7 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
+const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const InstantString = Schema.String.check(
   Schema.makeFilter((value) => !Number.isNaN(new Date(value).getTime()), {
@@ -21,7 +22,7 @@ const InstantString = Schema.String.check(
 export const AppendEventInput = Schema.Struct({
   eventId: Uuid,
   eventType: NonEmptyString,
-  eventVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  eventVersion: PositiveInt,
   tenantId: Uuid,
   aggregateType: NonEmptyString,
   aggregateId: Uuid,
@@ -62,11 +63,11 @@ export type ConsumeOnceResult<A> =
 
 export class EventIdempotencyConflict
   extends Schema.TaggedErrorClass<EventIdempotencyConflict>()("EventIdempotencyConflict", {
-    tenantId: Schema.String,
-    eventId: Schema.String,
-    eventType: Schema.String,
-    eventVersion: Schema.Int,
-    idempotencyKey: Schema.String,
+    tenantId: Uuid,
+    eventId: Uuid,
+    eventType: NonEmptyString,
+    eventVersion: PositiveInt,
+    idempotencyKey: NonEmptyString,
   }) {}
 
 export interface MessagingService {

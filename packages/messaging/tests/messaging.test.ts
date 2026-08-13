@@ -58,6 +58,21 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
     assert.strictEqual(invalidReceipt._tag, "SchemaError")
   }))
 
+it.effect("rejects malformed idempotency-conflict identities", () =>
+  Effect.gen(function* () {
+    const invalid = yield* Effect.flip(
+      Schema.decodeUnknownEffect(EventIdempotencyConflict)({
+        _tag: "EventIdempotencyConflict",
+        tenantId: "not-a-uuid",
+        eventId: event().eventId,
+        eventType: event().eventType,
+        eventVersion: 0,
+        idempotencyKey: event().idempotencyKey,
+      }),
+    )
+    assert.strictEqual(invalid._tag, "SchemaError")
+  }))
+
 it.effect("appends idempotently and rejects a mismatched envelope", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
