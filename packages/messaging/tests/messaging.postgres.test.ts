@@ -116,7 +116,7 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "commits one derived event and one receipt atomically inside consumeOnce",
+  "commits one derived event and receipt across concurrent duplicate consumers",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -141,10 +141,12 @@ it.effect.skipIf(databaseUrl === undefined)(
           eventId: source.eventId,
         }
 
-        const first = yield* messaging.consumeOnce(input, messaging.append(derived))
-        const duplicate = yield* messaging.consumeOnce(input, messaging.append(derived))
-        assert.strictEqual(first.duplicate, false)
-        assert.strictEqual(duplicate.duplicate, true)
+        const results = yield* Effect.all([
+          messaging.consumeOnce(input, messaging.append(derived)),
+          messaging.consumeOnce(input, messaging.append(derived)),
+        ], { concurrency: "unbounded" })
+        assert.strictEqual(results.filter((result) => !result.duplicate).length, 1)
+        assert.strictEqual(results.filter((result) => result.duplicate).length, 1)
 
         const rows = yield* Effect.promise(() =>
           client<{ events: number; receipts: number }[]>`
