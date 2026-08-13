@@ -33,6 +33,7 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
     const invalidEnvelope = yield* Effect.flip(
       Schema.decodeUnknownEffect(EventEnvelope)({
         ...event(),
+        occurredAt: "2026-08-12",
         publishedAt: "not-a-timestamp",
         attempts: 0,
       }),

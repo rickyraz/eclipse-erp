@@ -13,9 +13,11 @@ const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const IsoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
 const InstantString = Schema.String.check(
+  Schema.isPattern(IsoTimestamp),
   Schema.makeFilter((value) => !Number.isNaN(new Date(value).getTime()), {
-    expected: "an ISO-compatible timestamp",
+    expected: "an ISO 8601 timestamp with a timezone",
   }),
 )
 
