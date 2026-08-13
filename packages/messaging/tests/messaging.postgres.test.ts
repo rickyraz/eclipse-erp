@@ -58,7 +58,7 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "suppresses a duplicate event and rolls back the consumer receipt with failed effects",
+  "suppresses duplicates and lets failed consumers retry after receipt rollback",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -113,6 +113,24 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         assert.deepStrictEqual(rolledBack, [{ events: 0, receipts: 0 }])
+
+        const retried = yield* messaging.consumeOnce(
+          failedInput,
+          messaging.append(rolledBackEvent),
+        )
+        assert.strictEqual(retried.duplicate, false)
+        const recovered = yield* Effect.promise(() =>
+          client<{ events: number; receipts: number }[]>`
+            select
+              (select count(*)::integer from messaging.event_outbox
+                where id = ${rolledBackEvent.eventId}) as events,
+              (select count(*)::integer from messaging.consumer_receipts
+                where tenant_id = ${tenant!.id}
+                  and consumer_id = ${failedInput.consumerId}
+                  and event_id = ${source.eventId}) as receipts
+          `
+        )
+        assert.deepStrictEqual(recovered, [{ events: 1, receipts: 1 }])
       })),
 )
 
