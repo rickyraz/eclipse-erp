@@ -281,8 +281,9 @@ describe("inventory contract", () => {
 
         assert.strictEqual(retry.id, correction.id)
         assert.strictEqual(events.length, 1)
+        assert.notStrictEqual(events[0]?.eventId, correction.id)
         assert.deepStrictEqual(events[0], {
-          eventId: correction.id,
+          eventId: events[0]!.eventId,
           eventType: "inventory.stock.corrected",
           eventVersion: 1,
           tenantId,

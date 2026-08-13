@@ -335,8 +335,9 @@ describe("accounting contract", () => {
 
         assert.strictEqual(replay.id, journal.id)
         assert.strictEqual(events.length, 1)
+        assert.notStrictEqual(events[0]?.eventId, journal.id)
         assert.deepStrictEqual(events[0], {
-          eventId: journal.id,
+          eventId: events[0]!.eventId,
           eventType: "accounting.revenue.posted",
           eventVersion: 1,
           tenantId,

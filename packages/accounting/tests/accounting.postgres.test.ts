@@ -230,8 +230,9 @@ it.effect.skipIf(databaseUrl === undefined)(
               `
             )
             assert.strictEqual(events.length, 1)
+            assert.notStrictEqual(events[0]?.id, journal.id)
             assert.deepStrictEqual(events[0], {
-              id: journal.id,
+              id: events[0]!.id,
               event_type: "accounting.revenue.posted",
               event_version: 1,
               aggregate_type: "journal_entry",

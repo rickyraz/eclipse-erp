@@ -224,8 +224,9 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant.id} and idempotency_key = 'correction-1'
             `
           )
+          assert.notStrictEqual(event?.id, duplicates[0].id)
           assert.deepStrictEqual(event, {
-            id: duplicates[0].id,
+            id: event!.id,
             event_type: "inventory.stock.corrected",
             event_version: 1,
             aggregate_type: "stock_correction",

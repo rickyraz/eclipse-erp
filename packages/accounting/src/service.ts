@@ -683,7 +683,7 @@ export const makeAccountingService = Effect.gen(function* () {
             )
             if (mutation._tag === "posted") {
               yield* messaging.append({
-                eventId: mutation.journal.id,
+                eventId: crypto.randomUUID(),
                 eventType: "accounting.revenue.posted",
                 eventVersion: 1,
                 tenantId: decoded.tenantId,
@@ -1281,7 +1281,7 @@ export const makeAccountingTestLayer = () =>
               ],
             }
             yield* messaging.append({
-              eventId: journal.id,
+              eventId: crypto.randomUUID(),
               eventType: "accounting.revenue.posted",
               eventVersion: 1,
               tenantId: decoded.tenantId,

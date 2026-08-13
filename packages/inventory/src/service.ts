@@ -718,7 +718,7 @@ export const makeInventoryService = Effect.gen(function* () {
 
             if (mutation._tag === "created") {
               yield* messaging.append({
-                eventId: mutation.correction.id,
+                eventId: crypto.randomUUID(),
                 eventType: "inventory.stock.corrected",
                 eventVersion: 1,
                 tenantId: decoded.tenantId,
@@ -1592,7 +1592,7 @@ export const makeInventoryTestLayer = () =>
               idempotencyKey,
             }
             yield* messaging.append({
-              eventId: correction.id,
+              eventId: crypto.randomUUID(),
               eventType: "inventory.stock.corrected",
               eventVersion: 1,
               tenantId: decoded.tenantId,
