@@ -26,7 +26,7 @@ const event = (tenantId: string, overrides: Record<string, unknown> = {}) => ({
 })
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "appends an event idempotently and rejects a mismatched envelope in PostgreSQL",
+  "concurrently appends one event and rejects a mismatched envelope in PostgreSQL",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -40,8 +40,10 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(Database, makePostgresDatabase(client)),
         )
         const input = event(tenant!.id)
-        const first = yield* messaging.append(input)
-        const duplicate = yield* messaging.append(input)
+        const [first, duplicate] = yield* Effect.all([
+          messaging.append(input),
+          messaging.append(input),
+        ], { concurrency: "unbounded" })
 
         assert.deepStrictEqual(duplicate, first)
         const conflict = yield* Effect.flip(
