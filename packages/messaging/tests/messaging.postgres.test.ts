@@ -27,6 +27,40 @@ const event = (tenantId: string, overrides: Record<string, unknown> = {}) => ({
 })
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "joins an ambient transaction and rolls back a successful append",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const input = event(tenant!.id)
+
+        const failure = yield* Effect.flip(database.withTransaction(
+          Effect.andThen(messaging.append(input), Effect.fail("outer transaction failed")),
+          "messaging.test.outer-transaction",
+        ))
+        assert.strictEqual(failure, "outer transaction failed")
+
+        const rows = yield* Effect.promise(() =>
+          client<{ count: number }[]>`
+            select count(*)::integer as count
+            from messaging.event_outbox
+            where tenant_id = ${tenant!.id} and id = ${input.eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ count: 0 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "concurrently appends one event and rejects a mismatched envelope in PostgreSQL",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
