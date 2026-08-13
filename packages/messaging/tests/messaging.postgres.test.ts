@@ -188,6 +188,48 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "concurrent event ID collision produces one event and one typed conflict",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+        const eventId = crypto.randomUUID()
+        const first = event(tenant!.id, { eventId })
+        const second = event(tenant!.id, {
+          eventId,
+          eventType: "inventory.stock.corrected",
+        })
+
+        const outcomes = yield* Effect.all([
+          Effect.result(messaging.append(first)),
+          Effect.result(messaging.append(second)),
+        ], { concurrency: "unbounded" })
+        const successes = outcomes.filter(Result.isSuccess)
+        const failures = outcomes.filter(Result.isFailure)
+        assert.strictEqual(successes.length, 1)
+        assert.strictEqual(failures.length, 1)
+        assert.instanceOf(failures[0]!.failure, EventIdempotencyConflict)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ count: number }[]>`
+            select count(*)::integer as count
+            from messaging.event_outbox
+            where tenant_id = ${tenant!.id} and id = ${eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ count: 1 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "suppresses duplicates and lets failed consumers retry after receipt rollback",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
