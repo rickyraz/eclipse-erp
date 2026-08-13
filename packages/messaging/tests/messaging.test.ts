@@ -1,8 +1,15 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 
-import { EventIdempotencyConflict, makeMessagingTestLayer, MessagingService } from "../mod.ts"
+import {
+  ConsumerReceipt,
+  EventEnvelope,
+  EventIdempotencyConflict,
+  makeMessagingTestLayer,
+  MessagingService,
+} from "../mod.ts"
 
 const event = (overrides: Record<string, unknown> = {}) => ({
   eventId: "018f3f77-0c5a-7cc0-8b62-6a163d214123",
@@ -20,6 +27,28 @@ const event = (overrides: Record<string, unknown> = {}) => ({
   payload: { orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125" },
   ...overrides,
 })
+
+it.effect("rejects malformed envelope and receipt timestamps", () =>
+  Effect.gen(function* () {
+    const invalidEnvelope = yield* Effect.flip(
+      Schema.decodeUnknownEffect(EventEnvelope)({
+        ...event(),
+        publishedAt: "not-a-timestamp",
+        attempts: 0,
+      }),
+    )
+    const invalidReceipt = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ConsumerReceipt)({
+        tenantId: event().tenantId,
+        consumerId: "accounting.project-order",
+        eventId: event().eventId,
+        completedAt: "not-a-timestamp",
+      }),
+    )
+
+    assert.strictEqual(invalidEnvelope._tag, "SchemaError")
+    assert.strictEqual(invalidReceipt._tag, "SchemaError")
+  }))
 
 it.effect("appends idempotently and rejects a mismatched envelope", () =>
   Effect.gen(function* () {

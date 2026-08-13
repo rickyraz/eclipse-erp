@@ -35,7 +35,7 @@ export const AppendEventInput = Schema.Struct({
 
 export const EventEnvelope = Schema.Struct({
   ...AppendEventInput.fields,
-  publishedAt: Schema.NullOr(Schema.String),
+  publishedAt: Schema.NullOr(InstantString),
   attempts: Schema.Int,
 })
 
@@ -47,7 +47,7 @@ export const ConsumeOnceInput = Schema.Struct({
 
 export const ConsumerReceipt = Schema.Struct({
   ...ConsumeOnceInput.fields,
-  completedAt: Schema.String,
+  completedAt: InstantString,
 })
 
 export type AppendEventInput = Schema.Schema.Type<typeof AppendEventInput>
