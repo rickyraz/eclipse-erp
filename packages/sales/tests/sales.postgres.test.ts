@@ -145,15 +145,40 @@ it.effect.skipIf(databaseUrl === undefined)(
             DatabaseFailure,
           )
           const rollbackRows = yield* Effect.promise(() =>
-            client<{ status: string; events: number }[]>`
-              select o.status,
+            client<{
+              status: string
+              confirmed_at: Date | null
+              confirmation_idempotency_key: string | null
+              events: number
+            }[]>`
+              select o.status, o.confirmed_at, o.confirmation_idempotency_key,
                 (select count(*)::integer from messaging.event_outbox e
                   where e.tenant_id = o.tenant_id and e.id = o.id) as events
               from sales.orders o
               where o.tenant_id = ${tenant!.id} and o.id = ${rollbackOrder.id}
             `
           )
-          assert.deepStrictEqual(rollbackRows, [{ status: "draft", events: 0 }])
+          assert.strictEqual(rollbackRows[0]?.status, "draft")
+          assert.isNull(rollbackRows[0]?.confirmed_at)
+          assert.isNull(rollbackRows[0]?.confirmation_idempotency_key)
+          assert.strictEqual(rollbackRows[0]?.events, 0)
+
+          const retried = yield* sales.confirmOrder({
+            ...input,
+            orderId: rollbackOrder.id,
+            commandId: "sales-confirm-retry-command",
+            correlationId: "sales-confirm-retry-correlation",
+            idempotencyKey: "sales-confirm-rollback",
+          })
+          assert.strictEqual(retried.status, "confirmed")
+          const retryEvents = yield* Effect.promise(() =>
+            client<{ count: number }[]>`
+              select count(*)::integer as count
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${rollbackOrder.id}
+            `
+          )
+          assert.strictEqual(retryEvents[0]?.count, 1)
 
           assert.instanceOf(
             yield* Effect.flip(sales.confirmOrder({
