@@ -14,10 +14,12 @@ import {
   StockUnavailable,
 } from "./service.ts"
 
+const Uuid = Schema.String.check(Schema.isUUID())
+
 export const StockCorrectedEventPayload = Schema.Struct({
-  correctionId: Schema.String,
-  warehouseId: Schema.String,
-  itemId: Schema.String,
+  correctionId: Uuid,
+  warehouseId: Uuid,
+  itemId: Uuid,
 })
 
 export const InventoryAdjustStockAction = defineActionCatalogEntry({

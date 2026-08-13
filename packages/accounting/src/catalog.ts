@@ -2,10 +2,12 @@ import * as Schema from "effect/Schema"
 
 import { defineEventCatalogEntry } from "../../catalog/mod.ts"
 
+const Uuid = Schema.String.check(Schema.isUUID())
+
 export const RevenuePostedEventPayload = Schema.Struct({
-  journalId: Schema.String,
-  legalEntityId: Schema.String,
-  orderId: Schema.String,
+  journalId: Uuid,
+  legalEntityId: Uuid,
+  orderId: Uuid,
 })
 
 export const AccountingRevenuePostedEvent = defineEventCatalogEntry({

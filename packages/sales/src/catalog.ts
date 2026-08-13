@@ -13,8 +13,10 @@ import {
   SalesOrderNotFound,
 } from "./service.ts"
 
+const Uuid = Schema.String.check(Schema.isUUID())
+
 export const SalesOrderConfirmedEventPayload = Schema.Struct({
-  orderId: Schema.String,
+  orderId: Uuid,
   total: SalesOrder.fields.total,
 })
 

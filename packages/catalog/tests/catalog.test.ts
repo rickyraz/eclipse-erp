@@ -134,17 +134,17 @@ describe("catalog compatibility", () => {
       })
 
       yield* Schema.decodeUnknownEffect(InventoryStockCorrectedEvent.payloadSchema)({
-        correctionId: "correction-1",
-        warehouseId: "warehouse-1",
-        itemId: "item-1",
+        correctionId: "00000000-0000-4000-8000-000000000001",
+        warehouseId: "00000000-0000-4000-8000-000000000002",
+        itemId: "00000000-0000-4000-8000-000000000003",
       })
       yield* Schema.decodeUnknownEffect(AccountingRevenuePostedEvent.payloadSchema)({
-        journalId: "journal-1",
-        legalEntityId: "legal-entity-1",
-        orderId: "order-1",
+        journalId: "00000000-0000-4000-8000-000000000004",
+        legalEntityId: "00000000-0000-4000-8000-000000000005",
+        orderId: "00000000-0000-4000-8000-000000000006",
       })
       yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)({
-        orderId: "order-1",
+        orderId: "00000000-0000-4000-8000-000000000006",
         total: "10.00",
       })
     }))
