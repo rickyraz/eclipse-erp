@@ -25,11 +25,13 @@ export type ActionPrecondition =
   | "stock_remains_available"
   | "revenue_profile_configured"
   | "accounting_period_open"
+  | "sales_order_draft"
 
 export type ActionEffect =
   | "stock_balance_adjusted"
   | "stock_correction_recorded"
   | "revenue_journal_posted"
+  | "sales_order_confirmed"
 
 export type EventDeliveryExpectation = "at_least_once"
 export type EventSensitivity = "business_internal_minimized"

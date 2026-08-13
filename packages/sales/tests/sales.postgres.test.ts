@@ -9,7 +9,8 @@ import {
   SalesCapabilities,
   SalesOrderConfirmationIdempotencyConflict,
 } from "../mod.ts"
-import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
@@ -21,7 +22,7 @@ const capabilities = [
 ] as const
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "persists order confirmation and returns the committed result for retries",
+  "order confirmation atomic publication preserves replay and rollback",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -42,13 +43,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
-          const sales = yield* Effect.provide(
-            makeSalesService,
-            Layer.merge(
-              Layer.succeed(Database, database),
-              Layer.succeed(AuthorizationService, authorization),
-            ),
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
           )
+          const requirements = Layer.mergeAll(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
+            Layer.succeed(MessagingService, messaging),
+          )
+          const sales = yield* Effect.provide(makeSalesService, requirements)
           const customer = yield* sales.createCustomer({
             principal,
             tenantId: tenant!.id,
@@ -61,18 +64,17 @@ it.effect.skipIf(databaseUrl === undefined)(
             customerId: customer.id,
             lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "100.00" }],
           })
-          const confirmed = yield* sales.confirmOrder({
+          const input = {
             principal,
             tenantId: tenant!.id,
             orderId: order.id,
+            commandId: "sales-confirm-command",
+            correlationId: "sales-confirm-correlation",
+            causationId: null,
             idempotencyKey: "sales-confirm-1",
-          })
-          const repeated = yield* sales.confirmOrder({
-            principal,
-            tenantId: tenant!.id,
-            orderId: order.id,
-            idempotencyKey: "sales-confirm-1",
-          })
+          }
+          const confirmed = yield* sales.confirmOrder(input)
+          const repeated = yield* sales.confirmOrder(input)
 
           assert.strictEqual(confirmed.status, "confirmed")
           assert.strictEqual(confirmed.id, repeated.id)
@@ -85,12 +87,82 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           assert.strictEqual(rows[0]?.status, "confirmed")
           assert.strictEqual(rows[0]?.confirmation_idempotency_key, "sales-confirm-1")
+          const events = yield* Effect.promise(() =>
+            client<{
+              id: string
+              event_type: string
+              command_id: string
+              correlation_id: string
+              causation_id: string | null
+              idempotency_key: string
+              payload: unknown
+            }[]>`
+              select id, event_type, command_id, correlation_id, causation_id,
+                idempotency_key, payload
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and event_type = 'sales.order.confirmed'
+            `
+          )
+          assert.strictEqual(events.length, 1)
+          assert.deepStrictEqual(events[0], {
+            id: order.id,
+            event_type: "sales.order.confirmed",
+            command_id: input.commandId,
+            correlation_id: input.correlationId,
+            causation_id: input.causationId,
+            idempotency_key: input.idempotencyKey,
+            payload: { orderId: order.id, total: "100.00" },
+          })
+
+          const rollbackOrder = yield* sales.createOrder({
+            principal,
+            tenantId: tenant!.id,
+            customerId: customer.id,
+            lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "25.00" }],
+          })
+          const failingSales = yield* Effect.provide(
+            makeSalesService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              Layer.succeed(AuthorizationService, authorization),
+              Layer.succeed(MessagingService, {
+                ...messaging,
+                append: () =>
+                  Effect.fail(
+                    new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
+                  ),
+              }),
+            ),
+          )
+          assert.instanceOf(
+            yield* Effect.flip(failingSales.confirmOrder({
+              ...input,
+              orderId: rollbackOrder.id,
+              commandId: "sales-confirm-rollback-command",
+              correlationId: "sales-confirm-rollback-correlation",
+              idempotencyKey: "sales-confirm-rollback",
+            })),
+            DatabaseFailure,
+          )
+          const rollbackRows = yield* Effect.promise(() =>
+            client<{ status: string; events: number }[]>`
+              select o.status,
+                (select count(*)::integer from messaging.event_outbox e
+                  where e.tenant_id = o.tenant_id and e.id = o.id) as events
+              from sales.orders o
+              where o.tenant_id = ${tenant!.id} and o.id = ${rollbackOrder.id}
+            `
+          )
+          assert.deepStrictEqual(rollbackRows, [{ status: "draft", events: 0 }])
 
           assert.instanceOf(
             yield* Effect.flip(sales.confirmOrder({
               principal,
               tenantId: tenant!.id,
               orderId: order.id,
+              commandId: "sales-confirm-conflict-command",
+              correlationId: "sales-confirm-conflict-correlation",
+              causationId: null,
               idempotencyKey: "sales-confirm-2",
             })),
             SalesOrderConfirmationIdempotencyConflict,
@@ -125,11 +197,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
+          )
           const sales = yield* Effect.provide(
             makeSalesService,
-            Layer.merge(
+            Layer.mergeAll(
               Layer.succeed(Database, database),
               Layer.succeed(AuthorizationService, authorization),
+              Layer.succeed(MessagingService, messaging),
             ),
           )
           const customer = yield* sales.createCustomer({

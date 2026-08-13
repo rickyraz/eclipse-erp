@@ -10,7 +10,9 @@ import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import { SalesCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 
+const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 
@@ -75,7 +77,12 @@ export const CreateOrderInput = Schema.Struct({
 export const ConfirmOrderInput = Schema.Struct({
   ...ScopedInput,
   orderId: Schema.String,
-  idempotencyKey: Schema.String.check(Schema.isPattern(/\S/)),
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.NullOr(NonEmptyString).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  idempotencyKey: NonEmptyString,
 })
 
 export const CancelOrderInput = Schema.Struct({
@@ -137,6 +144,7 @@ export interface SalesService {
     input: unknown,
   ) => Effect.Effect<
     SalesOrder,
+    | EventIdempotencyConflict
     | SalesOrderConfirmationIdempotencyConflict
     | SalesOrderInvalidState
     | SalesOrderNotFound
@@ -210,6 +218,7 @@ const deriveTotal = (lines: ReadonlyArray<SalesOrderLine>): string => {
 export const makeSalesService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
+  const messaging = yield* MessagingService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
@@ -323,52 +332,77 @@ export const makeSalesService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: SalesCapabilities.orderConfirm,
         })
-        const result = yield* database.transaction(
-          async (tx) => {
-            const [row] = await tx.select({
-              ...orderSelection,
-              confirmationIdempotencyKey: orders.confirmationIdempotencyKey,
-            })
-              .from(orders)
-              .where(
-                and(
-                  eq(orders.tenantId, decoded.tenantId),
-                  eq(orders.id, decoded.orderId),
-                ),
-              )
-              .for("update")
-            if (row === undefined) return { _tag: "not-found" as const }
-            const lines = await tx.select(orderLineSelection)
-              .from(orderLines)
-              .where(and(eq(orderLines.tenantId, decoded.tenantId), eq(orderLines.orderId, row.id)))
-            const current = toSalesOrder(row, lines)
-            if (row.status === "confirmed") {
-              return row.confirmationIdempotencyKey === decoded.idempotencyKey
-                ? { _tag: "existing" as const, order: current }
-                : { _tag: "idempotency-conflict" as const }
-            }
-            if (row.status !== "draft") {
-              return { _tag: "invalid-state" as const, status: row.status }
-            }
-            const confirmedAt = now()
-            const [confirmed] = await tx.update(orders)
-              .set({
-                status: "confirmed",
-                confirmationIdempotencyKey: decoded.idempotencyKey,
-                confirmedAt,
-                updatedAt: confirmedAt,
+        const result = yield* database.withTransaction(
+          Effect.gen(function* () {
+            const mutation = yield* database.transaction(
+              async (tx) => {
+                const [row] = await tx.select({
+                  ...orderSelection,
+                  confirmationIdempotencyKey: orders.confirmationIdempotencyKey,
+                })
+                  .from(orders)
+                  .where(
+                    and(
+                      eq(orders.tenantId, decoded.tenantId),
+                      eq(orders.id, decoded.orderId),
+                    ),
+                  )
+                  .for("update")
+                if (row === undefined) return { _tag: "not-found" as const }
+                const lines = await tx.select(orderLineSelection)
+                  .from(orderLines)
+                  .where(
+                    and(eq(orderLines.tenantId, decoded.tenantId), eq(orderLines.orderId, row.id)),
+                  )
+                const current = toSalesOrder(row, lines)
+                if (row.status === "confirmed") {
+                  return row.confirmationIdempotencyKey === decoded.idempotencyKey
+                    ? { _tag: "existing" as const, order: current }
+                    : { _tag: "idempotency-conflict" as const }
+                }
+                if (row.status !== "draft") {
+                  return { _tag: "invalid-state" as const, status: row.status }
+                }
+                const confirmedAt = now()
+                const [confirmed] = await tx.update(orders)
+                  .set({
+                    status: "confirmed",
+                    confirmationIdempotencyKey: decoded.idempotencyKey,
+                    confirmedAt,
+                    updatedAt: confirmedAt,
+                  })
+                  .where(
+                    and(
+                      eq(orders.tenantId, decoded.tenantId),
+                      eq(orders.id, decoded.orderId),
+                      eq(orders.status, "draft"),
+                    ),
+                  )
+                  .returning(orderSelection)
+                return { _tag: "confirmed" as const, order: toSalesOrder(confirmed!, lines) }
+              },
+              "sales.order.confirm",
+            )
+            if (mutation._tag === "confirmed") {
+              yield* messaging.append({
+                eventId: mutation.order.id,
+                eventType: "sales.order.confirmed",
+                eventVersion: 1,
+                tenantId: decoded.tenantId,
+                aggregateType: "sales_order",
+                aggregateId: mutation.order.id,
+                commandId: decoded.commandId,
+                correlationId: decoded.correlationId,
+                causationId: decoded.causationId,
+                idempotencyKey: decoded.idempotencyKey,
+                actorPrincipalId: decoded.principal.userAccountId,
+                occurredAt: mutation.order.confirmedAt!,
+                payload: { orderId: mutation.order.id, total: mutation.order.total },
               })
-              .where(
-                and(
-                  eq(orders.tenantId, decoded.tenantId),
-                  eq(orders.id, decoded.orderId),
-                  eq(orders.status, "draft"),
-                ),
-              )
-              .returning(orderSelection)
-            return { _tag: "confirmed" as const, order: toSalesOrder(confirmed!, lines) }
-          },
-          "sales.order.confirm",
+            }
+            return mutation
+          }),
+          "sales.order.confirm.atomic",
         ).pipe(
           Effect.mapError((error) =>
             isDatabaseConstraint(error, "orders_tenant_confirmation_idempotency_key")
@@ -465,12 +499,12 @@ export const makeSalesTestLayer = () =>
     SalesService,
     Effect.gen(function* () {
       const authorization = yield* AuthorizationService
+      const messaging = yield* MessagingService
       const storedCustomers = new Map<string, Customer>()
       const storedQuotations = new Map<string, Quotation>()
       const storedOrders = new Map<string, SalesOrder>()
       const confirmationKeys = new Map<string, string>()
-      let sequence = 1
-      const nextId = () => `sales-test-${sequence++}`
+      const nextId = () => crypto.randomUUID()
       const service: SalesService = {
         createCustomer: (input) =>
           Effect.gen(function* () {
@@ -605,6 +639,21 @@ export const makeSalesTestLayer = () =>
               status: "confirmed",
               confirmedAt: new Date().toISOString(),
             }
+            yield* messaging.append({
+              eventId: confirmed.id,
+              eventType: "sales.order.confirmed",
+              eventVersion: 1,
+              tenantId: decoded.tenantId,
+              aggregateType: "sales_order",
+              aggregateId: confirmed.id,
+              commandId: decoded.commandId,
+              correlationId: decoded.correlationId,
+              causationId: decoded.causationId,
+              idempotencyKey: decoded.idempotencyKey,
+              actorPrincipalId: decoded.principal.userAccountId,
+              occurredAt: confirmed.confirmedAt!,
+              payload: { orderId: confirmed.id, total: confirmed.total },
+            })
             storedOrders.set(order.id, confirmed)
             confirmationKeys.set(order.id, decoded.idempotencyKey)
             return confirmed

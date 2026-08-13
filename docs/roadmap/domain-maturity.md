@@ -51,7 +51,7 @@ contract and database tests
 | `party` | party and party relationships | `PARTIAL` | mature customer/supplier/employee roles and relationship contracts |
 | `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope |
 | `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.posted` v1 is a PUBLIC event contributor | Keep revenue posting out of the action catalog until amount provenance is owner-verifiable; generic journals, AP/AR, payment, tax, and settlement remain out of scope |
-| `sales` | customers, quotations, sales orders | `PARTIAL` | Sales owns draft/confirmed/cancelled order state; Process coordinates fulfillment through Inventory; invoicing, returns, credit policy, and customer-facing events remain undecided |
+| `sales` | customers, quotations, sales orders | `PARTIAL`; `sales.order.confirm` v1 is a Level 3 slice | Sales owns draft/confirmed/cancelled order state and publishes confirmation; Process coordinates fulfillment through Inventory; invoicing, returns, and credit policy remain undecided |
 | `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
 | `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
 | `integrations` | external adapter and connector boundary | `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner |
@@ -202,8 +202,8 @@ existing domain.
 
 ## Current Level 3 Evidence
 
-The bounded internal catalog currently has one Level 3 action slice and a second domain-owned event
-contributor:
+The bounded internal catalog currently has two Level 3 action slices and an additional Accounting
+event contributor:
 
 ```text
 inventory.stock.adjust v1
@@ -211,22 +211,26 @@ inventory.stock.adjust v1
   -> owner-controlled atomic publication
   -> idempotent correction and rollback proofs
 
+sales.order.confirm v1
+  -> PUBLIC action + sales.order.confirmed v1
+  -> Sales-owned line total and atomic publication
+  -> authorization, idempotency, invalid-state, and rollback proofs
+
 accounting.revenue.posted v1
   -> PUBLIC event from the owner-controlled revenue transaction
-  -> open-period, reversal, idempotency, and rollback proofs
   -> accounting.revenue.post action remains unreleased until amount provenance is owner-verifiable
 ```
 
-This is enough to validate the contributor protocol and bounded P3 event path. It does not satisfy
-the two-domain Level 3 action-provider gate, make all Inventory or Accounting commands process-safe,
-activate PgQue, implement external connectors, or authorize a broad workflow runtime.
+This satisfies the two-domain Level 3 action-provider gate for bounded catalog work. It does not make
+all Inventory, Sales, or Accounting commands process-safe, activate PgQue, implement external
+connectors, or authorize the broad workflow runtime.
 
 ## Domain Gate Before Workflow Runtime
 
 Do not start a broad workflow runtime until:
 
 ```text
-[ ] at least two domains reach Level 3
+[x] at least two domains reach Level 3
 [ ] procurement is no longer an empty provider if purchase workflows are in scope
 [ ] billing/accounting ownership is clear for financial workflows
 [ ] all catalog actions have stable failures and authorization

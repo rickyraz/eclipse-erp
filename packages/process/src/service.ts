@@ -569,6 +569,9 @@ export const makeProcessService = Effect.gen(function* () {
             principal: decoded.principal,
             tenantId: decoded.tenantId,
             orderId: decoded.orderId,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
             idempotencyKey: decoded.idempotencyKey,
           })
           const reservations = yield* Effect.forEach(

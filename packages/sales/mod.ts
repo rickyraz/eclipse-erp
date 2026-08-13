@@ -1,4 +1,11 @@
 export { SalesCapabilities } from "./src/capabilities.ts"
+export {
+  SalesConfirmOrderAction,
+  SalesOrderConfirmedEvent,
+  SalesOrderConfirmedEventPayload,
+  SalesTypedActionCatalog,
+  SalesTypedEventCatalog,
+} from "./src/catalog.ts"
 
 export {
   CancelOrderInput,

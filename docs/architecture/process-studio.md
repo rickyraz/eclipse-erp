@@ -6,10 +6,9 @@
 > static process validation, definition governance, compensation metadata, and the staged Process
 > Studio roadmap.
 >
-> **Implementation status:** The contract-only catalog protocol, one bounded Level 3 Inventory
-> action slice, and an Accounting PUBLIC event contributor are implemented. The second Level 3
-> action provider, Process IR, aggregation/release persistence, runtime, and designer remain planned
-> behind the roadmap gates.
+> **Implementation status:** The contract-only catalog protocol, bounded Level 3 Inventory and Sales
+> action slices, and an Accounting PUBLIC event contributor are implemented. Process IR,
+> aggregation/release persistence, runtime, and designer remain planned behind the roadmap gates.
 >
 > **Related documents**
 >

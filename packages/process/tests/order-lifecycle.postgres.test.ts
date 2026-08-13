@@ -74,8 +74,13 @@ const makeFixture = (client: Sql, tenantId: string, label: string) =>
       Layer.succeed(AuthorizationService, authorization),
     )
     const party = yield* Effect.provide(makePartyService, requirements)
-    const sales = yield* Effect.provide(makeSalesService, requirements)
-    const messaging = yield* makeMessagingService.pipe(Effect.provideService(Database, database))
+    const messaging = yield* makeMessagingService.pipe(
+      Effect.provideService(Database, database),
+    )
+    const sales = yield* Effect.provide(
+      makeSalesService,
+      Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+    )
     const inventory = yield* Effect.provide(
       makeInventoryService,
       Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
@@ -360,7 +365,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         })
         assert.deepStrictEqual((yield* Effect.promise(() => readCounts(client, tenantId)))[0], {
           workflow_runs: "2",
-          events: "3",
+          events: "4",
           jobs: "2",
           journals: "2",
         })
@@ -449,7 +454,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         const beforeCancellation = (yield* Effect.promise(() => readCounts(client, tenantId)))[0]!
         assert.deepStrictEqual(beforeCancellation, {
           workflow_runs: "2",
-          events: "3",
+          events: "4",
           jobs: "2",
           journals: "1",
         })

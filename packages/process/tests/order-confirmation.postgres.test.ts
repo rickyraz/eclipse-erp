@@ -79,9 +79,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             Layer.succeed(AuthorizationService, authorization),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
-          const sales = yield* Effect.provide(makeSalesService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
+          )
+          const sales = yield* Effect.provide(
+            makeSalesService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
           const inventory = yield* Effect.provide(
             makeInventoryService,
@@ -218,7 +221,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(result.order.total, "125.00")
           assert.strictEqual(result.journal.lines[0]?.debit, "125.00")
           assert.strictEqual(counts.workflow_runs, "1")
-          assert.strictEqual(counts.events, "2")
+          assert.strictEqual(counts.events, "3")
           assert.strictEqual(counts.jobs, "1")
           const [event] = yield* Effect.promise(() =>
             client<{
@@ -339,9 +342,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             Layer.succeed(AuthorizationService, authorization),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
-          const sales = yield* Effect.provide(makeSalesService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
+          )
+          const sales = yield* Effect.provide(
+            makeSalesService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
           const inventory = yield* Effect.provide(
             makeInventoryService,
@@ -454,9 +460,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             Layer.succeed(AuthorizationService, authorization),
           )
           const party = yield* Effect.provide(makePartyService, requirements)
-          const sales = yield* Effect.provide(makeSalesService, requirements)
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
+          )
+          const sales = yield* Effect.provide(
+            makeSalesService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
           )
           const inventory = yield* Effect.provide(
             makeInventoryService,

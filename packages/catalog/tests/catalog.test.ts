@@ -19,14 +19,25 @@ import {
   StockCorrectedEventPayload,
   StockCorrection,
 } from "../../inventory/mod.ts"
+import {
+  ConfirmOrderInput,
+  SalesConfirmOrderAction,
+  SalesOrder,
+  SalesOrderConfirmedEvent,
+  SalesOrderConfirmedEventPayload,
+  SalesTypedActionCatalog,
+  SalesTypedEventCatalog,
+} from "../../sales/mod.ts"
 
 const actions: ReadonlyArray<DomainActionCatalogEntry> = [
   ...InventoryTypedActionCatalog,
   ...AccountingTypedActionCatalog,
+  ...SalesTypedActionCatalog,
 ]
 const events: ReadonlyArray<DomainEventCatalogEntry> = [
   ...InventoryTypedEventCatalog,
   ...AccountingTypedEventCatalog,
+  ...SalesTypedEventCatalog,
 ]
 
 const assertCompatibleVersion = (entry: DomainActionCatalogEntry | DomainEventCatalogEntry) => {
@@ -64,8 +75,11 @@ describe("catalog compatibility", () => {
       assert.strictEqual(InventoryAdjustStockAction.inputSchema, AdjustStockInput)
       assert.strictEqual(InventoryAdjustStockAction.outputSchema, StockCorrection)
       assert.strictEqual(AccountingTypedActionCatalog.length, 0)
+      assert.strictEqual(SalesConfirmOrderAction.inputSchema, ConfirmOrderInput)
+      assert.strictEqual(SalesConfirmOrderAction.outputSchema, SalesOrder)
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
       assert.strictEqual(AccountingRevenuePostedEvent.payloadSchema, RevenuePostedEventPayload)
+      assert.strictEqual(SalesOrderConfirmedEvent.payloadSchema, SalesOrderConfirmedEventPayload)
       assert.strictEqual(AccountingRevenuePostedEvent.stability, "PUBLIC")
 
       const principal = { userAccountId: "user-1", sessionId: "session-1" }
@@ -99,6 +113,26 @@ describe("catalog compatibility", () => {
         idempotencyKey: "correction-1",
       })
 
+      yield* Schema.decodeUnknownEffect(SalesConfirmOrderAction.inputSchema)({
+        principal,
+        tenantId: "tenant-1",
+        orderId: "order-1",
+        commandId: "command-1",
+        correlationId: "correlation-1",
+        causationId: null,
+        idempotencyKey: "confirmation-1",
+      })
+      yield* Schema.decodeUnknownEffect(SalesConfirmOrderAction.outputSchema)({
+        id: "order-1",
+        tenantId: "tenant-1",
+        customerId: "customer-1",
+        quotationId: null,
+        status: "confirmed",
+        confirmedAt: "2026-08-12T00:00:00.000Z",
+        total: "10.00",
+        lines: [{ itemId: "item-1", quantity: "1", unitPrice: "10.00" }],
+      })
+
       yield* Schema.decodeUnknownEffect(InventoryStockCorrectedEvent.payloadSchema)({
         correctionId: "correction-1",
         warehouseId: "warehouse-1",
@@ -108,6 +142,10 @@ describe("catalog compatibility", () => {
         journalId: "journal-1",
         legalEntityId: "legal-entity-1",
         orderId: "order-1",
+      })
+      yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)({
+        orderId: "order-1",
+        total: "10.00",
       })
     }))
 })

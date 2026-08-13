@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
 import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { makeMessagingTestLayer } from "../../messaging/mod.ts"
 import {
   CustomerAlreadyExists,
   makeSalesTestLayer,
@@ -11,7 +12,12 @@ import {
 } from "../mod.ts"
 
 const principal = { userAccountId: "seller", sessionId: "session" }
-const tenantId = "tenant-a"
+const tenantId = "00000000-0000-4000-8000-000000000001"
+const confirmationMetadata = {
+  commandId: "sales-confirm-command",
+  correlationId: "sales-confirm-correlation",
+  causationId: null,
+} as const
 const capabilities = [
   "sales.customer.create",
   "sales.quotation.create",
@@ -30,7 +36,9 @@ const authorizationLayer = makeAuthorizationTestLayer(
 const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>
   Effect.provide(
     program,
-    makeSalesTestLayer().pipe(Layer.provide(authorizationLayer)),
+    makeSalesTestLayer().pipe(
+      Layer.provide(Layer.merge(authorizationLayer, makeMessagingTestLayer())),
+    ),
   )
 
 describe("sales contract", () => {
@@ -65,12 +73,14 @@ describe("sales contract", () => {
         principal,
         tenantId,
         orderId: order.id,
+        ...confirmationMetadata,
         idempotencyKey: "confirm-1",
       })
       const repeated = yield* sales.confirmOrder({
         principal,
         tenantId,
         orderId: order.id,
+        ...confirmationMetadata,
         idempotencyKey: "confirm-1",
       })
       assert.strictEqual(confirmed.status, "confirmed")
@@ -97,6 +107,7 @@ describe("sales contract", () => {
         principal,
         tenantId,
         orderId: order.id,
+        ...confirmationMetadata,
         idempotencyKey: "confirm-a",
       })
       assert.instanceOf(
@@ -104,6 +115,7 @@ describe("sales contract", () => {
           principal,
           tenantId,
           orderId: order.id,
+          ...confirmationMetadata,
           idempotencyKey: "confirm-b",
         })),
         SalesOrderConfirmationIdempotencyConflict,
