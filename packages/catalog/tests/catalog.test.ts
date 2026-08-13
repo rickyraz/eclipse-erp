@@ -68,6 +68,7 @@ describe("catalog compatibility", () => {
       }
 
       for (const event of events) {
+        assert.ok(event.id.startsWith(`${event.owningDomain}.`))
         assert.strictEqual(event.deliveryExpectation, "at_least_once")
         assert.strictEqual(event.sensitivity, "business_internal_minimized")
       }
