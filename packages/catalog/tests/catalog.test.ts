@@ -47,6 +47,15 @@ const assertCompatibleVersion = (entry: DomainActionCatalogEntry | DomainEventCa
   assert.ok(entry.compatibilityRange.maximumVersion >= entry.version)
 }
 
+const assertPayloadFields = (
+  event: DomainEventCatalogEntry,
+  payloadFields: Readonly<Record<string, unknown>>,
+) => {
+  for (const field of event.filterableFields) {
+    assert.ok(field in payloadFields)
+  }
+}
+
 describe("catalog compatibility", () => {
   it.effect("keeps identities, capability metadata, and schemas compatible", () =>
     Effect.gen(function* () {
@@ -88,6 +97,9 @@ describe("catalog compatibility", () => {
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
       assert.strictEqual(AccountingRevenuePostedEvent.payloadSchema, RevenuePostedEventPayload)
       assert.strictEqual(SalesOrderConfirmedEvent.payloadSchema, SalesOrderConfirmedEventPayload)
+      assertPayloadFields(InventoryStockCorrectedEvent, StockCorrectedEventPayload.fields)
+      assertPayloadFields(AccountingRevenuePostedEvent, RevenuePostedEventPayload.fields)
+      assertPayloadFields(SalesOrderConfirmedEvent, SalesOrderConfirmedEventPayload.fields)
       assert.strictEqual(AccountingRevenuePostedEvent.stability, "PUBLIC")
 
       const principal = { userAccountId: "user-1", sessionId: "session-1" }
