@@ -61,6 +61,35 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "rejects invalid event envelopes before opening a PostgreSQL transaction",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+
+        const failure = yield* Effect.flip(messaging.append(event(tenant!.id, {
+          eventVersion: 0,
+        })))
+        assert.strictEqual(failure._tag, "SchemaError")
+
+        const rows = yield* Effect.promise(() =>
+          client<{ count: number }[]>`
+            select count(*)::integer as count from messaging.event_outbox
+          `
+        )
+        assert.deepStrictEqual(rows, [{ count: 0 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "concurrently appends one event and rejects a mismatched envelope in PostgreSQL",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
