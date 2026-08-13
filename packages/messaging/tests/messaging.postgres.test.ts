@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest"
 import { sql } from "drizzle-orm"
 import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
 
 import { EventIdempotencyConflict, makeMessagingService } from "../mod.ts"
 import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
@@ -56,6 +57,45 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         assert.strictEqual(rows[0]!.count, 1)
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "concurrent mismatched envelopes produce one event and one typed conflict",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+        const idempotencyKey = crypto.randomUUID()
+        const first = event(tenant!.id, { idempotencyKey, payload: { source: "first" } })
+        const second = event(tenant!.id, { idempotencyKey, payload: { source: "second" } })
+
+        const outcomes = yield* Effect.all([
+          Effect.result(messaging.append(first)),
+          Effect.result(messaging.append(second)),
+        ], { concurrency: "unbounded" })
+        const successes = outcomes.filter(Result.isSuccess)
+        const failures = outcomes.filter(Result.isFailure)
+        assert.strictEqual(successes.length, 1)
+        assert.strictEqual(failures.length, 1)
+        assert.instanceOf(failures[0]!.failure, EventIdempotencyConflict)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ count: number }[]>`
+            select count(*)::integer as count
+            from messaging.event_outbox
+            where tenant_id = ${tenant!.id} and idempotency_key = ${idempotencyKey}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ count: 1 }])
       })),
 )
 
