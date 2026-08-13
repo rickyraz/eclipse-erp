@@ -61,6 +61,45 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "keeps event and idempotency identities tenant-scoped",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const tenants = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug)
+            values (${crypto.randomUUID()}), (${crypto.randomUUID()})
+            returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+        const eventId = crypto.randomUUID()
+        const aggregateId = crypto.randomUUID()
+        const idempotencyKey = crypto.randomUUID()
+        const shared = { eventId, aggregateId, idempotencyKey }
+
+        const envelopes = yield* Effect.all([
+          messaging.append(event(tenants[0]!.id, shared)),
+          messaging.append(event(tenants[1]!.id, shared)),
+        ], { concurrency: "unbounded" })
+        assert.strictEqual(envelopes[0].eventId, envelopes[1].eventId)
+        assert.notStrictEqual(envelopes[0].tenantId, envelopes[1].tenantId)
+
+        const rows = yield* Effect.promise(() =>
+          client<{ count: number }[]>`
+            select count(*)::integer as count
+            from messaging.event_outbox
+            where id = ${eventId} and idempotency_key = ${idempotencyKey}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ count: 2 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "concurrent mismatched envelopes produce one event and one typed conflict",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
