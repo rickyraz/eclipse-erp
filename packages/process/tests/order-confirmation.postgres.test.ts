@@ -82,6 +82,15 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const aggregateId = crypto.randomUUID()
 
+        const unknownWorkflowType = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload)
+            values
+              (${tenant!.id}, 'sales.order.unknown', 'invalid-workflow-type',
+               ${aggregateId}, 'running', '{}'::jsonb)
+          `
+        )
         const runningRecovery = yield* postgresFailure(() =>
           client`
             insert into process.workflow_runs
@@ -114,6 +123,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
 
+        assert.strictEqual((unknownWorkflowType as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (unknownWorkflowType as { constraint_name?: string }).constraint_name,
+          "workflow_runs_type_check",
+        )
         for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
           assert.strictEqual((failure as { code?: string }).code, "23514")
           assert.strictEqual(

@@ -49,6 +49,10 @@ export const workflowRuns = processSchema.table("workflow_runs", {
     name: "workflow_runs_tenant_id_fkey",
   }).onDelete("cascade"),
   check(
+    "workflow_runs_type_check",
+    sql`${table.workflowType} in ('sales.order.confirmation', 'sales.order.cancellation', 'sales.order.fulfillment')`,
+  ),
+  check(
     "workflow_runs_state_check",
     sql`(${table.status} = 'running' and ${table.result} is null and ${table.recoveryReason} is null and ${table.completedAt} is null) or
       (${table.status} = 'succeeded' and ${table.result} is not null and ${table.recoveryReason} is null and ${table.completedAt} is not null) or
