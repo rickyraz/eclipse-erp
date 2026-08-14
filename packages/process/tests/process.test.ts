@@ -110,7 +110,15 @@ it.effect("validates workflow run identities and recovery metadata", () =>
     const invalidIdentity = yield* Effect.flip(
       Schema.decodeUnknownEffect(WorkflowRun)({ ...run, aggregateId: "not-a-uuid" }),
     )
+    const invalidSucceededState = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({ ...run, status: "succeeded" }),
+    )
+    const invalidRecoveryState = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({ ...run, status: "manual_recovery" }),
+    )
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
+    assert.strictEqual(invalidSucceededState._tag, "SchemaError")
+    assert.strictEqual(invalidRecoveryState._tag, "SchemaError")
   }))
 
 it.effect("validates lifecycle result identities", () =>

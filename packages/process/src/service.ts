@@ -130,7 +130,15 @@ export const WorkflowRun = Schema.Struct({
   status: Schema.Literals(["running", "succeeded", "manual_recovery"]),
   recoveryReason: Schema.NullOr(NonEmptyString),
   completedAt: Schema.NullOr(InstantString),
-})
+}).check(Schema.makeFilter(
+  (run) =>
+    run.status === "running"
+      ? run.completedAt === null
+      : run.status === "succeeded"
+      ? run.completedAt !== null
+      : run.recoveryReason !== null,
+  { expected: "workflow status metadata consistent with its durable state" },
+))
 
 export const OrderConfirmationResult = Schema.Struct({
   workflowRunId: Uuid,
