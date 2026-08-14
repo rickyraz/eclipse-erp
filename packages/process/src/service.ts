@@ -65,6 +65,7 @@ const workflowType = ProcessWorkflowTypes.confirmation
 const cancellationWorkflowType = ProcessWorkflowTypes.cancellation
 const fulfillmentWorkflowType = ProcessWorkflowTypes.fulfillment
 
+export const ProcessLifecycleJobPriority = 100
 export const ProcessPostCommitJobTypes = {
   confirmation: "process.order_confirmation.post_commit",
   cancellation: "process.order_cancellation.post_commit",
@@ -681,7 +682,7 @@ export const makeProcessService = Effect.gen(function* () {
                 tenantId: decoded.tenantId,
                 jobType: ProcessPostCommitJobTypes.confirmation,
                 idempotencyKey: decoded.idempotencyKey,
-                priority: 100,
+                priority: ProcessLifecycleJobPriority,
                 payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
@@ -836,7 +837,7 @@ export const makeProcessService = Effect.gen(function* () {
                 tenantId: decoded.tenantId,
                 jobType: ProcessPostCommitJobTypes.cancellation,
                 idempotencyKey: decoded.idempotencyKey,
-                priority: 100,
+                priority: ProcessLifecycleJobPriority,
                 payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
@@ -973,7 +974,7 @@ export const makeProcessService = Effect.gen(function* () {
                 tenantId: decoded.tenantId,
                 jobType: ProcessPostCommitJobTypes.fulfillment,
                 idempotencyKey: decoded.idempotencyKey,
-                priority: 100,
+                priority: ProcessLifecycleJobPriority,
                 payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),

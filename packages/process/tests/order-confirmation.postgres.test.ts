@@ -25,6 +25,7 @@ import {
   OrderConfirmationResult,
   ProcessCapabilities,
   ProcessJob,
+  ProcessLifecycleJobPriority,
   ProcessOrderConfirmationCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
@@ -390,8 +391,30 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           const decodedJob = yield* Schema.decodeUnknownEffect(ProcessJob)(storedJob)
-          assert.strictEqual(decodedJob.jobId, result.jobId)
-          assert.strictEqual(decodedJob.jobType, ProcessPostCommitJobTypes.confirmation)
+          assert.deepStrictEqual(
+            {
+              jobId: decodedJob.jobId,
+              tenantId: decodedJob.tenantId,
+              jobType: decodedJob.jobType,
+              idempotencyKey: decodedJob.idempotencyKey,
+              priority: decodedJob.priority,
+              status: decodedJob.status,
+              leaseUntil: decodedJob.leaseUntil,
+              attempts: decodedJob.attempts,
+              correlationId: decodedJob.correlationId,
+            },
+            {
+              jobId: result.jobId,
+              tenantId: input.tenantId,
+              jobType: ProcessPostCommitJobTypes.confirmation,
+              idempotencyKey: input.idempotencyKey,
+              priority: ProcessLifecycleJobPriority,
+              status: "pending",
+              leaseUntil: null,
+              attempts: 0,
+              correlationId: input.correlationId,
+            },
+          )
           assert.deepStrictEqual(job, {
             correlation_id: input.correlationId,
             idempotency_key: input.idempotencyKey,

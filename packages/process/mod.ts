@@ -26,6 +26,7 @@ export {
   OrderFulfillmentResult,
   ProcessJob,
   ProcessJobStatus,
+  ProcessLifecycleJobPriority,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobType,
   ProcessPostCommitJobTypes,

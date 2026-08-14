@@ -29,6 +29,7 @@ import {
   OrderFulfillmentPayload,
   OrderFulfillmentResult,
   ProcessJob,
+  ProcessLifecycleJobPriority,
   ProcessOrderCancellationCompletedEvent,
   ProcessOrderFulfillmentCompletedEvent,
   ProcessPostCommitJobPayload,
@@ -454,7 +455,30 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         const decodedJob = yield* Schema.decodeUnknownEffect(ProcessJob)(storedJob)
-        assert.strictEqual(decodedJob.jobType, ProcessPostCommitJobTypes.cancellation)
+        assert.deepStrictEqual(
+          {
+            jobId: decodedJob.jobId,
+            tenantId: decodedJob.tenantId,
+            jobType: decodedJob.jobType,
+            idempotencyKey: decodedJob.idempotencyKey,
+            priority: decodedJob.priority,
+            status: decodedJob.status,
+            leaseUntil: decodedJob.leaseUntil,
+            attempts: decodedJob.attempts,
+            correlationId: decodedJob.correlationId,
+          },
+          {
+            jobId: result.jobId,
+            tenantId: input.tenantId,
+            jobType: ProcessPostCommitJobTypes.cancellation,
+            idempotencyKey: input.idempotencyKey,
+            priority: ProcessLifecycleJobPriority,
+            status: "pending",
+            leaseUntil: null,
+            attempts: 0,
+            correlationId: input.correlationId,
+          },
+        )
         assert.deepStrictEqual(job, {
           job_type: "process.order_cancellation.post_commit",
           correlation_id: input.correlationId,
@@ -628,7 +652,30 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         const decodedJob = yield* Schema.decodeUnknownEffect(ProcessJob)(storedJob)
-        assert.strictEqual(decodedJob.jobType, ProcessPostCommitJobTypes.fulfillment)
+        assert.deepStrictEqual(
+          {
+            jobId: decodedJob.jobId,
+            tenantId: decodedJob.tenantId,
+            jobType: decodedJob.jobType,
+            idempotencyKey: decodedJob.idempotencyKey,
+            priority: decodedJob.priority,
+            status: decodedJob.status,
+            leaseUntil: decodedJob.leaseUntil,
+            attempts: decodedJob.attempts,
+            correlationId: decodedJob.correlationId,
+          },
+          {
+            jobId: result.jobId,
+            tenantId: input.tenantId,
+            jobType: ProcessPostCommitJobTypes.fulfillment,
+            idempotencyKey: input.idempotencyKey,
+            priority: ProcessLifecycleJobPriority,
+            status: "pending",
+            leaseUntil: null,
+            attempts: 0,
+            correlationId: input.correlationId,
+          },
+        )
         assert.deepStrictEqual(jobPayload, {
           eventId: result.eventId,
           workflowRunId: result.workflowRunId,
