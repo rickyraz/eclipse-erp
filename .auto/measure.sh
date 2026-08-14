@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=54
+total=55
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -56,6 +56,7 @@ gate bash -c 'grep -Fq "event_type: InventoryStockCorrectedEvent.id" packages/in
 gate bash -c 'grep -Fq "Schema.decodeUnknownEffect(InventoryStockCorrectedEvent.payloadSchema)" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "Schema.decodeUnknownEffect(AccountingRevenuePostedEvent.payloadSchema)" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)" packages/sales/tests/sales.postgres.test.ts && grep -A4 -F "export const PostRevenueForOrderInput" packages/accounting/src/service.ts | grep -Fq "orderId: Uuid" && grep -q "rejects malformed revenue order identities" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -A4 -F "export const ReverseRevenueForOrderInput" packages/accounting/src/service.ts | grep -Fq "orderId: Uuid" && grep -A5 -F "export class RevenueJournalNotFound" packages/accounting/src/service.ts | grep -Fq "orderId: Uuid" && grep -q "rejects malformed revenue reversal identities" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "export const OrderConfirmationCompletedEventPayload" packages/process/src/service.ts && grep -Fq "payload: eventPayload" packages/process/src/service.ts && grep -Fq "OrderConfirmationCompletedEventPayload" packages/process/mod.ts && grep -q "validates order confirmation completed event payloads" packages/process/tests/process.test.ts'
+gate bash -c 'grep -Fq "export const OrderCancellationCompletedEventPayload" packages/process/src/service.ts && grep -Fq "OrderCancellationCompletedEventPayload" packages/process/mod.ts && grep -q "validates order cancellation completed event payloads" packages/process/tests/process.test.ts && grep -Fq "reversalJournalId: \"not-a-uuid\"" packages/process/tests/process.test.ts'
 gate bash -c 'grep -q "consumerReceipts" db/schema/messaging.ts && grep -Rqs "duplicate event\|consumer receipt" packages/messaging/tests && grep -Rqs "rolls back.*receipt\|receipt.*rolls back" packages/messaging/tests'
 gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "fulfillOrder" packages/process/src/service.ts && grep -Rqs "cancellation.*atomic\|atomic.*cancellation" packages/process/tests && grep -Rqs "fulfillment" packages/process/tests'
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'

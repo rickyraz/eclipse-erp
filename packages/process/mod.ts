@@ -7,6 +7,7 @@ export {
   FulfillOrderInput,
   makeProcessService,
   ManualRecoveryInput,
+  OrderCancellationCompletedEventPayload,
   OrderCancellationPayload,
   OrderCancellationResult,
   OrderConfirmationCompletedEventPayload,

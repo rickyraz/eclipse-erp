@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 import {
   ConfirmOrderConfirmationInput,
   DomainEventEnvelope,
+  OrderCancellationCompletedEventPayload,
   OrderCancellationPayload,
   OrderConfirmationCompletedEventPayload,
   OrderConfirmationPayload,
@@ -106,6 +107,26 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidPayload._tag, "SchemaError")
+  }))
+
+it.effect("validates order cancellation completed event payloads", () =>
+  Effect.gen(function* () {
+    const payload = {
+      workflowRunId: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
+      confirmationWorkflowRunId: "018f3f77-0c5a-7cc0-8b62-6a163d214132",
+      orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
+      reservationIds: ["018f3f77-0c5a-7cc0-8b62-6a163d214130"],
+      reversalJournalId: "018f3f77-0c5a-7cc0-8b62-6a163d214133",
+    }
+    yield* Schema.decodeUnknownEffect(OrderCancellationCompletedEventPayload)(payload)
+
+    const invalidJournal = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderCancellationCompletedEventPayload)({
+        ...payload,
+        reversalJournalId: "not-a-uuid",
+      }),
+    )
+    assert.strictEqual(invalidJournal._tag, "SchemaError")
   }))
 
 it.effect("validates order confirmation completed event payloads", () =>
