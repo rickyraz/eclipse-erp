@@ -1,6 +1,7 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
@@ -15,11 +16,19 @@ import {
   AccountingService,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
+  PostRevenueForOrderInput,
   UnbalancedJournal,
 } from "../mod.ts"
 
 const principal = { userAccountId: "accountant", sessionId: "session" }
 const tenantId = "00000000-0000-4000-8000-000000000001"
+const revenueOrderIds = {
+  open: "00000000-0000-4000-8000-000000000010",
+  closed: "00000000-0000-4000-8000-000000000011",
+  reverse: "00000000-0000-4000-8000-000000000012",
+  idempotency: "00000000-0000-4000-8000-000000000013",
+  rollback: "00000000-0000-4000-8000-000000000014",
+} as const
 const revenueMetadata = {
   commandId: "revenue-command-1",
   correlationId: "revenue-correlation-1",
@@ -244,6 +253,14 @@ describe("accounting contract", () => {
       )
     })))
 
+  it.effect("rejects malformed revenue order identities", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(PostRevenueForOrderInput.fields.orderId)("not-a-uuid"),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
   it.effect("posts revenue in an open period", () =>
     withAccounting(Effect.gen(function* () {
       const { accounting } = yield* prepareRevenuePosting
@@ -251,7 +268,7 @@ describe("accounting contract", () => {
         principal,
         tenantId,
         legalEntityId: "legal-entity-a",
-        orderId: "order-open",
+        orderId: revenueOrderIds.open,
         amount: "125.00",
         ...revenueMetadata,
       })
@@ -276,7 +293,7 @@ describe("accounting contract", () => {
           principal,
           tenantId,
           legalEntityId: "legal-entity-a",
-          orderId: "order-closed",
+          orderId: revenueOrderIds.closed,
           amount: "125.00",
           ...revenueMetadata,
         })),
@@ -291,7 +308,7 @@ describe("accounting contract", () => {
         principal,
         tenantId,
         legalEntityId: "legal-entity-a",
-        orderId: "order-reverse",
+        orderId: revenueOrderIds.reverse,
         amount: "125.00",
         ...revenueMetadata,
       })
@@ -299,13 +316,13 @@ describe("accounting contract", () => {
         principal,
         tenantId,
         legalEntityId: "legal-entity-a",
-        orderId: "order-reverse",
+        orderId: revenueOrderIds.reverse,
       })
       const repeated = yield* accounting.reverseRevenueForOrder({
         principal,
         tenantId,
         legalEntityId: "legal-entity-a",
-        orderId: "order-reverse",
+        orderId: revenueOrderIds.reverse,
       })
       assert.strictEqual(reversal.reversesEntryId, posted.id)
       assert.strictEqual(repeated.id, reversal.id)
@@ -320,7 +337,7 @@ describe("accounting contract", () => {
           principal,
           tenantId,
           legalEntityId: "legal-entity-a",
-          orderId: "revenue-order-idempotency",
+          orderId: revenueOrderIds.idempotency,
           amount: "125.00",
           commandId: "revenue-post-command",
           correlationId: "revenue-post-correlation",
@@ -380,7 +397,7 @@ describe("accounting contract", () => {
           principal,
           tenantId,
           legalEntityId: "legal-entity-a",
-          orderId: "revenue-order-rollback",
+          orderId: revenueOrderIds.rollback,
           amount: "125.00",
           ...revenueMetadata,
         }

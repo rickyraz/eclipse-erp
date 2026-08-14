@@ -21,6 +21,7 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
+const Uuid = Schema.String.check(Schema.isUUID())
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
 const Precision = Schema.Literal(2)
@@ -130,7 +131,7 @@ export const ClosePeriodInput = Schema.Struct({
 export const PostRevenueForOrderInput = Schema.Struct({
   ...ScopedInput,
   legalEntityId: Schema.String,
-  orderId: Schema.String,
+  orderId: Uuid,
   amount: Money,
   commandId: NonEmptyString,
   correlationId: NonEmptyString,

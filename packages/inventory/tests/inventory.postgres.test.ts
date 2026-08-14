@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import type { Sql } from "postgres"
 
 import { makeAuthService } from "../../auth/mod.ts"
@@ -224,6 +225,9 @@ it.effect.skipIf(databaseUrl === undefined)(
               from messaging.event_outbox
               where tenant_id = ${tenant.id} and idempotency_key = 'correction-1'
             `
+          )
+          yield* Schema.decodeUnknownEffect(InventoryStockCorrectedEvent.payloadSchema)(
+            event?.payload,
           )
           assert.notStrictEqual(event?.id, duplicates[0].id)
           assert.deepStrictEqual(event, {

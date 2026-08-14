@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
@@ -107,6 +108,9 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(events.length, 1)
+          yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)(
+            events[0]?.payload,
+          )
           assert.notStrictEqual(events[0]?.id, order.id)
           assert.deepStrictEqual(events[0], {
             id: events[0]!.id,

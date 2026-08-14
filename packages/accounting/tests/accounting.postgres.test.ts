@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 
 import {
   AccountingCapabilities,
@@ -198,7 +199,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               principal,
               tenantId: tenant!.id,
               legalEntityId: legalEntity!.id,
-              orderId: "revenue-order-atomic",
+              orderId: crypto.randomUUID(),
               amount: "10.00",
               commandId: "revenue-command-atomic",
               correlationId: "revenue-correlation-atomic",
@@ -236,6 +237,9 @@ it.effect.skipIf(databaseUrl === undefined)(
               `
             )
             assert.strictEqual(events.length, 1)
+            yield* Schema.decodeUnknownEffect(AccountingRevenuePostedEvent.payloadSchema)(
+              events[0]?.payload,
+            )
             assert.notStrictEqual(events[0]?.id, journal.id)
             assert.deepStrictEqual(events[0], {
               id: events[0]!.id,
@@ -282,7 +286,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             assert.instanceOf(
               yield* Effect.flip(failingAccounting.postRevenueForOrder({
                 ...input,
-                orderId: "revenue-order-rollback",
+                orderId: crypto.randomUUID(),
                 commandId: "revenue-command-rollback",
                 correlationId: "revenue-correlation-rollback",
               })),
@@ -406,7 +410,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 principal,
                 tenantId: tenant!.id,
                 legalEntityId: legalEntity!.id,
-                orderId: "concurrent-order",
+                orderId: crypto.randomUUID(),
                 amount: "10.00",
                 commandId: "concurrent-command",
                 correlationId: "concurrent-correlation",
@@ -425,7 +429,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 principal,
                 tenantId: tenant!.id,
                 legalEntityId: legalEntity!.id,
-                orderId: "after-close",
+                orderId: crypto.randomUUID(),
                 amount: "10.00",
                 commandId: "after-close-command",
                 correlationId: "after-close-correlation",
