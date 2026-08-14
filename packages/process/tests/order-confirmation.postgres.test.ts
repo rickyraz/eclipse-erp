@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import type { Sql } from "postgres"
 
 import {
@@ -17,7 +18,12 @@ import {
 import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
-import { makeProcessService, ProcessCapabilities, WorkflowManualRecoveryRequired } from "../mod.ts"
+import {
+  makeProcessService,
+  ProcessCapabilities,
+  ProcessPostCommitJobPayload,
+  WorkflowManualRecoveryRequired,
+} from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
@@ -282,6 +288,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               where id = ${result.jobId}
             `
           )
+          yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(job?.payload)
           assert.deepStrictEqual(job, {
             correlation_id: input.correlationId,
             idempotency_key: input.idempotencyKey,

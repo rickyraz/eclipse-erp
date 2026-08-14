@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import type { Sql } from "postgres"
 
 import {
@@ -21,6 +22,7 @@ import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
   OrderConfirmationNotFound,
+  ProcessPostCommitJobPayload,
   WorkflowIdempotencyConflict,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -350,6 +352,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             where id = ${result.jobId}
           `
         )
+        yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(job?.payload)
         assert.deepStrictEqual(job, {
           job_type: "process.order_cancellation.post_commit",
           correlation_id: input.correlationId,
@@ -416,6 +419,22 @@ it.effect.skipIf(databaseUrl === undefined)(
           WorkflowIdempotencyConflict,
         )
         assert.strictEqual(result.order.status, "confirmed")
+        const [job] = yield* Effect.promise(() =>
+          client<{ payload: unknown }[]>`
+            select payload from process.jobs where id = ${result.jobId}
+          `
+        )
+        const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(
+          job?.payload,
+        )
+        assert.deepStrictEqual(jobPayload, {
+          eventId: result.eventId,
+          workflowRunId: result.workflowRunId,
+          commandId: input.commandId,
+          correlationId: input.correlationId,
+          causationId: input.causationId,
+          idempotencyKey: input.idempotencyKey,
+        })
         assert.strictEqual(result.fulfilledReservations.length, confirmation.reservations.length)
         assert.strictEqual(
           result.fulfilledReservations.every(({ status }) => status === "fulfilled"),
