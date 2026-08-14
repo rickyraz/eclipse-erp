@@ -41,10 +41,14 @@ const events: ReadonlyArray<DomainEventCatalogEntry> = [
 ]
 
 const assertCompatibleVersion = (entry: DomainActionCatalogEntry | DomainEventCatalogEntry) => {
+  assert.ok(Number.isInteger(entry.version))
+  assert.ok(Number.isInteger(entry.compatibilityRange.minimumVersion))
+  assert.ok(Number.isInteger(entry.compatibilityRange.maximumVersion))
   assert.ok(entry.version > 0)
   assert.ok(entry.compatibilityRange.minimumVersion > 0)
   assert.ok(entry.compatibilityRange.minimumVersion <= entry.version)
   assert.ok(entry.compatibilityRange.maximumVersion >= entry.version)
+  assert.ok(entry.compatibilityRange.maximumVersion <= 2_147_483_647)
 }
 
 const assertPayloadFields = (
