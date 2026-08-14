@@ -103,6 +103,12 @@ export const ManualRecoveryInput = Schema.Struct({
 })
 
 export const DomainEventEnvelope = EventEnvelope
+export const OrderConfirmationCompletedEventPayload = Schema.Struct({
+  workflowRunId: Uuid,
+  orderId: Uuid,
+  reservationIds: Schema.Array(Uuid),
+  journalId: Uuid,
+})
 
 export const ProcessJobStatus = Schema.Literals([
   "pending",
@@ -611,6 +617,14 @@ export const makeProcessService = Effect.gen(function* () {
             correlationId: decoded.correlationId,
             causationId: decoded.causationId,
           })
+          const eventPayload = yield* Schema.decodeUnknownEffect(
+            OrderConfirmationCompletedEventPayload,
+          )({
+            workflowRunId: run[0]!.id,
+            orderId: order.id,
+            reservationIds: reservations.map((reservation) => reservation.id),
+            journalId: journal.id,
+          })
 
           const event = yield* messaging.append({
             eventId: crypto.randomUUID(),
@@ -625,12 +639,7 @@ export const makeProcessService = Effect.gen(function* () {
             idempotencyKey: decoded.idempotencyKey,
             actorPrincipalId: decoded.principal.userAccountId,
             occurredAt: now().toISOString(),
-            payload: {
-              workflowRunId: run[0]!.id,
-              orderId: order.id,
-              reservationIds: reservations.map((reservation) => reservation.id),
-              journalId: journal.id,
-            },
+            payload: eventPayload,
           })
 
           const job = (yield* database.query(

@@ -9,6 +9,7 @@ export {
   ManualRecoveryInput,
   OrderCancellationPayload,
   OrderCancellationResult,
+  OrderConfirmationCompletedEventPayload,
   OrderConfirmationCorrupt,
   OrderConfirmationNotFound,
   OrderConfirmationPayload,

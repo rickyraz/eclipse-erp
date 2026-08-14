@@ -6,6 +6,7 @@ import {
   ConfirmOrderConfirmationInput,
   DomainEventEnvelope,
   OrderCancellationPayload,
+  OrderConfirmationCompletedEventPayload,
   OrderConfirmationPayload,
   OrderFulfillmentPayload,
   OrderFulfillmentResult,
@@ -105,6 +106,25 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidPayload._tag, "SchemaError")
+  }))
+
+it.effect("validates order confirmation completed event payloads", () =>
+  Effect.gen(function* () {
+    const payload = {
+      workflowRunId: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
+      orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
+      reservationIds: ["018f3f77-0c5a-7cc0-8b62-6a163d214130"],
+      journalId: "018f3f77-0c5a-7cc0-8b62-6a163d214131",
+    }
+    yield* Schema.decodeUnknownEffect(OrderConfirmationCompletedEventPayload)(payload)
+
+    const invalidReservation = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderConfirmationCompletedEventPayload)({
+        ...payload,
+        reservationIds: ["not-a-uuid"],
+      }),
+    )
+    assert.strictEqual(invalidReservation._tag, "SchemaError")
   }))
 
 it.effect("validates workflow run identities and recovery metadata", () =>
