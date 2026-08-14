@@ -36,7 +36,11 @@ import {
 import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const PostgresInt = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(-2_147_483_648),
+  Schema.isLessThanOrEqualTo(2_147_483_647),
+)
+const NonNegativeInt = PostgresInt.check(Schema.isGreaterThanOrEqualTo(0))
 const Uuid = EventEnvelope.fields.eventId
 const InstantString = EventEnvelope.fields.occurredAt
 const workflowType = "sales.order.confirmation"
@@ -112,7 +116,7 @@ export const ProcessJob = Schema.Struct({
   tenantId: Uuid,
   jobType: NonEmptyString,
   idempotencyKey: NonEmptyString,
-  priority: Schema.Int,
+  priority: PostgresInt,
   status: ProcessJobStatus,
   scheduledAt: InstantString,
   leaseUntil: Schema.NullOr(InstantString),

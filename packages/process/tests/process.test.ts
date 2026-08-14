@@ -69,6 +69,18 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         attempts: -1,
       }),
     )
+    const overflowingAttempts = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        attempts: 2_147_483_648,
+      }),
+    )
+    const overflowingPriority = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        priority: 2_147_483_648,
+      }),
+    )
     const invalidSchedule = yield* Effect.flip(
       Schema.decodeUnknownEffect(ProcessJob)({
         ...job,
@@ -88,6 +100,8 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
       }),
     )
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
+    assert.strictEqual(overflowingAttempts._tag, "SchemaError")
+    assert.strictEqual(overflowingPriority._tag, "SchemaError")
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidPayload._tag, "SchemaError")
