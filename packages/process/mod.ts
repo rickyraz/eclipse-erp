@@ -1,4 +1,10 @@
 export { ProcessCapabilities } from "./src/capabilities.ts"
+export {
+  ProcessOrderCancellationCompletedEvent,
+  ProcessOrderConfirmationCompletedEvent,
+  ProcessOrderFulfillmentCompletedEvent,
+  ProcessTypedEventCatalog,
+} from "./src/catalog.ts"
 
 export {
   CancelOrderInput,

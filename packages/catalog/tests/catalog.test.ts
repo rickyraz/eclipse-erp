@@ -20,6 +20,15 @@ import {
   StockCorrection,
 } from "../../inventory/mod.ts"
 import {
+  OrderCancellationCompletedEventPayload,
+  OrderConfirmationCompletedEventPayload,
+  OrderFulfillmentCompletedEventPayload,
+  ProcessOrderCancellationCompletedEvent,
+  ProcessOrderConfirmationCompletedEvent,
+  ProcessOrderFulfillmentCompletedEvent,
+  ProcessTypedEventCatalog,
+} from "../../process/mod.ts"
+import {
   ConfirmOrderInput,
   SalesConfirmOrderAction,
   SalesOrder,
@@ -38,6 +47,7 @@ const events: ReadonlyArray<DomainEventCatalogEntry> = [
   ...InventoryTypedEventCatalog,
   ...AccountingTypedEventCatalog,
   ...SalesTypedEventCatalog,
+  ...ProcessTypedEventCatalog,
 ]
 
 const assertCompatibleVersion = (entry: DomainActionCatalogEntry | DomainEventCatalogEntry) => {
@@ -122,9 +132,33 @@ describe("catalog compatibility", () => {
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
       assert.strictEqual(AccountingRevenuePostedEvent.payloadSchema, RevenuePostedEventPayload)
       assert.strictEqual(SalesOrderConfirmedEvent.payloadSchema, SalesOrderConfirmedEventPayload)
+      assert.strictEqual(
+        ProcessOrderConfirmationCompletedEvent.payloadSchema,
+        OrderConfirmationCompletedEventPayload,
+      )
+      assert.strictEqual(
+        ProcessOrderCancellationCompletedEvent.payloadSchema,
+        OrderCancellationCompletedEventPayload,
+      )
+      assert.strictEqual(
+        ProcessOrderFulfillmentCompletedEvent.payloadSchema,
+        OrderFulfillmentCompletedEventPayload,
+      )
       assertPayloadFields(InventoryStockCorrectedEvent, StockCorrectedEventPayload.fields)
       assertPayloadFields(AccountingRevenuePostedEvent, RevenuePostedEventPayload.fields)
       assertPayloadFields(SalesOrderConfirmedEvent, SalesOrderConfirmedEventPayload.fields)
+      assertPayloadFields(
+        ProcessOrderConfirmationCompletedEvent,
+        ProcessOrderConfirmationCompletedEvent.payloadSchema.fields,
+      )
+      assertPayloadFields(
+        ProcessOrderCancellationCompletedEvent,
+        ProcessOrderCancellationCompletedEvent.payloadSchema.fields,
+      )
+      assertPayloadFields(
+        ProcessOrderFulfillmentCompletedEvent,
+        ProcessOrderFulfillmentCompletedEvent.payloadSchema.fields,
+      )
       assert.strictEqual(AccountingRevenuePostedEvent.stability, "PUBLIC")
 
       const principal = { userAccountId: "user-1", sessionId: "session-1" }
