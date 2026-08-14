@@ -528,17 +528,25 @@ an HTTP write method. The command may register an async job and return its durab
 
 ## Query Plane
 
-The query plane serves bounded reads. It contains two different consistency paths:
+The query plane serves bounded reads. It contains three consistency paths:
 
 ```text
 authoritative query
 -> bounded primary-backed owner query
 -> outside the projection no-primary guarantee
 
+replica read-your-writes query
+-> wait for an opaque required consistency position on an approved standby
+-> sees at least the caller's required commit, not necessarily the primary's latest state
+
 projection query
 -> bounded rebuildable read model
 -> eligible for the hard query-to-command claim
 ```
+
+The replica read-your-writes path is deferred under ADR-0039. It may claim no-primary-credential
+isolation only after its route-scoped activation gates prove replica-only credentials, bounded wait,
+placement and timeline validation, current authorization, and no primary fallback.
 
 An authoritative query uses an explicit query budget and must not consume the command reserve. A
 hard-isolated projection route may access:
@@ -704,9 +712,12 @@ The query process must not receive the command secret in its environment, image,
 or runtime bindings. Network policy should deny query-plane access to the primary when the
 deployment platform supports it.
 
-Pool maxima must fit reviewed database limits. Separate pools on the same PostgreSQL instance
-provide budgeting, not complete CPU, I/O, lock, WAL, or storage isolation. Claims must name exactly
-which resources are protected.
+Pool maxima must fit reviewed database limits. The command connection reserve may use PostgreSQL 19
+`reserved_connections`, but only together with command-only privilege, bounded command admission,
+and reviewed pool ceilings as specified in
+[`../operations/database-roles.md`](../operations/database-roles.md). Separate pools or reserved
+server slots on the same PostgreSQL instance provide connection budgeting, not complete CPU, I/O,
+lock, WAL, or storage isolation. Claims must name exactly which resources are protected.
 
 WorkloadCell and database placement must preserve every accepted cross-domain invariant that
 requires one PostgreSQL transaction. Moving participating owners to incompatible database placements

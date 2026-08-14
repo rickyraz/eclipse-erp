@@ -11,6 +11,8 @@
 >   [`./hierarchy-and-graph-selection.md`](./hierarchy-and-graph-selection.md)
 > - Transactional-truth ADR:
 >   [`../decisions/0003-postgresql-is-transactional-truth.md`](../decisions/0003-postgresql-is-transactional-truth.md)
+> - Replica read-your-writes ADR:
+>   [`../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md`](../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md)
 > - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
 > - Architecture enforcement: [`./architecture-enforcement.md`](./architecture-enforcement.md)
 
@@ -117,11 +119,39 @@ Dashboard, search, and reporting routes may use a separate projection store to p
 reads from consuming command resources. A hard-isolated projection route must not silently fall back
 to the primary when its projection path is stale, unavailable, or saturated.
 
+PostgreSQL 19 `WAIT FOR` is selected by ADR-0039 as the deferred mechanism for route-scoped
+replica-backed read-your-writes. It is not active merely because a replica exists and does not mean
+the replica equals the primary's latest state. Raw WAL and LSN details remain inside PostgreSQL
+infrastructure behind an opaque consistency context. Production activation requires PostgreSQL 19
+GA and the route, timeout, timeline, authorization, no-fallback, load, and failover gates owned by
+[`state-and-consistency.md`](./state-and-consistency.md).
+
 Search indexes over canonical tables are physical access paths, not new business facts. Cross-domain
 search documents and embeddings are rebuildable projections governed by
 [`search-architecture.md`](./search-architecture.md). A PostgreSQL search extension must support the
 project's PostgreSQL 19 floor and pass installation, migration, recovery, replication, workload, and
 exit gates before production use.
+
+## Guarantee Boundary
+
+PostgreSQL participates in three distinct guarantee levels:
+
+```text
+transaction integrity
+-> transactions, constraints, isolation, and locks
+
+connection and privilege containment
+-> roles, credentials, connection-admission reserve, pools, and timeouts
+
+physical workload non-interference
+-> runtime admission plus compute, memory, storage, and network isolation
+```
+
+The first two levels can be enforced partly by PostgreSQL. The third requires the workload-isolation
+fabric and deployment proof defined by [`workload-isolation.md`](./workload-isolation.md). A shared
+primary with separate roles and pools must not be described as physical CPU, memory, I/O, WAL,
+storage, or failover isolation. Detailed role grants and the PostgreSQL server reserve are owned by
+[`../operations/database-roles.md`](../operations/database-roles.md).
 
 ## Operational Requirements
 

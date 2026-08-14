@@ -17,6 +17,8 @@
 >   [`../decisions/0003-postgresql-is-transactional-truth.md`](../decisions/0003-postgresql-is-transactional-truth.md)
 > - Stateful runtime ADR:
 >   [`../decisions/0025-introduce-stateful-entity-runtime.md`](../decisions/0025-introduce-stateful-entity-runtime.md)
+> - Replica read-your-writes ADR:
+>   [`../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md`](../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md)
 
 ## Rule
 
@@ -88,6 +90,44 @@ Rules:
 - do not use it to acknowledge a business transition;
 - recreate it without mutation of canonical facts;
 - do not call it durable in contracts or operations documentation.
+
+## Read Consistency Classes
+
+Every query route declares the weakest consistency class that safely satisfies its behavior:
+
+```text
+eventual or bounded-stale
+-> an approved replica or projection may lag within the declared contract
+
+read-your-writes
+-> after the caller's accepted command, the next query observes at least that commit
+
+authoritative-current
+-> current owner-controlled state is required through the approved authoritative path
+
+transactional
+-> the read participates in command invariant evaluation or the canonical transaction
+```
+
+Replica read-your-writes guarantees only:
+
+```text
+replica_position >= required_position
+```
+
+It does not prove that the replica equals the primary's newest state or includes commits after the
+required position.
+
+ADR-0039 selects PostgreSQL 19 `WAIT FOR` as the deferred mechanism for route-scoped replica
+read-your-writes. Application and transport infrastructure may carry an opaque `ConsistencyToken`,
+but raw PostgreSQL WAL positions, timelines, cluster identifiers, and routing topology must not
+enter domain DTOs, capability IDs, domain events, entity addresses, or Process IR. The token grants
+no authorization, ownership, durability, or workload priority.
+
+Production activation remains gated on PostgreSQL 19 GA, a concrete route requirement, bounded wait
+and failure semantics, placement and timeline validation, current authorization, no-primary-
+fallback enforcement, and executable load and failover proof. Before activation, required
+read-after-write behavior stays on the authoritative path.
 
 ## Command Identity
 

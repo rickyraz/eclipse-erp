@@ -93,6 +93,37 @@ Separate login roles on one PostgreSQL instance provide privilege and connection
 complete CPU, I/O, WAL, lock, or storage isolation. Deployment claims must name the resources that
 are physically independent.
 
+### PostgreSQL Connection-Admission Reserve
+
+A PostgreSQL 19 deployment may use `reserved_connections` as the server-level mechanism for the
+reviewed command connection reserve. Grant the predefined `pg_use_reserved_connections` role only
+to `eclipse_command`; query, reporting, and async lifecycle roles must not inherit it.
+
+```sql
+GRANT pg_use_reserved_connections TO eclipse_command;
+```
+
+Budget available ordinary slots as:
+
+```text
+ordinary_slots =
+  max_connections
+  - reserved_connections
+  - superuser_reserved_connections
+```
+
+Pool maxima, administrative headroom, and other runtime connections must fit the reviewed budget.
+The command role may use ordinary slots during normal operation; the server reserve controls which
+roles may establish a new connection after ordinary slots are exhausted. It is therefore a
+connection-admission reserve, not a dedicated command pool or a CPU, memory, I/O, WAL, lock, or
+storage guarantee. `superuser_reserved_connections` remains an emergency administrative reserve and
+must not be consumed by application roles.
+
+A workload-isolated deployment must prove that ordinary slots can be saturated while a command role
+can still establish a bounded connection, and that query and async roles cannot use the server
+reserve. Application admission and pool ceilings remain required because the database reserve does
+not bound work after a connection is acquired.
+
 Secrets for these roles must be delivered only to their intended composition roots. Query images,
 containers, or processes must not receive the command secret even when the application packages are
 shared.
@@ -277,6 +308,10 @@ Privilege tests must prove that:
 - query-authorizer credentials are read-only, narrowly granted, separately pooled, and fail closed;
 - async lifecycle credentials cannot mutate core domain facts outside the command path;
 - async and query pool maxima cannot consume the reviewed command connection reserve;
+- only the command login inherits `pg_use_reserved_connections`;
+- ordinary-slot saturation still permits a bounded command connection while query and async
+  connection attempts fail;
+- `superuser_reserved_connections` remains unavailable to all application roles;
 - pooled tenant and principal context cannot leak across workload roles.
 
 ## Operational Review

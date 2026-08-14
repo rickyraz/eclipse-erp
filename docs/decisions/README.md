@@ -61,5 +61,6 @@ current system; ADRs preserve decision history.
 | [`0036`](./0036-define-p2-document-and-financial-baseline.md)        | Define the P2 document and financial baseline                   | Accepted   |
 | [`0037`](./0037-define-p3-audit-event-and-delivery-boundary.md)      | Define the P3 audit, event, and delivery boundary               | Accepted   |
 | [`0038`](./0038-move-internal-event-delivery-to-messaging.md)        | Move internal event delivery ownership to Messaging             | Accepted   |
+| [`0039`](./0039-select-postgresql-wait-for-for-replica-read-your-writes.md) | Select PostgreSQL `WAIT FOR` for replica read-your-writes | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

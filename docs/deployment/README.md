@@ -52,7 +52,7 @@ dependencies, separate credentials and paths where applicable, and executable ov
 | Thin workload router       | Topology-only placement and bounded ingress; no business mutation, PostgreSQL transaction, or primary credential                     | Colocated edge role or independently scaled router with protected command ingress        |
 | API and domain services    | Stateless by default; typed commands; authorization and tenant scope enforced before mutation                                        | One process or many replicas behind a load balancer                                      |
 | PostgreSQL                 | Canonical business facts, transactions, constraints, history, and audit                                                              | Direct connection, pooling, replicas, partitioning, or sharding hidden behind the kernel |
-| Read replicas              | Staleness must be explicit; never validate an invariant or satisfy required read-after-write behavior from stale data                | Optional and independently scaled per read workload                                      |
+| Read replicas              | Staleness must be explicit; read-your-writes requires the deferred ADR-0039 consistency-token and activation gates; never validate an invariant from replica state | Optional and independently scaled per read workload |
 | Projection query plane     | Bounded, authorized, rebuildable reads; hard-isolated routes have no primary credential or primary fallback                         | Colocated logical role, separate process, replica, or independent projection store       |
 | Stateful Entity Runtime    | Optional active ownership and entity-local serialization; never canonical authority by itself                                        | Local adapter, `celld`, another adapter, or disabled per entity category                 |
 | PgQue                      | Committed-event stream and fan-out; publication remains atomic with the canonical mutation                                           | Consumers may be colocated or independently scaled                                       |
@@ -119,8 +119,11 @@ logical entity address
 Entity addresses never contain a PostgreSQL shard. Moving a tenant or aggregate between partitions
 or shards must not change its public identity or domain contract.
 
-Read replicas may serve explicitly stale-tolerant queries. Invariant-sensitive reads and writes
-remain on a transactionally appropriate primary or shard. Every currently accepted atomic workflow
+Read replicas may serve explicitly stale-tolerant queries. ADR-0039 also selects a deferred,
+route-scoped PostgreSQL 19 `WAIT FOR` path for read-your-writes after its consistency-token,
+timeout, timeline, authorization, no-fallback, load, and failover gates pass. Until activation,
+required read-after-write behavior remains on the authoritative path. Invariant-sensitive reads and
+writes remain on a transactionally appropriate primary or shard. Every currently accepted atomic workflow
 must remain transactionally colocated. Changing an accepted invariant from one PostgreSQL
 transaction to a durable process, event, or compensation requires a superseding consistency ADR;
 operators must not make that semantic change through shard placement. New cross-shard work must stay
@@ -157,9 +160,19 @@ A deployment seeking query-to-command non-interference separates:
 Projection failure returns declared stale, `429`, or `503` behavior and does not open a primary
 fallback. Async-triggered business commands use existing job or workflow durability to reach a
 command-capable worker composition root, then re-enter command admission and credentials without
-loopback HTTP. The
-deployment publishes the exact protected resources, shared dependencies, excluded failure modes, and
-overload-test results.
+loopback HTTP. The deployment publishes the exact protected resources, shared dependencies,
+excluded failure modes, and overload-test results.
+
+When PostgreSQL 19 `reserved_connections` implements the command connection reserve, deployment
+validation must prove:
+
+- only the command login inherits `pg_use_reserved_connections`;
+- query, reporting, and async credentials cannot use reserved or superuser slots;
+- total pool maxima, administrative headroom, and server reserves fit `max_connections`;
+- saturating ordinary slots rejects query and async connection attempts while a bounded command
+  connection still succeeds;
+- query and async saturation does not exceed the reviewed command latency and success objectives;
+- projection failure or saturation never changes routing to the primary.
 
 ### Scaled or WorkloadCell-isolated
 
