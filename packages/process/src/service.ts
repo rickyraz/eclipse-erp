@@ -52,11 +52,19 @@ const NonNegativeInt = PostgresInt.check(Schema.isGreaterThanOrEqualTo(0))
 const Uuid = EventEnvelope.fields.eventId
 const InstantString = EventEnvelope.fields.occurredAt
 const workflowType = "sales.order.confirmation"
-const jobType = "process.order_confirmation.post_commit"
 const cancellationWorkflowType = "sales.order.cancellation"
-const cancellationJobType = "process.order_cancellation.post_commit"
 const fulfillmentWorkflowType = "sales.order.fulfillment"
-const fulfillmentJobType = "process.order_fulfillment.post_commit"
+
+export const ProcessPostCommitJobTypes = {
+  confirmation: "process.order_confirmation.post_commit",
+  cancellation: "process.order_cancellation.post_commit",
+  fulfillment: "process.order_fulfillment.post_commit",
+} as const
+export const ProcessPostCommitJobType = Schema.Literals([
+  ProcessPostCommitJobTypes.confirmation,
+  ProcessPostCommitJobTypes.cancellation,
+  ProcessPostCommitJobTypes.fulfillment,
+])
 
 export const OrderConfirmationPayload = Schema.Struct({
   orderId: Uuid,
@@ -127,7 +135,7 @@ export const ProcessJobStatus = Schema.Literals([
 export const ProcessJob = Schema.Struct({
   jobId: Uuid,
   tenantId: Uuid,
-  jobType: NonEmptyString,
+  jobType: ProcessPostCommitJobType,
   idempotencyKey: NonEmptyString,
   priority: PostgresInt,
   status: ProcessJobStatus,
@@ -661,7 +669,7 @@ export const makeProcessService = Effect.gen(function* () {
             (db) =>
               db.insert(processJobs).values({
                 tenantId: decoded.tenantId,
-                jobType,
+                jobType: ProcessPostCommitJobTypes.confirmation,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
                 payload: jobPayload,
@@ -816,7 +824,7 @@ export const makeProcessService = Effect.gen(function* () {
             (db) =>
               db.insert(processJobs).values({
                 tenantId: decoded.tenantId,
-                jobType: cancellationJobType,
+                jobType: ProcessPostCommitJobTypes.cancellation,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
                 payload: jobPayload,
@@ -953,7 +961,7 @@ export const makeProcessService = Effect.gen(function* () {
             (db) =>
               db.insert(processJobs).values({
                 tenantId: decoded.tenantId,
-                jobType: fulfillmentJobType,
+                jobType: ProcessPostCommitJobTypes.fulfillment,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
                 payload: jobPayload,

@@ -14,6 +14,7 @@ import {
   OrderFulfillmentResult,
   ProcessJob,
   ProcessPostCommitJobPayload,
+  ProcessPostCommitJobType,
   WorkflowManualRecoveryRequired,
   WorkflowRun,
   WorkflowRunNotFound,
@@ -97,6 +98,9 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         tenantId: "not-a-uuid",
       }),
     )
+    const invalidJobType = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessPostCommitJobType)("process.unknown.post_commit"),
+    )
     const invalidPayload = yield* Effect.flip(
       Schema.decodeUnknownEffect(ProcessJob)({
         ...job,
@@ -108,6 +112,7 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
     assert.strictEqual(overflowingPriority._tag, "SchemaError")
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
+    assert.strictEqual(invalidJobType._tag, "SchemaError")
     assert.strictEqual(invalidPayload._tag, "SchemaError")
   }))
 

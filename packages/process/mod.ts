@@ -27,6 +27,8 @@ export {
   ProcessJob,
   ProcessJobStatus,
   ProcessPostCommitJobPayload,
+  ProcessPostCommitJobType,
+  ProcessPostCommitJobTypes,
   ProcessService,
   RecoverOrderConfirmationInput,
   WorkflowAlreadyCompleted,
