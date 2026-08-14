@@ -17,6 +17,7 @@ import {
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
   PostRevenueForOrderInput,
+  ReverseRevenueForOrderInput,
   UnbalancedJournal,
 } from "../mod.ts"
 
@@ -257,6 +258,14 @@ describe("accounting contract", () => {
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
         Schema.decodeUnknownEffect(PostRevenueForOrderInput.fields.orderId)("not-a-uuid"),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects malformed revenue reversal identities", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(ReverseRevenueForOrderInput.fields.orderId)("not-a-uuid"),
       )
       assert.strictEqual(failure._tag, "SchemaError")
     }))

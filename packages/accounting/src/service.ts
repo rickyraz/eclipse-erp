@@ -141,7 +141,7 @@ export const PostRevenueForOrderInput = Schema.Struct({
 export const ReverseRevenueForOrderInput = Schema.Struct({
   ...ScopedInput,
   legalEntityId: Schema.String,
-  orderId: Schema.String,
+  orderId: Uuid,
 })
 
 export class AccountingConfigurationAlreadyExists
@@ -228,7 +228,7 @@ export class RevenueJournalNotFound
   extends Schema.TaggedErrorClass<RevenueJournalNotFound>()("RevenueJournalNotFound", {
     tenantId: Schema.String,
     legalEntityId: Schema.String,
-    orderId: Schema.String,
+    orderId: Uuid,
   }) {}
 
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
