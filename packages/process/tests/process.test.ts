@@ -8,6 +8,7 @@ import {
   OrderConfirmationPayload,
   OrderFulfillmentPayload,
   ProcessJob,
+  WorkflowRun,
 } from "../mod.ts"
 
 it.effect("defines versioned post-commit event and leased job contracts", () =>
@@ -78,6 +79,26 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
     )
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
+    assert.strictEqual(invalidIdentity._tag, "SchemaError")
+  }))
+
+it.effect("validates workflow run identities and recovery metadata", () =>
+  Effect.gen(function* () {
+    const run = {
+      id: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
+      tenantId: "018f3f77-0c5a-7cc0-8b62-6a163d214124",
+      workflowType: "sales.order.confirmation",
+      idempotencyKey: "confirmation-1",
+      aggregateId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
+      status: "running",
+      recoveryReason: null,
+      completedAt: null,
+    }
+    yield* Schema.decodeUnknownEffect(WorkflowRun)(run)
+
+    const invalidIdentity = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({ ...run, aggregateId: "not-a-uuid" }),
+    )
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
   }))
 

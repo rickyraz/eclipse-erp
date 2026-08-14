@@ -122,13 +122,13 @@ export const ProcessJob = Schema.Struct({
 })
 
 export const WorkflowRun = Schema.Struct({
-  id: Schema.String,
-  tenantId: Schema.String,
+  id: Uuid,
+  tenantId: Uuid,
   workflowType: Schema.Literal(workflowType),
-  idempotencyKey: Schema.String,
-  aggregateId: Schema.String,
+  idempotencyKey: NonEmptyString,
+  aggregateId: Uuid,
   status: Schema.Literals(["running", "succeeded", "manual_recovery"]),
-  recoveryReason: Schema.NullOr(Schema.String),
+  recoveryReason: Schema.NullOr(NonEmptyString),
   completedAt: Schema.NullOr(InstantString),
 })
 
