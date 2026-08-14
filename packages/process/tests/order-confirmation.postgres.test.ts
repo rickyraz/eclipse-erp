@@ -16,13 +16,14 @@ import {
   makeInventoryService,
 } from "../../inventory/mod.ts"
 import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
-import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
+import { EventEnvelope, makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
   OrderConfirmationCompletedEventPayload,
   ProcessCapabilities,
   ProcessJob,
+  ProcessOrderConfirmationCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
   WorkflowManualRecoveryRequired,
@@ -248,6 +249,26 @@ it.effect.skipIf(databaseUrl === undefined)(
           const eventPayload = yield* Schema.decodeUnknownEffect(
             OrderConfirmationCompletedEventPayload,
           )(event?.payload)
+          const [storedEvent] = yield* Effect.promise(() =>
+            client<Record<string, unknown>[]>`
+              select
+                id as "eventId", event_type as "eventType", event_version as "eventVersion",
+                tenant_id as "tenantId", aggregate_type as "aggregateType",
+                aggregate_id as "aggregateId", command_id as "commandId",
+                correlation_id as "correlationId", causation_id as "causationId",
+                idempotency_key as "idempotencyKey", actor_principal_id as "actorPrincipalId",
+                to_json(occurred_at) as "occurredAt", payload,
+                to_json(published_at) as "publishedAt", attempts
+              from messaging.event_outbox
+              where id = ${result.eventId}
+            `
+          )
+          const decodedEvent = yield* Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)
+          assert.strictEqual(decodedEvent.eventType, ProcessOrderConfirmationCompletedEvent.id)
+          assert.strictEqual(
+            decodedEvent.eventVersion,
+            ProcessOrderConfirmationCompletedEvent.version,
+          )
           assert.deepStrictEqual(
             eventPayload.reservationIds,
             result.reservations.map(({ id }) => id),

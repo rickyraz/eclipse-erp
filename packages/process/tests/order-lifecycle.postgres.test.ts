@@ -17,7 +17,7 @@ import {
   StockReservationInvalidState,
 } from "../../inventory/mod.ts"
 import { Database, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
-import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
+import { EventEnvelope, makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
@@ -25,6 +25,8 @@ import {
   OrderConfirmationNotFound,
   OrderFulfillmentCompletedEventPayload,
   ProcessJob,
+  ProcessOrderCancellationCompletedEvent,
+  ProcessOrderFulfillmentCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
   WorkflowIdempotencyConflict,
@@ -331,6 +333,26 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         yield* Schema.decodeUnknownEffect(OrderCancellationCompletedEventPayload)(event?.payload)
+        const [storedEvent] = yield* Effect.promise(() =>
+          client<Record<string, unknown>[]>`
+            select
+              id as "eventId", event_type as "eventType", event_version as "eventVersion",
+              tenant_id as "tenantId", aggregate_type as "aggregateType",
+              aggregate_id as "aggregateId", command_id as "commandId",
+              correlation_id as "correlationId", causation_id as "causationId",
+              idempotency_key as "idempotencyKey", actor_principal_id as "actorPrincipalId",
+              to_json(occurred_at) as "occurredAt", payload,
+              to_json(published_at) as "publishedAt", attempts
+            from messaging.event_outbox
+            where id = ${result.eventId}
+          `
+        )
+        const decodedEvent = yield* Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)
+        assert.strictEqual(decodedEvent.eventType, ProcessOrderCancellationCompletedEvent.id)
+        assert.strictEqual(
+          decodedEvent.eventVersion,
+          ProcessOrderCancellationCompletedEvent.version,
+        )
         assert.deepStrictEqual(event, {
           event_type: "process.order_cancellation.completed",
           command_id: input.commandId,
@@ -445,6 +467,23 @@ it.effect.skipIf(databaseUrl === undefined)(
         const eventPayload = yield* Schema.decodeUnknownEffect(
           OrderFulfillmentCompletedEventPayload,
         )(event?.payload)
+        const [storedEvent] = yield* Effect.promise(() =>
+          client<Record<string, unknown>[]>`
+            select
+              id as "eventId", event_type as "eventType", event_version as "eventVersion",
+              tenant_id as "tenantId", aggregate_type as "aggregateType",
+              aggregate_id as "aggregateId", command_id as "commandId",
+              correlation_id as "correlationId", causation_id as "causationId",
+              idempotency_key as "idempotencyKey", actor_principal_id as "actorPrincipalId",
+              to_json(occurred_at) as "occurredAt", payload,
+              to_json(published_at) as "publishedAt", attempts
+            from messaging.event_outbox
+            where id = ${result.eventId}
+          `
+        )
+        const decodedEvent = yield* Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)
+        assert.strictEqual(decodedEvent.eventType, ProcessOrderFulfillmentCompletedEvent.id)
+        assert.strictEqual(decodedEvent.eventVersion, ProcessOrderFulfillmentCompletedEvent.version)
         assert.deepStrictEqual(eventPayload, {
           workflowRunId: result.workflowRunId,
           confirmationWorkflowRunId: confirmation.workflowRunId,
