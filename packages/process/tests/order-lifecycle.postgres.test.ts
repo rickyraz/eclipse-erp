@@ -21,7 +21,9 @@ import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
+  OrderCancellationCompletedEventPayload,
   OrderConfirmationNotFound,
+  OrderFulfillmentCompletedEventPayload,
   ProcessPostCommitJobPayload,
   WorkflowIdempotencyConflict,
 } from "../mod.ts"
@@ -326,6 +328,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             where id = ${result.eventId}
           `
         )
+        yield* Schema.decodeUnknownEffect(OrderCancellationCompletedEventPayload)(event?.payload)
         assert.deepStrictEqual(event, {
           event_type: "process.order_cancellation.completed",
           command_id: input.commandId,
@@ -419,6 +422,20 @@ it.effect.skipIf(databaseUrl === undefined)(
           WorkflowIdempotencyConflict,
         )
         assert.strictEqual(result.order.status, "confirmed")
+        const [event] = yield* Effect.promise(() =>
+          client<{ payload: unknown }[]>`
+            select payload from messaging.event_outbox where id = ${result.eventId}
+          `
+        )
+        const eventPayload = yield* Schema.decodeUnknownEffect(
+          OrderFulfillmentCompletedEventPayload,
+        )(event?.payload)
+        assert.deepStrictEqual(eventPayload, {
+          workflowRunId: result.workflowRunId,
+          confirmationWorkflowRunId: confirmation.workflowRunId,
+          orderId: order.id,
+          reservationIds: result.fulfilledReservations.map(({ id }) => id),
+        })
         const [job] = yield* Effect.promise(() =>
           client<{ payload: unknown }[]>`
             select payload from process.jobs where id = ${result.jobId}

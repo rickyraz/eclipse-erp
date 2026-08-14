@@ -20,6 +20,7 @@ import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
+  OrderConfirmationCompletedEventPayload,
   ProcessCapabilities,
   ProcessPostCommitJobPayload,
   WorkflowManualRecoveryRequired,
@@ -235,18 +236,21 @@ it.effect.skipIf(databaseUrl === undefined)(
               correlation_id: string
               causation_id: string | null
               idempotency_key: string
-              payload: { reservationIds: string[]; journalId: string }
+              payload: unknown
             }[]>`
               select command_id, correlation_id, causation_id, idempotency_key, payload
               from messaging.event_outbox
               where id = ${result.eventId}
             `
           )
+          const eventPayload = yield* Schema.decodeUnknownEffect(
+            OrderConfirmationCompletedEventPayload,
+          )(event?.payload)
           assert.deepStrictEqual(
-            event?.payload.reservationIds,
+            eventPayload.reservationIds,
             result.reservations.map(({ id }) => id),
           )
-          assert.strictEqual(event?.payload.journalId, result.journal.id)
+          assert.strictEqual(eventPayload.journalId, result.journal.id)
           assert.deepStrictEqual(
             [
               event?.command_id,
