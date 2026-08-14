@@ -8,6 +8,7 @@ import {
   makeSalesService,
   SalesCapabilities,
   SalesOrderConfirmationIdempotencyConflict,
+  SalesOrderConfirmedEvent,
 } from "../mod.ts"
 import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
@@ -91,13 +92,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             client<{
               id: string
               event_type: string
+              event_version: number
               command_id: string
               correlation_id: string
               causation_id: string | null
               idempotency_key: string
               payload: unknown
             }[]>`
-              select id, event_type, command_id, correlation_id, causation_id,
+              select id, event_type, event_version, command_id, correlation_id, causation_id,
                 idempotency_key, payload
               from messaging.event_outbox
               where tenant_id = ${tenant!.id} and event_type = 'sales.order.confirmed'
@@ -108,6 +110,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.deepStrictEqual(events[0], {
             id: events[0]!.id,
             event_type: "sales.order.confirmed",
+            event_version: SalesOrderConfirmedEvent.version,
             command_id: input.commandId,
             correlation_id: input.correlationId,
             causation_id: input.causationId,

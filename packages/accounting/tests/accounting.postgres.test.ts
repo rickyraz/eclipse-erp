@@ -3,7 +3,12 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
 
-import { AccountingCapabilities, AccountingPeriodNotOpen, makeAccountingService } from "../mod.ts"
+import {
+  AccountingCapabilities,
+  AccountingPeriodNotOpen,
+  AccountingRevenuePostedEvent,
+  makeAccountingService,
+} from "../mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
@@ -234,7 +239,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             assert.deepStrictEqual(events[0], {
               id: events[0]!.id,
               event_type: "accounting.revenue.posted",
-              event_version: 1,
+              event_version: AccountingRevenuePostedEvent.version,
               aggregate_type: "journal_entry",
               aggregate_id: journal.id,
               command_id: input.commandId,

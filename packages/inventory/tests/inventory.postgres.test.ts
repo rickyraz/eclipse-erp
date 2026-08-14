@@ -9,6 +9,7 @@ import { makePartyService, PartyCapabilities, PartyService } from "../../party/m
 import { makeUserAccountService, UserAccountService } from "../../identity/mod.ts"
 import {
   InventoryCapabilities,
+  InventoryStockCorrectedEvent,
   makeInventoryService,
   StockCorrectionIdempotencyConflict,
   StockTransferDifferentLegalEntity,
@@ -228,7 +229,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.deepStrictEqual(event, {
             id: event!.id,
             event_type: "inventory.stock.corrected",
-            event_version: 1,
+            event_version: InventoryStockCorrectedEvent.version,
             aggregate_type: "stock_correction",
             aggregate_id: duplicates[0].id,
             command_id: correctionInput.commandId,
