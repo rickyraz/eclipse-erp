@@ -13,6 +13,7 @@ import {
   OrderFulfillmentPayload,
   OrderFulfillmentResult,
   ProcessJob,
+  ProcessPostCommitJobPayload,
   WorkflowManualRecoveryRequired,
   WorkflowRun,
   WorkflowRunNotFound,
@@ -108,6 +109,27 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidPayload._tag, "SchemaError")
+  }))
+
+it.effect("validates Process post-commit job payloads", () =>
+  Effect.gen(function* () {
+    const payload = {
+      eventId: "018f3f77-0c5a-7cc0-8b62-6a163d214123",
+      workflowRunId: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
+      commandId: "command-1",
+      correlationId: "correlation-1",
+      causationId: null,
+      idempotencyKey: "confirmation-1",
+    }
+    yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(payload)
+
+    const invalidEvent = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)({
+        ...payload,
+        eventId: "not-a-uuid",
+      }),
+    )
+    assert.strictEqual(invalidEvent._tag, "SchemaError")
   }))
 
 it.effect("validates order fulfillment completed event payloads", () =>

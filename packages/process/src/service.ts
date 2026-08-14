@@ -122,6 +122,14 @@ export const OrderFulfillmentCompletedEventPayload = Schema.Struct({
   orderId: Uuid,
   reservationIds: Schema.Array(Uuid),
 })
+export const ProcessPostCommitJobPayload = Schema.Struct({
+  eventId: Uuid,
+  workflowRunId: Uuid,
+  commandId: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: Schema.NullOr(NonEmptyString),
+  idempotencyKey: NonEmptyString,
+})
 
 export const ProcessJobStatus = Schema.Literals([
   "pending",
@@ -655,6 +663,14 @@ export const makeProcessService = Effect.gen(function* () {
             payload: eventPayload,
           })
 
+          const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)({
+            eventId: event.eventId,
+            workflowRunId: run[0]!.id,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+          })
           const job = (yield* database.query(
             (db) =>
               db.insert(processJobs).values({
@@ -662,14 +678,7 @@ export const makeProcessService = Effect.gen(function* () {
                 jobType,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
-                payload: {
-                  eventId: event.eventId,
-                  workflowRunId: run[0]!.id,
-                  commandId: decoded.commandId,
-                  correlationId: decoded.correlationId,
-                  causationId: decoded.causationId,
-                  idempotencyKey: decoded.idempotencyKey,
-                },
+                payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
             "process.job.enqueue",
@@ -809,6 +818,14 @@ export const makeProcessService = Effect.gen(function* () {
             occurredAt: now().toISOString(),
             payload: eventPayload,
           })
+          const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)({
+            eventId: event.eventId,
+            workflowRunId: run!.id,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+          })
           const [job] = yield* database.query(
             (db) =>
               db.insert(processJobs).values({
@@ -816,14 +833,7 @@ export const makeProcessService = Effect.gen(function* () {
                 jobType: cancellationJobType,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
-                payload: {
-                  eventId: event.eventId,
-                  workflowRunId: run!.id,
-                  commandId: decoded.commandId,
-                  correlationId: decoded.correlationId,
-                  causationId: decoded.causationId,
-                  idempotencyKey: decoded.idempotencyKey,
-                },
+                payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
             "process.order-cancellation.job.enqueue",
@@ -945,6 +955,14 @@ export const makeProcessService = Effect.gen(function* () {
             occurredAt: now().toISOString(),
             payload: eventPayload,
           })
+          const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)({
+            eventId: event.eventId,
+            workflowRunId: run!.id,
+            commandId: decoded.commandId,
+            correlationId: decoded.correlationId,
+            causationId: decoded.causationId,
+            idempotencyKey: decoded.idempotencyKey,
+          })
           const [job] = yield* database.query(
             (db) =>
               db.insert(processJobs).values({
@@ -952,14 +970,7 @@ export const makeProcessService = Effect.gen(function* () {
                 jobType: fulfillmentJobType,
                 idempotencyKey: decoded.idempotencyKey,
                 priority: 100,
-                payload: {
-                  eventId: event.eventId,
-                  workflowRunId: run!.id,
-                  commandId: decoded.commandId,
-                  correlationId: decoded.correlationId,
-                  causationId: decoded.causationId,
-                  idempotencyKey: decoded.idempotencyKey,
-                },
+                payload: jobPayload,
                 correlationId: decoded.correlationId,
               }).returning({ id: processJobs.id }),
             "process.order-fulfillment.job.enqueue",

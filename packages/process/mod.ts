@@ -20,6 +20,7 @@ export {
   OrderFulfillmentResult,
   ProcessJob,
   ProcessJobStatus,
+  ProcessPostCommitJobPayload,
   ProcessService,
   RecoverOrderConfirmationInput,
   WorkflowAlreadyCompleted,
