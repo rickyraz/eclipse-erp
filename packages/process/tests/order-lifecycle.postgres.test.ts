@@ -387,6 +387,34 @@ it.effect.skipIf(databaseUrl === undefined)(
           decodedEvent.eventVersion,
           ProcessOrderCancellationCompletedEvent.version,
         )
+        assert.deepStrictEqual(
+          {
+            eventId: decodedEvent.eventId,
+            tenantId: decodedEvent.tenantId,
+            aggregateType: decodedEvent.aggregateType,
+            aggregateId: decodedEvent.aggregateId,
+            commandId: decodedEvent.commandId,
+            correlationId: decodedEvent.correlationId,
+            causationId: decodedEvent.causationId,
+            idempotencyKey: decodedEvent.idempotencyKey,
+            actorPrincipalId: decodedEvent.actorPrincipalId,
+            publishedAt: decodedEvent.publishedAt,
+            attempts: decodedEvent.attempts,
+          },
+          {
+            eventId: result.eventId,
+            tenantId: input.tenantId,
+            aggregateType: ProcessOrderCancellationCompletedEvent.aggregateType,
+            aggregateId: input.orderId,
+            commandId: input.commandId,
+            correlationId: input.correlationId,
+            causationId: input.causationId,
+            idempotencyKey: input.idempotencyKey,
+            actorPrincipalId: input.principal.userAccountId,
+            publishedAt: null,
+            attempts: 0,
+          },
+        )
         assert.deepStrictEqual(event, {
           event_type: "process.order_cancellation.completed",
           command_id: input.commandId,
@@ -546,6 +574,34 @@ it.effect.skipIf(databaseUrl === undefined)(
         const decodedEvent = yield* Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)
         assert.strictEqual(decodedEvent.eventType, ProcessOrderFulfillmentCompletedEvent.id)
         assert.strictEqual(decodedEvent.eventVersion, ProcessOrderFulfillmentCompletedEvent.version)
+        assert.deepStrictEqual(
+          {
+            eventId: decodedEvent.eventId,
+            tenantId: decodedEvent.tenantId,
+            aggregateType: decodedEvent.aggregateType,
+            aggregateId: decodedEvent.aggregateId,
+            commandId: decodedEvent.commandId,
+            correlationId: decodedEvent.correlationId,
+            causationId: decodedEvent.causationId,
+            idempotencyKey: decodedEvent.idempotencyKey,
+            actorPrincipalId: decodedEvent.actorPrincipalId,
+            publishedAt: decodedEvent.publishedAt,
+            attempts: decodedEvent.attempts,
+          },
+          {
+            eventId: result.eventId,
+            tenantId: input.tenantId,
+            aggregateType: ProcessOrderFulfillmentCompletedEvent.aggregateType,
+            aggregateId: input.orderId,
+            commandId: input.commandId,
+            correlationId: input.correlationId,
+            causationId: input.causationId,
+            idempotencyKey: input.idempotencyKey,
+            actorPrincipalId: input.principal.userAccountId,
+            publishedAt: null,
+            attempts: 0,
+          },
+        )
         assert.deepStrictEqual(eventPayload, {
           workflowRunId: result.workflowRunId,
           confirmationWorkflowRunId: confirmation.workflowRunId,

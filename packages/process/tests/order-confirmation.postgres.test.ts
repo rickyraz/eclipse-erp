@@ -304,6 +304,34 @@ it.effect.skipIf(databaseUrl === undefined)(
             ProcessOrderConfirmationCompletedEvent.version,
           )
           assert.deepStrictEqual(
+            {
+              eventId: decodedEvent.eventId,
+              tenantId: decodedEvent.tenantId,
+              aggregateType: decodedEvent.aggregateType,
+              aggregateId: decodedEvent.aggregateId,
+              commandId: decodedEvent.commandId,
+              correlationId: decodedEvent.correlationId,
+              causationId: decodedEvent.causationId,
+              idempotencyKey: decodedEvent.idempotencyKey,
+              actorPrincipalId: decodedEvent.actorPrincipalId,
+              publishedAt: decodedEvent.publishedAt,
+              attempts: decodedEvent.attempts,
+            },
+            {
+              eventId: result.eventId,
+              tenantId: input.tenantId,
+              aggregateType: ProcessOrderConfirmationCompletedEvent.aggregateType,
+              aggregateId: input.orderId,
+              commandId: input.commandId,
+              correlationId: input.correlationId,
+              causationId: input.causationId,
+              idempotencyKey: input.idempotencyKey,
+              actorPrincipalId: input.principal.userAccountId,
+              publishedAt: null,
+              attempts: 0,
+            },
+          )
+          assert.deepStrictEqual(
             eventPayload.reservationIds,
             result.reservations.map(({ id }) => id),
           )
