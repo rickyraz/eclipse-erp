@@ -12,7 +12,10 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const NonNegativeInt = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(2_147_483_647),
+)
 const IsoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
 const InstantString = Schema.String.check(
   Schema.isPattern(IsoTimestamp),
