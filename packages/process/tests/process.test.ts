@@ -222,10 +222,32 @@ it.effect("validates workflow run identities and recovery metadata", () =>
     const invalidRecoveryState = yield* Effect.flip(
       Schema.decodeUnknownEffect(WorkflowRun)({ ...run, status: "manual_recovery" }),
     )
+    const invalidRunningRecovery = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({ ...run, recoveryReason: "unexpected" }),
+    )
+    const invalidSucceededRecovery = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({
+        ...run,
+        status: "succeeded",
+        recoveryReason: "unexpected",
+        completedAt: "2026-08-14T00:00:00.000Z",
+      }),
+    )
+    const invalidCompletedRecovery = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRun)({
+        ...run,
+        status: "manual_recovery",
+        recoveryReason: "operator review required",
+        completedAt: "2026-08-14T00:00:00.000Z",
+      }),
+    )
     assert.strictEqual(invalidWorkflowType._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidSucceededState._tag, "SchemaError")
     assert.strictEqual(invalidRecoveryState._tag, "SchemaError")
+    assert.strictEqual(invalidRunningRecovery._tag, "SchemaError")
+    assert.strictEqual(invalidSucceededRecovery._tag, "SchemaError")
+    assert.strictEqual(invalidCompletedRecovery._tag, "SchemaError")
   }))
 
 it.effect("validates lifecycle result identities", () =>

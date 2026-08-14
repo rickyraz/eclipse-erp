@@ -37,6 +37,8 @@ import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/m
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
+const postgresFailure = (effect: () => Promise<unknown>) =>
+  Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
 const principal = { userAccountId: "order-confirmation", sessionId: "session" }
 
 const capabilities = [
@@ -66,6 +68,61 @@ const readCounts = (client: Sql, tenantId: string) =>
       (select count(*)::text from messaging.event_outbox where tenant_id = ${tenantId}) as events,
       (select count(*)::text from process.jobs where tenant_id = ${tenantId}) as jobs
   `
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rejects contradictory workflow state metadata in PostgreSQL",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const aggregateId = crypto.randomUUID()
+
+        const runningRecovery = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload,
+               recovery_reason)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', 'invalid-running-recovery',
+               ${aggregateId}, 'running', '{}'::jsonb, 'unexpected')
+          `
+        )
+        const succeededRecovery = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload,
+               result, recovery_reason, completed_at)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', 'invalid-succeeded-recovery',
+               ${aggregateId}, 'succeeded', '{}'::jsonb, '{}'::jsonb, 'unexpected', now())
+          `
+        )
+        const completedRecovery = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload,
+               recovery_reason, completed_at)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', 'invalid-completed-recovery',
+               ${aggregateId}, 'manual_recovery', '{}'::jsonb,
+               'operator review required', now())
+          `
+        )
+
+        for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
+          assert.strictEqual((failure as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (failure as { constraint_name?: string }).constraint_name,
+            "workflow_runs_state_check",
+          )
+        }
+      })),
+)
 
 it.effect.skipIf(databaseUrl === undefined)(
   "commits order confirmation, event, job, and idempotent retries atomically",
@@ -718,7 +775,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.promise(() =>
             client`
               insert into process.workflow_runs
-                (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload, recovery_reason)
+                (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload)
               values
                 (${tenant!.id}, 'sales.order.confirmation', 'manual-confirmation-1', ${order.id},
                  'running', ${
@@ -731,7 +788,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 causationId: null,
                 idempotencyKey: "manual-confirmation-1",
               })
-            }::jsonb, 'operator review required')
+            }::jsonb)
             `
           )
           const manual = yield* process.markManualRecovery({

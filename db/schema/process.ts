@@ -50,9 +50,9 @@ export const workflowRuns = processSchema.table("workflow_runs", {
   }).onDelete("cascade"),
   check(
     "workflow_runs_state_check",
-    sql`(${table.status} = 'running' and ${table.result} is null and ${table.completedAt} is null) or
-      (${table.status} = 'succeeded' and ${table.result} is not null and ${table.completedAt} is not null) or
-      (${table.status} = 'manual_recovery' and ${table.recoveryReason} is not null)`,
+    sql`(${table.status} = 'running' and ${table.result} is null and ${table.recoveryReason} is null and ${table.completedAt} is null) or
+      (${table.status} = 'succeeded' and ${table.result} is not null and ${table.recoveryReason} is null and ${table.completedAt} is not null) or
+      (${table.status} = 'manual_recovery' and ${table.result} is null and ${table.recoveryReason} is not null and ${table.completedAt} is null)`,
   ),
 ])
 
