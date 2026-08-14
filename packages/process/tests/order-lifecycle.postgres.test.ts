@@ -22,9 +22,11 @@ import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
   OrderCancellationCompletedEventPayload,
+  OrderCancellationPayload,
   OrderCancellationResult,
   OrderConfirmationNotFound,
   OrderFulfillmentCompletedEventPayload,
+  OrderFulfillmentPayload,
   OrderFulfillmentResult,
   ProcessJob,
   ProcessOrderCancellationCompletedEvent,
@@ -264,7 +266,8 @@ it.effect.skipIf(databaseUrl === undefined)(
           client<Record<string, unknown>[]>`
             select
               id, tenant_id as "tenantId", workflow_type as "workflowType",
-              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status, result,
+              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+              payload, result,
               recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
             from process.workflow_runs
             where id = ${result.workflowRunId}
@@ -273,6 +276,16 @@ it.effect.skipIf(databaseUrl === undefined)(
         const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
         assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
         assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.cancellation)
+        assert.deepStrictEqual(
+          yield* Schema.decodeUnknownEffect(OrderCancellationPayload)(storedWorkflow?.payload),
+          {
+            orderId: input.orderId,
+            commandId: input.commandId,
+            correlationId: input.correlationId,
+            causationId: input.causationId,
+            idempotencyKey: input.idempotencyKey,
+          },
+        )
         assert.deepStrictEqual(
           yield* Schema.decodeUnknownEffect(OrderCancellationResult)(storedWorkflow?.result),
           result,
@@ -472,7 +485,8 @@ it.effect.skipIf(databaseUrl === undefined)(
           client<Record<string, unknown>[]>`
             select
               id, tenant_id as "tenantId", workflow_type as "workflowType",
-              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status, result,
+              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+              payload, result,
               recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
             from process.workflow_runs
             where id = ${result.workflowRunId}
@@ -481,6 +495,16 @@ it.effect.skipIf(databaseUrl === undefined)(
         const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
         assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
         assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.fulfillment)
+        assert.deepStrictEqual(
+          yield* Schema.decodeUnknownEffect(OrderFulfillmentPayload)(storedWorkflow?.payload),
+          {
+            orderId: input.orderId,
+            commandId: input.commandId,
+            correlationId: input.correlationId,
+            causationId: input.causationId,
+            idempotencyKey: input.idempotencyKey,
+          },
+        )
         assert.deepStrictEqual(
           yield* Schema.decodeUnknownEffect(OrderFulfillmentResult)(storedWorkflow?.result),
           result,

@@ -21,6 +21,7 @@ import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
   OrderConfirmationCompletedEventPayload,
+  OrderConfirmationPayload,
   OrderConfirmationResult,
   ProcessCapabilities,
   ProcessJob,
@@ -226,7 +227,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             client<Record<string, unknown>[]>`
               select
                 id, tenant_id as "tenantId", workflow_type as "workflowType",
-                idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status, result,
+                idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+                payload, result,
                 recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
               from process.workflow_runs
               where id = ${result.workflowRunId}
@@ -235,6 +237,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
           assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
           assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.confirmation)
+          assert.deepStrictEqual(
+            yield* Schema.decodeUnknownEffect(OrderConfirmationPayload)(storedWorkflow?.payload),
+            {
+              orderId: input.orderId,
+              warehouseId: input.warehouseId,
+              legalEntityId: input.legalEntityId,
+              commandId: input.commandId,
+              correlationId: input.correlationId,
+              causationId: input.causationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          )
           assert.deepStrictEqual(
             yield* Schema.decodeUnknownEffect(OrderConfirmationResult)(storedWorkflow?.result),
             result,
