@@ -228,9 +228,9 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.notStrictEqual(event?.id, duplicates[0].id)
           assert.deepStrictEqual(event, {
             id: event!.id,
-            event_type: "inventory.stock.corrected",
+            event_type: InventoryStockCorrectedEvent.id,
             event_version: InventoryStockCorrectedEvent.version,
-            aggregate_type: "stock_correction",
+            aggregate_type: InventoryStockCorrectedEvent.aggregateType,
             aggregate_id: duplicates[0].id,
             command_id: correctionInput.commandId,
             correlation_id: correctionInput.correlationId,

@@ -93,24 +93,26 @@ it.effect.skipIf(databaseUrl === undefined)(
               id: string
               event_type: string
               event_version: number
+              aggregate_type: string
               command_id: string
               correlation_id: string
               causation_id: string | null
               idempotency_key: string
               payload: unknown
             }[]>`
-              select id, event_type, event_version, command_id, correlation_id, causation_id,
-                idempotency_key, payload
+              select id, event_type, event_version, aggregate_type, command_id, correlation_id,
+                causation_id, idempotency_key, payload
               from messaging.event_outbox
-              where tenant_id = ${tenant!.id} and event_type = 'sales.order.confirmed'
+              where tenant_id = ${tenant!.id} and event_type = ${SalesOrderConfirmedEvent.id}
             `
           )
           assert.strictEqual(events.length, 1)
           assert.notStrictEqual(events[0]?.id, order.id)
           assert.deepStrictEqual(events[0], {
             id: events[0]!.id,
-            event_type: "sales.order.confirmed",
+            event_type: SalesOrderConfirmedEvent.id,
             event_version: SalesOrderConfirmedEvent.version,
+            aggregate_type: SalesOrderConfirmedEvent.aggregateType,
             command_id: input.commandId,
             correlation_id: input.correlationId,
             causation_id: input.causationId,

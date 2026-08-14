@@ -231,16 +231,17 @@ it.effect.skipIf(databaseUrl === undefined)(
                   command_id, correlation_id, causation_id, idempotency_key,
                   actor_principal_id, occurred_at, payload
                 from messaging.event_outbox
-                where tenant_id = ${tenant!.id} and event_type = 'accounting.revenue.posted'
+                where tenant_id = ${tenant!.id}
+                  and event_type = ${AccountingRevenuePostedEvent.id}
               `
             )
             assert.strictEqual(events.length, 1)
             assert.notStrictEqual(events[0]?.id, journal.id)
             assert.deepStrictEqual(events[0], {
               id: events[0]!.id,
-              event_type: "accounting.revenue.posted",
+              event_type: AccountingRevenuePostedEvent.id,
               event_version: AccountingRevenuePostedEvent.version,
-              aggregate_type: "journal_entry",
+              aggregate_type: AccountingRevenuePostedEvent.aggregateType,
               aggregate_id: journal.id,
               command_id: input.commandId,
               correlation_id: input.correlationId,
