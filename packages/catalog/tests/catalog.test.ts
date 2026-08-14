@@ -62,7 +62,15 @@ describe("catalog compatibility", () => {
       const identities = [...actions, ...events].map((entry) => `${entry.id}@${entry.version}`)
       assert.strictEqual(new Set(identities).size, identities.length)
 
-      for (const entry of [...actions, ...events]) assertCompatibleVersion(entry)
+      for (const entry of [...actions, ...events]) {
+        assertCompatibleVersion(entry)
+        assert.ok(/\S/.test(entry.id))
+        assert.ok(/\S/.test(entry.owningDomain))
+        assert.ok(/\S/.test(entry.title))
+        assert.ok(/\S/.test(entry.description))
+        assert.ok(entry.scope.length > 0)
+        assert.strictEqual(new Set(entry.scope).size, entry.scope.length)
+      }
 
       for (const action of actions) {
         assert.ok(action.preconditions.length > 0)
@@ -79,6 +87,7 @@ describe("catalog compatibility", () => {
 
       for (const event of events) {
         assert.ok(event.id.startsWith(`${event.owningDomain}.`))
+        assert.ok(/\S/.test(event.aggregateType))
         assert.ok(event.correlationFields.length > 0)
         assert.strictEqual(new Set(event.correlationFields).size, event.correlationFields.length)
         assert.strictEqual(new Set(event.filterableFields).size, event.filterableFields.length)
