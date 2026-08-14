@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=66
+total=67
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -68,6 +68,7 @@ gate bash -c 'grep -Fq "Schema.decodeUnknownEffect(ProcessJob)(storedJob)" packa
 gate bash -c 'grep -Fq "Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)" packages/process/tests/order-confirmation.postgres.test.ts && test "$(grep -c "Schema.decodeUnknownEffect(EventEnvelope)(storedEvent)" packages/process/tests/order-lifecycle.postgres.test.ts)" -eq 2 && grep -Fq "ProcessOrderFulfillmentCompletedEvent.version" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "export const ProcessWorkflowType" packages/process/src/service.ts && grep -Fq "ProcessWorkflowTypes.fulfillment" packages/process/src/service.ts && grep -Fq "sales.order.unknown" packages/process/tests/process.test.ts && grep -Fq "ProcessWorkflowTypes.confirmation" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "ProcessWorkflowTypes.cancellation" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "workflowType: ProcessWorkflowType" packages/process/src/service.ts && grep -Fq "Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)" packages/process/tests/order-confirmation.postgres.test.ts && test "$(grep -c "Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)" packages/process/tests/order-lifecycle.postgres.test.ts)" -eq 2'
+gate bash -c 'grep -Fq "Schema.decodeUnknownEffect(OrderConfirmationResult)(storedWorkflow?.result)" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "Schema.decodeUnknownEffect(OrderCancellationResult)(storedWorkflow?.result)" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "Schema.decodeUnknownEffect(OrderFulfillmentResult)(storedWorkflow?.result)" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -q "consumerReceipts" db/schema/messaging.ts && grep -Rqs "duplicate event\|consumer receipt" packages/messaging/tests && grep -Rqs "rolls back.*receipt\|receipt.*rolls back" packages/messaging/tests'
 gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "fulfillOrder" packages/process/src/service.ts && grep -Rqs "cancellation.*atomic\|atomic.*cancellation" packages/process/tests && grep -Rqs "fulfillment" packages/process/tests'
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'

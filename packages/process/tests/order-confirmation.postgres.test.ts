@@ -21,6 +21,7 @@ import { makePartyService, PartyCapabilities } from "../../party/mod.ts"
 import {
   makeProcessService,
   OrderConfirmationCompletedEventPayload,
+  OrderConfirmationResult,
   ProcessCapabilities,
   ProcessJob,
   ProcessOrderConfirmationCompletedEvent,
@@ -225,7 +226,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             client<Record<string, unknown>[]>`
               select
                 id, tenant_id as "tenantId", workflow_type as "workflowType",
-                idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+                idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status, result,
                 recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
               from process.workflow_runs
               where id = ${result.workflowRunId}
@@ -234,6 +235,10 @@ it.effect.skipIf(databaseUrl === undefined)(
           const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
           assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
           assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.confirmation)
+          assert.deepStrictEqual(
+            yield* Schema.decodeUnknownEffect(OrderConfirmationResult)(storedWorkflow?.result),
+            result,
+          )
           const counts = (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0]!
           assert.strictEqual(result.workflowRunId, repeated.workflowRunId)
           assert.deepStrictEqual(
