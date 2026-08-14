@@ -73,8 +73,20 @@ describe("catalog compatibility", () => {
       }
 
       for (const action of actions) {
+        assert.ok(Number.isInteger(action.timeoutPolicy.timeoutMs))
+        assert.ok(action.timeoutPolicy.timeoutMs > 0)
+        assert.ok(Number.isInteger(action.retryPolicy.maxAttempts))
+        assert.ok(action.retryPolicy.maxAttempts > 0)
         assert.ok(action.preconditions.length > 0)
+        assert.strictEqual(new Set(action.preconditions).size, action.preconditions.length)
         assert.ok(action.effects.length > 0)
+        assert.strictEqual(new Set(action.effects).size, action.effects.length)
+        assert.ok(action.errorSchemas.length > 0)
+        assert.strictEqual(new Set(action.errorSchemas).size, action.errorSchemas.length)
+        assert.ok(action.preconditions.includes("authorized"))
+        if (action.idempotency === "required") {
+          assert.ok(action.preconditions.includes("idempotency_key_stable"))
+        }
         assert.ok(isKnownCapability(action.requiredCapability))
         const capability = getCapabilityDefinition(action.requiredCapability)
         assert.ok(capability)
