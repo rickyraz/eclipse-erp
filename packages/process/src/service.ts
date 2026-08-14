@@ -34,6 +34,14 @@ import {
   SalesService,
 } from "../../sales/mod.ts"
 import { ProcessCapabilities } from "./capabilities.ts"
+import {
+  OrderCancellationCompletedEventPayload,
+  OrderConfirmationCompletedEventPayload,
+  OrderFulfillmentCompletedEventPayload,
+  ProcessOrderCancellationCompletedEvent,
+  ProcessOrderConfirmationCompletedEvent,
+  ProcessOrderFulfillmentCompletedEvent,
+} from "./catalog.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const PostgresInt = Schema.Int.check(
@@ -44,13 +52,10 @@ const NonNegativeInt = PostgresInt.check(Schema.isGreaterThanOrEqualTo(0))
 const Uuid = EventEnvelope.fields.eventId
 const InstantString = EventEnvelope.fields.occurredAt
 const workflowType = "sales.order.confirmation"
-const eventType = "process.order_confirmation.completed"
 const jobType = "process.order_confirmation.post_commit"
 const cancellationWorkflowType = "sales.order.cancellation"
-const cancellationEventType = "process.order_cancellation.completed"
 const cancellationJobType = "process.order_cancellation.post_commit"
 const fulfillmentWorkflowType = "sales.order.fulfillment"
-const fulfillmentEventType = "process.order_fulfillment.completed"
 const fulfillmentJobType = "process.order_fulfillment.post_commit"
 
 export const OrderConfirmationPayload = Schema.Struct({
@@ -103,25 +108,6 @@ export const ManualRecoveryInput = Schema.Struct({
 })
 
 export const DomainEventEnvelope = EventEnvelope
-export const OrderConfirmationCompletedEventPayload = Schema.Struct({
-  workflowRunId: Uuid,
-  orderId: Uuid,
-  reservationIds: Schema.Array(Uuid),
-  journalId: Uuid,
-})
-export const OrderCancellationCompletedEventPayload = Schema.Struct({
-  workflowRunId: Uuid,
-  confirmationWorkflowRunId: Uuid,
-  orderId: Uuid,
-  reservationIds: Schema.Array(Uuid),
-  reversalJournalId: Uuid,
-})
-export const OrderFulfillmentCompletedEventPayload = Schema.Struct({
-  workflowRunId: Uuid,
-  confirmationWorkflowRunId: Uuid,
-  orderId: Uuid,
-  reservationIds: Schema.Array(Uuid),
-})
 export const ProcessPostCommitJobPayload = Schema.Struct({
   eventId: Uuid,
   workflowRunId: Uuid,
@@ -649,10 +635,10 @@ export const makeProcessService = Effect.gen(function* () {
 
           const event = yield* messaging.append({
             eventId: crypto.randomUUID(),
-            eventType,
-            eventVersion: 1,
+            eventType: ProcessOrderConfirmationCompletedEvent.id,
+            eventVersion: ProcessOrderConfirmationCompletedEvent.version,
             tenantId: decoded.tenantId,
-            aggregateType: "sales_order",
+            aggregateType: ProcessOrderConfirmationCompletedEvent.aggregateType,
             aggregateId: order.id,
             commandId: decoded.commandId,
             correlationId: decoded.correlationId,
@@ -805,10 +791,10 @@ export const makeProcessService = Effect.gen(function* () {
           })
           const event = yield* messaging.append({
             eventId: crypto.randomUUID(),
-            eventType: cancellationEventType,
-            eventVersion: 1,
+            eventType: ProcessOrderCancellationCompletedEvent.id,
+            eventVersion: ProcessOrderCancellationCompletedEvent.version,
             tenantId: decoded.tenantId,
-            aggregateType: "sales_order",
+            aggregateType: ProcessOrderCancellationCompletedEvent.aggregateType,
             aggregateId: decoded.orderId,
             commandId: decoded.commandId,
             correlationId: decoded.correlationId,
@@ -942,10 +928,10 @@ export const makeProcessService = Effect.gen(function* () {
           })
           const event = yield* messaging.append({
             eventId: crypto.randomUUID(),
-            eventType: fulfillmentEventType,
-            eventVersion: 1,
+            eventType: ProcessOrderFulfillmentCompletedEvent.id,
+            eventVersion: ProcessOrderFulfillmentCompletedEvent.version,
             tenantId: decoded.tenantId,
-            aggregateType: "sales_order",
+            aggregateType: ProcessOrderFulfillmentCompletedEvent.aggregateType,
             aggregateId: decoded.orderId,
             commandId: decoded.commandId,
             correlationId: decoded.correlationId,

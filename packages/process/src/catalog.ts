@@ -1,9 +1,30 @@
+import * as Schema from "effect/Schema"
+
 import { defineEventCatalogEntry } from "../../catalog/mod.ts"
-import {
-  OrderCancellationCompletedEventPayload,
-  OrderConfirmationCompletedEventPayload,
-  OrderFulfillmentCompletedEventPayload,
-} from "./service.ts"
+
+const Uuid = Schema.String.check(Schema.isUUID())
+
+export const OrderConfirmationCompletedEventPayload = Schema.Struct({
+  workflowRunId: Uuid,
+  orderId: Uuid,
+  reservationIds: Schema.Array(Uuid),
+  journalId: Uuid,
+})
+
+export const OrderCancellationCompletedEventPayload = Schema.Struct({
+  workflowRunId: Uuid,
+  confirmationWorkflowRunId: Uuid,
+  orderId: Uuid,
+  reservationIds: Schema.Array(Uuid),
+  reversalJournalId: Uuid,
+})
+
+export const OrderFulfillmentCompletedEventPayload = Schema.Struct({
+  workflowRunId: Uuid,
+  confirmationWorkflowRunId: Uuid,
+  orderId: Uuid,
+  reservationIds: Schema.Array(Uuid),
+})
 
 export const ProcessOrderConfirmationCompletedEvent = defineEventCatalogEntry({
   kind: "DomainEvent",
