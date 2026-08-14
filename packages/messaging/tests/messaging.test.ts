@@ -38,6 +38,14 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
         attempts: 0,
       }),
     )
+    const overflowingVersion = yield* Effect.flip(
+      Schema.decodeUnknownEffect(EventEnvelope)({
+        ...event(),
+        eventVersion: 2_147_483_648,
+        publishedAt: null,
+        attempts: 0,
+      }),
+    )
     const invalidAttempts = yield* Effect.flip(
       Schema.decodeUnknownEffect(EventEnvelope)({
         ...event(),
@@ -62,6 +70,7 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
     )
 
     assert.strictEqual(invalidEnvelope._tag, "SchemaError")
+    assert.strictEqual(overflowingVersion._tag, "SchemaError")
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
     assert.strictEqual(overflowingAttempts._tag, "SchemaError")
     assert.strictEqual(invalidReceipt._tag, "SchemaError")

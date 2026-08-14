@@ -11,7 +11,10 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
-const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
+const PositiveInt = Schema.Int.check(
+  Schema.isGreaterThan(0),
+  Schema.isLessThanOrEqualTo(2_147_483_647),
+)
 const NonNegativeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
   Schema.isLessThanOrEqualTo(2_147_483_647),
