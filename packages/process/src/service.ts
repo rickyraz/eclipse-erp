@@ -37,6 +37,7 @@ import { ProcessCapabilities } from "./capabilities.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const Uuid = EventEnvelope.fields.eventId
 const InstantString = EventEnvelope.fields.occurredAt
 const workflowType = "sales.order.confirmation"
 const eventType = "process.order_confirmation.completed"
@@ -107,17 +108,17 @@ export const ProcessJobStatus = Schema.Literals([
   "manual_recovery",
 ])
 export const ProcessJob = Schema.Struct({
-  jobId: Schema.String,
-  tenantId: Schema.String,
-  jobType: Schema.String,
-  idempotencyKey: Schema.String,
+  jobId: Uuid,
+  tenantId: Uuid,
+  jobType: NonEmptyString,
+  idempotencyKey: NonEmptyString,
   priority: Schema.Int,
   status: ProcessJobStatus,
   scheduledAt: InstantString,
   leaseUntil: Schema.NullOr(InstantString),
   attempts: NonNegativeInt,
   payload: Schema.Unknown,
-  correlationId: Schema.String,
+  correlationId: NonEmptyString,
 })
 
 export const WorkflowRun = Schema.Struct({
