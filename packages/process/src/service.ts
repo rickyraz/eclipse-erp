@@ -117,7 +117,7 @@ export const ProcessJob = Schema.Struct({
   scheduledAt: InstantString,
   leaseUntil: Schema.NullOr(InstantString),
   attempts: NonNegativeInt,
-  payload: Schema.Unknown,
+  payload: Schema.Json,
   correlationId: NonEmptyString,
 })
 

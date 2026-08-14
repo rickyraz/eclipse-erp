@@ -81,9 +81,16 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         tenantId: "not-a-uuid",
       }),
     )
+    const invalidPayload = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        payload: () => undefined,
+      }),
+    )
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
     assert.strictEqual(invalidSchedule._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
+    assert.strictEqual(invalidPayload._tag, "SchemaError")
   }))
 
 it.effect("validates workflow run identities and recovery metadata", () =>

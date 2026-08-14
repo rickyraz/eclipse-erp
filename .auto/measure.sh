@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=41
+total=42
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -43,6 +43,7 @@ gate bash -c 'test "$(grep -c "workflowRunId: Uuid" packages/process/src/service
 gate bash -c 'test "$(grep -c "tenantId: Uuid" packages/process/src/service.ts)" -ge 11 && test "$(grep -c "idempotencyKey: NonEmptyString" packages/process/src/service.ts)" -eq 12 && test "$(grep -c "orderId: Uuid" packages/process/src/service.ts)" -ge 2 && grep -Fq "reason: NonEmptyString" packages/process/src/service.ts && grep -q "validates workflow error identities" packages/process/tests/process.test.ts'
 gate bash -c 'grep -A2 -F "const ScopedInput = {" packages/process/src/service.ts | grep -Fq "tenantId: Uuid" && grep -q "validates scoped workflow tenant identities" packages/process/tests/process.test.ts'
 gate bash -c 'grep -A3 -F "export const OrderConfirmationPayload" packages/process/src/service.ts | grep -Fq "warehouseId: Uuid" && grep -Fq "legalEntityId: Uuid" packages/process/src/service.ts && grep -A1 -F "const OrderLifecyclePayloadFields" packages/process/src/service.ts | grep -Fq "orderId: Uuid" && grep -Fq "warehouseId: \"not-a-uuid\"" packages/process/tests/process.test.ts'
+gate bash -c 'grep -Fq "payload: Schema.Json" packages/process/src/service.ts && grep -Fq "payload: () => undefined" packages/process/tests/process.test.ts && grep -Fq "assert.strictEqual(invalidPayload._tag, \"SchemaError\")" packages/process/tests/process.test.ts'
 gate bash -c 'grep -q "consumerReceipts" db/schema/messaging.ts && grep -Rqs "duplicate event\|consumer receipt" packages/messaging/tests && grep -Rqs "rolls back.*receipt\|receipt.*rolls back" packages/messaging/tests'
 gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "fulfillOrder" packages/process/src/service.ts && grep -Rqs "cancellation.*atomic\|atomic.*cancellation" packages/process/tests && grep -Rqs "fulfillment" packages/process/tests'
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'
