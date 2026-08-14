@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import {
+  ConfirmOrderConfirmationInput,
   DomainEventEnvelope,
   OrderCancellationPayload,
   OrderConfirmationPayload,
@@ -142,6 +143,14 @@ it.effect("validates workflow error identities and recovery reasons", () =>
 
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidReason._tag, "SchemaError")
+  }))
+
+it.effect("validates scoped workflow tenant identities", () =>
+  Effect.gen(function* () {
+    const invalidTenant = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ConfirmOrderConfirmationInput.fields.tenantId)("not-a-uuid"),
+    )
+    assert.strictEqual(invalidTenant._tag, "SchemaError")
   }))
 
 it.effect("defines cancellation and fulfillment command payloads", () =>

@@ -63,7 +63,7 @@ export const OrderConfirmationPayload = Schema.Struct({
 
 const ScopedInput = {
   principal: Principal,
-  tenantId: Schema.String,
+  tenantId: Uuid,
 }
 
 export const ConfirmOrderConfirmationInput = Schema.Struct({
