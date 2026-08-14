@@ -7,6 +7,7 @@ import {
   OrderCancellationPayload,
   OrderConfirmationPayload,
   OrderFulfillmentPayload,
+  OrderFulfillmentResult,
   ProcessJob,
   WorkflowRun,
 } from "../mod.ts"
@@ -100,6 +101,23 @@ it.effect("validates workflow run identities and recovery metadata", () =>
       Schema.decodeUnknownEffect(WorkflowRun)({ ...run, aggregateId: "not-a-uuid" }),
     )
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
+  }))
+
+it.effect("validates lifecycle result identities", () =>
+  Effect.gen(function* () {
+    const invalidWorkflowRunId = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderFulfillmentResult.fields.workflowRunId)("not-a-uuid"),
+    )
+    const invalidEventId = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderFulfillmentResult.fields.eventId)("not-a-uuid"),
+    )
+    const invalidJobId = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderFulfillmentResult.fields.jobId)("not-a-uuid"),
+    )
+
+    assert.strictEqual(invalidWorkflowRunId._tag, "SchemaError")
+    assert.strictEqual(invalidEventId._tag, "SchemaError")
+    assert.strictEqual(invalidJobId._tag, "SchemaError")
   }))
 
 it.effect("defines cancellation and fulfillment command payloads", () =>

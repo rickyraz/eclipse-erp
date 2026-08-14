@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=37
+total=38
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -39,6 +39,7 @@ gate bash -c 'grep -Fq "attempts: NonNegativeInt" packages/process/src/service.t
 gate bash -c 'grep -Fq "const InstantString = EventEnvelope.fields.occurredAt" packages/process/src/service.ts && grep -Fq "scheduledAt: InstantString" packages/process/src/service.ts && grep -Fq "completedAt: Schema.NullOr(InstantString)" packages/process/src/service.ts && grep -Fq "scheduledAt: \"2026-08-09\"" packages/process/tests/process.test.ts'
 gate bash -c 'grep -Fq "jobId: Uuid" packages/process/src/service.ts && grep -Fq "tenantId: Uuid" packages/process/src/service.ts && grep -Fq "correlationId: NonEmptyString" packages/process/src/service.ts && grep -Fq "tenantId: \"not-a-uuid\"" packages/process/tests/process.test.ts'
 gate bash -c 'grep -Fq "id: Uuid" packages/process/src/service.ts && grep -Fq "aggregateId: Uuid" packages/process/src/service.ts && grep -Fq "recoveryReason: Schema.NullOr(NonEmptyString)" packages/process/src/service.ts && grep -q "validates workflow run identities" packages/process/tests/process.test.ts'
+gate bash -c 'test "$(grep -c "workflowRunId: Uuid" packages/process/src/service.ts)" -eq 3 && test "$(grep -c "eventId: Uuid" packages/process/src/service.ts)" -eq 3 && test "$(grep -c "jobId: Uuid" packages/process/src/service.ts)" -eq 4 && grep -q "validates lifecycle result identities" packages/process/tests/process.test.ts'
 gate bash -c 'grep -q "consumerReceipts" db/schema/messaging.ts && grep -Rqs "duplicate event\|consumer receipt" packages/messaging/tests && grep -Rqs "rolls back.*receipt\|receipt.*rolls back" packages/messaging/tests'
 gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "fulfillOrder" packages/process/src/service.ts && grep -Rqs "cancellation.*atomic\|atomic.*cancellation" packages/process/tests && grep -Rqs "fulfillment" packages/process/tests'
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'

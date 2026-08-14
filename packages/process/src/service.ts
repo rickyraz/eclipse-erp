@@ -133,27 +133,27 @@ export const WorkflowRun = Schema.Struct({
 })
 
 export const OrderConfirmationResult = Schema.Struct({
-  workflowRunId: Schema.String,
+  workflowRunId: Uuid,
   order: SalesOrder,
   reservations: Schema.Array(StockReservation),
   journal: JournalEntry,
-  eventId: Schema.String,
-  jobId: Schema.String,
+  eventId: Uuid,
+  jobId: Uuid,
 })
 export const OrderCancellationResult = Schema.Struct({
-  workflowRunId: Schema.String,
+  workflowRunId: Uuid,
   order: SalesOrder,
   releasedReservations: Schema.Array(StockReservation),
   reversalJournal: JournalEntry,
-  eventId: Schema.String,
-  jobId: Schema.String,
+  eventId: Uuid,
+  jobId: Uuid,
 })
 export const OrderFulfillmentResult = Schema.Struct({
-  workflowRunId: Schema.String,
+  workflowRunId: Uuid,
   order: SalesOrder,
   fulfilledReservations: Schema.Array(StockReservation),
-  eventId: Schema.String,
-  jobId: Schema.String,
+  eventId: Uuid,
+  jobId: Uuid,
 })
 
 export type WorkflowRun = Schema.Schema.Type<typeof WorkflowRun>
