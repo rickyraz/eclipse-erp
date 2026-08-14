@@ -9,7 +9,9 @@ import {
   OrderFulfillmentPayload,
   OrderFulfillmentResult,
   ProcessJob,
+  WorkflowManualRecoveryRequired,
   WorkflowRun,
+  WorkflowRunNotFound,
 } from "../mod.ts"
 
 it.effect("defines versioned post-commit event and leased job contracts", () =>
@@ -118,6 +120,28 @@ it.effect("validates lifecycle result identities", () =>
     assert.strictEqual(invalidWorkflowRunId._tag, "SchemaError")
     assert.strictEqual(invalidEventId._tag, "SchemaError")
     assert.strictEqual(invalidJobId._tag, "SchemaError")
+  }))
+
+it.effect("validates workflow error identities and recovery reasons", () =>
+  Effect.gen(function* () {
+    const invalidIdentity = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowRunNotFound)({
+        _tag: "WorkflowRunNotFound",
+        tenantId: "not-a-uuid",
+        idempotencyKey: "confirmation-1",
+      }),
+    )
+    const invalidReason = yield* Effect.flip(
+      Schema.decodeUnknownEffect(WorkflowManualRecoveryRequired)({
+        _tag: "WorkflowManualRecoveryRequired",
+        tenantId: "018f3f77-0c5a-7cc0-8b62-6a163d214124",
+        idempotencyKey: "confirmation-1",
+        reason: "",
+      }),
+    )
+
+    assert.strictEqual(invalidIdentity._tag, "SchemaError")
+    assert.strictEqual(invalidReason._tag, "SchemaError")
   }))
 
 it.effect("defines cancellation and fulfillment command payloads", () =>
