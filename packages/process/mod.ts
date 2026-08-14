@@ -15,6 +15,7 @@ export {
   OrderConfirmationNotFound,
   OrderConfirmationPayload,
   OrderConfirmationResult,
+  OrderFulfillmentCompletedEventPayload,
   OrderFulfillmentPayload,
   OrderFulfillmentResult,
   ProcessJob,
