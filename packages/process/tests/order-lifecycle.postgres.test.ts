@@ -24,7 +24,9 @@ import {
   OrderCancellationCompletedEventPayload,
   OrderConfirmationNotFound,
   OrderFulfillmentCompletedEventPayload,
+  ProcessJob,
   ProcessPostCommitJobPayload,
+  ProcessPostCommitJobTypes,
   WorkflowIdempotencyConflict,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -356,6 +358,19 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(job?.payload)
+        const [storedJob] = yield* Effect.promise(() =>
+          client<Record<string, unknown>[]>`
+            select
+              id as "jobId", tenant_id as "tenantId", job_type as "jobType",
+              idempotency_key as "idempotencyKey", priority, status,
+              to_json(scheduled_at) as "scheduledAt", to_json(lease_until) as "leaseUntil",
+              attempts, payload, correlation_id as "correlationId"
+            from process.jobs
+            where id = ${result.jobId}
+          `
+        )
+        const decodedJob = yield* Schema.decodeUnknownEffect(ProcessJob)(storedJob)
+        assert.strictEqual(decodedJob.jobType, ProcessPostCommitJobTypes.cancellation)
         assert.deepStrictEqual(job, {
           job_type: "process.order_cancellation.post_commit",
           correlation_id: input.correlationId,
@@ -444,6 +459,19 @@ it.effect.skipIf(databaseUrl === undefined)(
         const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(
           job?.payload,
         )
+        const [storedJob] = yield* Effect.promise(() =>
+          client<Record<string, unknown>[]>`
+            select
+              id as "jobId", tenant_id as "tenantId", job_type as "jobType",
+              idempotency_key as "idempotencyKey", priority, status,
+              to_json(scheduled_at) as "scheduledAt", to_json(lease_until) as "leaseUntil",
+              attempts, payload, correlation_id as "correlationId"
+            from process.jobs
+            where id = ${result.jobId}
+          `
+        )
+        const decodedJob = yield* Schema.decodeUnknownEffect(ProcessJob)(storedJob)
+        assert.strictEqual(decodedJob.jobType, ProcessPostCommitJobTypes.fulfillment)
         assert.deepStrictEqual(jobPayload, {
           eventId: result.eventId,
           workflowRunId: result.workflowRunId,
