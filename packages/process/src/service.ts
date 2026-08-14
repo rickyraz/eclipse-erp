@@ -50,9 +50,9 @@ const fulfillmentEventType = "process.order_fulfillment.completed"
 const fulfillmentJobType = "process.order_fulfillment.post_commit"
 
 export const OrderConfirmationPayload = Schema.Struct({
-  orderId: Schema.String,
-  warehouseId: Schema.String,
-  legalEntityId: Schema.String,
+  orderId: Uuid,
+  warehouseId: Uuid,
+  legalEntityId: Uuid,
   commandId: NonEmptyString,
   correlationId: NonEmptyString,
   causationId: Schema.NullOr(NonEmptyString).pipe(
@@ -73,7 +73,7 @@ export const ConfirmOrderConfirmationInput = Schema.Struct({
 export const RecoverOrderConfirmationInput = ConfirmOrderConfirmationInput
 
 const OrderLifecyclePayloadFields = {
-  orderId: Schema.String,
+  orderId: Uuid,
   commandId: NonEmptyString,
   correlationId: NonEmptyString,
   causationId: Schema.NullOr(NonEmptyString).pipe(

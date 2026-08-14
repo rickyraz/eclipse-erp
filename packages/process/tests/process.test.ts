@@ -156,7 +156,7 @@ it.effect("validates scoped workflow tenant identities", () =>
 it.effect("defines cancellation and fulfillment command payloads", () =>
   Effect.gen(function* () {
     const input = {
-      orderId: "order-1",
+      orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
       commandId: "command-1",
       correlationId: "correlation-1",
       idempotencyKey: "lifecycle-1",
@@ -171,21 +171,29 @@ it.effect("defines cancellation and fulfillment command payloads", () =>
 it.effect("defines the server-derived order confirmation payload", () =>
   Effect.gen(function* () {
     const payload = yield* Schema.decodeUnknownEffect(OrderConfirmationPayload)({
-      orderId: "order-1",
-      warehouseId: "warehouse-1",
-      legalEntityId: "legal-entity-1",
+      orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
+      warehouseId: "018f3f77-0c5a-7cc0-8b62-6a163d214128",
+      legalEntityId: "018f3f77-0c5a-7cc0-8b62-6a163d214129",
       commandId: "command-1",
       correlationId: "correlation-1",
       idempotencyKey: "confirmation-1",
     })
 
     assert.deepStrictEqual(payload, {
-      orderId: "order-1",
-      warehouseId: "warehouse-1",
-      legalEntityId: "legal-entity-1",
+      orderId: "018f3f77-0c5a-7cc0-8b62-6a163d214125",
+      warehouseId: "018f3f77-0c5a-7cc0-8b62-6a163d214128",
+      legalEntityId: "018f3f77-0c5a-7cc0-8b62-6a163d214129",
       commandId: "command-1",
       correlationId: "correlation-1",
       causationId: null,
       idempotencyKey: "confirmation-1",
     })
+
+    const invalidIdentity = yield* Effect.flip(
+      Schema.decodeUnknownEffect(OrderConfirmationPayload)({
+        ...payload,
+        warehouseId: "not-a-uuid",
+      }),
+    )
+    assert.strictEqual(invalidIdentity._tag, "SchemaError")
   }))
