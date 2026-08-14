@@ -29,9 +29,9 @@ import {
   ProcessOrderFulfillmentCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
-  ProcessWorkflowType,
   ProcessWorkflowTypes,
   WorkflowIdempotencyConflict,
+  WorkflowRun,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
@@ -259,14 +259,18 @@ it.effect.skipIf(databaseUrl === undefined)(
         const result = yield* process.cancelOrder(input)
         const repeated = yield* process.cancelOrder(input)
         const [storedWorkflow] = yield* Effect.promise(() =>
-          client<{ workflow_type: string }[]>`
-            select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+          client<Record<string, unknown>[]>`
+            select
+              id, tenant_id as "tenantId", workflow_type as "workflowType",
+              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+              recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
+            from process.workflow_runs
+            where id = ${result.workflowRunId}
           `
         )
-        const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
-          storedWorkflow?.workflow_type,
-        )
-        assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.cancellation)
+        const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
+        assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
+        assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.cancellation)
         assert.strictEqual(repeated.workflowRunId, result.workflowRunId)
         assert.strictEqual(repeated.eventId, result.eventId)
         assert.strictEqual(repeated.jobId, result.jobId)
@@ -459,14 +463,18 @@ it.effect.skipIf(databaseUrl === undefined)(
         const result = yield* process.fulfillOrder(input)
         const repeated = yield* process.fulfillOrder(input)
         const [storedWorkflow] = yield* Effect.promise(() =>
-          client<{ workflow_type: string }[]>`
-            select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+          client<Record<string, unknown>[]>`
+            select
+              id, tenant_id as "tenantId", workflow_type as "workflowType",
+              idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+              recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
+            from process.workflow_runs
+            where id = ${result.workflowRunId}
           `
         )
-        const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
-          storedWorkflow?.workflow_type,
-        )
-        assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.fulfillment)
+        const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
+        assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
+        assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.fulfillment)
         assert.strictEqual(repeated.workflowRunId, result.workflowRunId)
         assert.strictEqual(repeated.eventId, result.eventId)
         assert.strictEqual(repeated.jobId, result.jobId)

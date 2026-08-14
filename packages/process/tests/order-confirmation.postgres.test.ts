@@ -26,9 +26,9 @@ import {
   ProcessOrderConfirmationCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
-  ProcessWorkflowType,
   ProcessWorkflowTypes,
   WorkflowManualRecoveryRequired,
+  WorkflowRun,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
@@ -222,14 +222,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           const result = yield* process.confirmOrder(input)
           const repeated = yield* process.confirmOrder(input)
           const [storedWorkflow] = yield* Effect.promise(() =>
-            client<{ workflow_type: string }[]>`
-              select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+            client<Record<string, unknown>[]>`
+              select
+                id, tenant_id as "tenantId", workflow_type as "workflowType",
+                idempotency_key as "idempotencyKey", aggregate_id as "aggregateId", status,
+                recovery_reason as "recoveryReason", to_json(completed_at) as "completedAt"
+              from process.workflow_runs
+              where id = ${result.workflowRunId}
             `
           )
-          const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
-            storedWorkflow?.workflow_type,
-          )
-          assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.confirmation)
+          const decodedWorkflow = yield* Schema.decodeUnknownEffect(WorkflowRun)(storedWorkflow)
+          assert.strictEqual(decodedWorkflow.id, result.workflowRunId)
+          assert.strictEqual(decodedWorkflow.workflowType, ProcessWorkflowTypes.confirmation)
           const counts = (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0]!
           assert.strictEqual(result.workflowRunId, repeated.workflowRunId)
           assert.deepStrictEqual(

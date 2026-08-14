@@ -159,7 +159,7 @@ export const ProcessJob = Schema.Struct({
 export const WorkflowRun = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
-  workflowType: Schema.Literal(ProcessWorkflowTypes.confirmation),
+  workflowType: ProcessWorkflowType,
   idempotencyKey: NonEmptyString,
   aggregateId: Uuid,
   status: Schema.Literals(["running", "succeeded", "manual_recovery"]),
