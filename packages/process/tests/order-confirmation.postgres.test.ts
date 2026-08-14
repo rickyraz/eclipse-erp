@@ -26,6 +26,8 @@ import {
   ProcessOrderConfirmationCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
+  ProcessWorkflowType,
+  ProcessWorkflowTypes,
   WorkflowManualRecoveryRequired,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -219,6 +221,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
           const result = yield* process.confirmOrder(input)
           const repeated = yield* process.confirmOrder(input)
+          const [storedWorkflow] = yield* Effect.promise(() =>
+            client<{ workflow_type: string }[]>`
+              select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+            `
+          )
+          const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
+            storedWorkflow?.workflow_type,
+          )
+          assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.confirmation)
           const counts = (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0]!
           assert.strictEqual(result.workflowRunId, repeated.workflowRunId)
           assert.deepStrictEqual(

@@ -29,6 +29,8 @@ import {
   ProcessOrderFulfillmentCompletedEvent,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobTypes,
+  ProcessWorkflowType,
+  ProcessWorkflowTypes,
   WorkflowIdempotencyConflict,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -256,6 +258,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
         const result = yield* process.cancelOrder(input)
         const repeated = yield* process.cancelOrder(input)
+        const [storedWorkflow] = yield* Effect.promise(() =>
+          client<{ workflow_type: string }[]>`
+            select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+          `
+        )
+        const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
+          storedWorkflow?.workflow_type,
+        )
+        assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.cancellation)
         assert.strictEqual(repeated.workflowRunId, result.workflowRunId)
         assert.strictEqual(repeated.eventId, result.eventId)
         assert.strictEqual(repeated.jobId, result.jobId)
@@ -447,6 +458,15 @@ it.effect.skipIf(databaseUrl === undefined)(
 
         const result = yield* process.fulfillOrder(input)
         const repeated = yield* process.fulfillOrder(input)
+        const [storedWorkflow] = yield* Effect.promise(() =>
+          client<{ workflow_type: string }[]>`
+            select workflow_type from process.workflow_runs where id = ${result.workflowRunId}
+          `
+        )
+        const decodedWorkflowType = yield* Schema.decodeUnknownEffect(ProcessWorkflowType)(
+          storedWorkflow?.workflow_type,
+        )
+        assert.strictEqual(decodedWorkflowType, ProcessWorkflowTypes.fulfillment)
         assert.strictEqual(repeated.workflowRunId, result.workflowRunId)
         assert.strictEqual(repeated.eventId, result.eventId)
         assert.strictEqual(repeated.jobId, result.jobId)

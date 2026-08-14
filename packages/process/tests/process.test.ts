@@ -15,6 +15,7 @@ import {
   ProcessJob,
   ProcessPostCommitJobPayload,
   ProcessPostCommitJobType,
+  ProcessWorkflowType,
   WorkflowManualRecoveryRequired,
   WorkflowRun,
   WorkflowRunNotFound,
@@ -209,6 +210,9 @@ it.effect("validates workflow run identities and recovery metadata", () =>
     }
     yield* Schema.decodeUnknownEffect(WorkflowRun)(run)
 
+    const invalidWorkflowType = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessWorkflowType)("sales.order.unknown"),
+    )
     const invalidIdentity = yield* Effect.flip(
       Schema.decodeUnknownEffect(WorkflowRun)({ ...run, aggregateId: "not-a-uuid" }),
     )
@@ -218,6 +222,7 @@ it.effect("validates workflow run identities and recovery metadata", () =>
     const invalidRecoveryState = yield* Effect.flip(
       Schema.decodeUnknownEffect(WorkflowRun)({ ...run, status: "manual_recovery" }),
     )
+    assert.strictEqual(invalidWorkflowType._tag, "SchemaError")
     assert.strictEqual(invalidIdentity._tag, "SchemaError")
     assert.strictEqual(invalidSucceededState._tag, "SchemaError")
     assert.strictEqual(invalidRecoveryState._tag, "SchemaError")

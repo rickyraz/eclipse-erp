@@ -30,6 +30,8 @@ export {
   ProcessPostCommitJobType,
   ProcessPostCommitJobTypes,
   ProcessService,
+  ProcessWorkflowType,
+  ProcessWorkflowTypes,
   RecoverOrderConfirmationInput,
   WorkflowAlreadyCompleted,
   WorkflowAlreadyInProgress,

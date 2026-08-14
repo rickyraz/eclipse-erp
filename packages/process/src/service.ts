@@ -51,9 +51,19 @@ const PostgresInt = Schema.Int.check(
 const NonNegativeInt = PostgresInt.check(Schema.isGreaterThanOrEqualTo(0))
 const Uuid = EventEnvelope.fields.eventId
 const InstantString = EventEnvelope.fields.occurredAt
-const workflowType = "sales.order.confirmation"
-const cancellationWorkflowType = "sales.order.cancellation"
-const fulfillmentWorkflowType = "sales.order.fulfillment"
+export const ProcessWorkflowTypes = {
+  confirmation: "sales.order.confirmation",
+  cancellation: "sales.order.cancellation",
+  fulfillment: "sales.order.fulfillment",
+} as const
+export const ProcessWorkflowType = Schema.Literals([
+  ProcessWorkflowTypes.confirmation,
+  ProcessWorkflowTypes.cancellation,
+  ProcessWorkflowTypes.fulfillment,
+])
+const workflowType = ProcessWorkflowTypes.confirmation
+const cancellationWorkflowType = ProcessWorkflowTypes.cancellation
+const fulfillmentWorkflowType = ProcessWorkflowTypes.fulfillment
 
 export const ProcessPostCommitJobTypes = {
   confirmation: "process.order_confirmation.post_commit",
@@ -149,7 +159,7 @@ export const ProcessJob = Schema.Struct({
 export const WorkflowRun = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
-  workflowType: Schema.Literal(workflowType),
+  workflowType: Schema.Literal(ProcessWorkflowTypes.confirmation),
   idempotencyKey: NonEmptyString,
   aggregateId: Uuid,
   status: Schema.Literals(["running", "succeeded", "manual_recovery"]),
