@@ -49,6 +49,19 @@ export const eventOutbox = messagingSchema.table("event_outbox", {
     foreignColumns: [tenants.id],
     name: "event_outbox_tenant_id_fkey",
   }).onDelete("cascade"),
+  check("event_outbox_event_type_check", sql`${table.eventType} ~ '[^[:space:]]'`),
+  check("event_outbox_aggregate_type_check", sql`${table.aggregateType} ~ '[^[:space:]]'`),
+  check("event_outbox_command_id_check", sql`${table.commandId} ~ '[^[:space:]]'`),
+  check("event_outbox_correlation_id_check", sql`${table.correlationId} ~ '[^[:space:]]'`),
+  check(
+    "event_outbox_causation_id_check",
+    sql`${table.causationId} is null or ${table.causationId} ~ '[^[:space:]]'`,
+  ),
+  check("event_outbox_idempotency_key_check", sql`${table.idempotencyKey} ~ '[^[:space:]]'`),
+  check(
+    "event_outbox_actor_principal_id_check",
+    sql`${table.actorPrincipalId} ~ '[^[:space:]]'`,
+  ),
   check("event_outbox_event_version_check", sql`${table.eventVersion} > 0`),
   check("event_outbox_attempts_check", sql`${table.attempts} >= 0`),
 ])
@@ -68,4 +81,5 @@ export const consumerReceipts = messagingSchema.table("consumer_receipts", {
     foreignColumns: [eventOutbox.tenantId, eventOutbox.id],
     name: "consumer_receipts_event_fkey",
   }),
+  check("consumer_receipts_consumer_id_check", sql`${table.consumerId} ~ '[^[:space:]]'`),
 ])

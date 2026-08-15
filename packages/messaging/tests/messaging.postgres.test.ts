@@ -8,6 +8,8 @@ import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
+const postgresFailure = (effect: () => Promise<unknown>) =>
+  Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
 
 const event = (tenantId: string, overrides: Record<string, unknown> = {}) => ({
   eventId: crypto.randomUUID(),
@@ -25,6 +27,114 @@ const event = (tenantId: string, overrides: Record<string, unknown> = {}) => ({
   payload: { state: "confirmed" },
   ...overrides,
 })
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rejects blank persisted messaging identities",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const eventId = crypto.randomUUID()
+        yield* Effect.promise(() =>
+          client`
+            insert into messaging.event_outbox
+              (tenant_id, id, event_type, event_version, aggregate_type, aggregate_id,
+               command_id, correlation_id, causation_id, idempotency_key, actor_principal_id,
+               payload)
+            values
+              (${tenant!.id}, ${eventId}, 'sales.order.confirmed', 1, 'sales.order',
+               ${crypto.randomUUID()}, 'command', 'correlation', 'causation', 'idempotency',
+               'actor', '{}'::jsonb)
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            insert into messaging.consumer_receipts (tenant_id, consumer_id, event_id)
+            values (${tenant!.id}, 'consumer', ${eventId})
+          `
+        )
+
+        const failures = [
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set event_type = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_event_type_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set aggregate_type = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_aggregate_type_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set command_id = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_command_id_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set correlation_id = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_correlation_id_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set causation_id = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_causation_id_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set idempotency_key = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_idempotency_key_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set actor_principal_id = '   ' where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_actor_principal_id_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.consumer_receipts set consumer_id = '   ' where tenant_id = ${
+                tenant!.id
+              } and event_id = ${eventId}`
+            ),
+            "consumer_receipts_consumer_id_check",
+          ],
+        ] as const
+
+        for (const [failure, constraint] of failures) {
+          assert.strictEqual((failure as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (failure as { constraint_name?: string }).constraint_name,
+            constraint,
+          )
+        }
+      })),
+)
 
 it.effect.skipIf(databaseUrl === undefined)(
   "joins an ambient transaction and rolls back a successful append",
