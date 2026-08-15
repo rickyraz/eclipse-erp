@@ -5,6 +5,7 @@ import * as Equal from "effect/Equal"
 import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as Semaphore from "effect/Semaphore"
 
 import { consumerReceipts, eventOutbox } from "../../../db/schema/messaging.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
@@ -264,6 +265,8 @@ export const makeMessagingTestLayer = () => {
   const eventsById = new Map<string, EventEnvelope>()
   const eventIdsByDedupe = new Map<string, string>()
   const receipts = new Map<string, ConsumerReceipt>()
+  // ponytail: global lock; use keyed permits if test-layer consumer throughput matters.
+  const consumeSemaphore = Semaphore.makeUnsafe(1)
   let clock = 0
 
   const eventKey = (tenantId: string, eventId: string) => `${tenantId}:${eventId}`
@@ -293,47 +296,50 @@ export const makeMessagingTestLayer = () => {
         return event
       }),
     consumeOnce: (input, effect) =>
-      Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(ConsumeOnceInput)(input)
-        const key = receiptKey(decoded)
-        const existing = receipts.get(key)
-        if (existing !== undefined) return { duplicate: true as const, receipt: existing }
+      Semaphore.withPermit(
+        consumeSemaphore,
+        Effect.gen(function* () {
+          const decoded = yield* Schema.decodeUnknownEffect(ConsumeOnceInput)(input)
+          const key = receiptKey(decoded)
+          const existing = receipts.get(key)
+          if (existing !== undefined) return { duplicate: true as const, receipt: existing }
 
-        const eventSnapshot = new Map(eventsById)
-        const dedupeSnapshot = new Map(eventIdsByDedupe)
-        const receiptSnapshot = new Map(receipts)
-        const rollback = () => {
-          eventsById.clear()
-          eventIdsByDedupe.clear()
-          receipts.clear()
-          for (const [snapshotKey, value] of eventSnapshot) eventsById.set(snapshotKey, value)
-          for (const [snapshotKey, value] of dedupeSnapshot) {
-            eventIdsByDedupe.set(snapshotKey, value)
+          const eventSnapshot = new Map(eventsById)
+          const dedupeSnapshot = new Map(eventIdsByDedupe)
+          const receiptSnapshot = new Map(receipts)
+          const rollback = () => {
+            eventsById.clear()
+            eventIdsByDedupe.clear()
+            receipts.clear()
+            for (const [snapshotKey, value] of eventSnapshot) eventsById.set(snapshotKey, value)
+            for (const [snapshotKey, value] of dedupeSnapshot) {
+              eventIdsByDedupe.set(snapshotKey, value)
+            }
+            for (const [snapshotKey, value] of receiptSnapshot) receipts.set(snapshotKey, value)
           }
-          for (const [snapshotKey, value] of receiptSnapshot) receipts.set(snapshotKey, value)
-        }
-        const result = yield* Effect.result(effect)
-        if (Result.isFailure(result)) {
-          rollback()
-          return yield* Effect.fail(result.failure)
-        }
-        if (!eventsById.has(eventKey(decoded.tenantId, decoded.eventId))) {
-          rollback()
-          return yield* Effect.fail(
-            new DatabaseFailure({
-              operation: "messaging.receipt.complete",
-              cause: new Error("source event does not exist for tenant"),
-            }),
-          )
-        }
+          const result = yield* Effect.result(effect)
+          if (Result.isFailure(result)) {
+            rollback()
+            return yield* Effect.fail(result.failure)
+          }
+          if (!eventsById.has(eventKey(decoded.tenantId, decoded.eventId))) {
+            rollback()
+            return yield* Effect.fail(
+              new DatabaseFailure({
+                operation: "messaging.receipt.complete",
+                cause: new Error("source event does not exist for tenant"),
+              }),
+            )
+          }
 
-        const receipt: ConsumerReceipt = {
-          ...decoded,
-          completedAt: new Date(clock++).toISOString(),
-        }
-        receipts.set(key, receipt)
-        return { duplicate: false as const, value: result.success, receipt }
-      }),
+          const receipt: ConsumerReceipt = {
+            ...decoded,
+            completedAt: new Date(clock++).toISOString(),
+          }
+          receipts.set(key, receipt)
+          return { duplicate: false as const, value: result.success, receipt }
+        }),
+      ),
   }
 
   return Layer.succeed(MessagingService, service)

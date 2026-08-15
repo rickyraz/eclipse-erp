@@ -127,6 +127,32 @@ it.effect("suppresses a duplicate event consumer effect with one consumer receip
     assert.strictEqual(executions, 1)
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
+it.effect("suppresses concurrent duplicate consumer effects in the test layer", () =>
+  Effect.gen(function* () {
+    const messaging = yield* MessagingService
+    yield* messaging.append(event())
+    const input = {
+      tenantId: event().tenantId,
+      consumerId: "accounting.concurrent-project-order",
+      eventId: event().eventId,
+    }
+    let executions = 0
+    const results = yield* Effect.all([
+      messaging.consumeOnce(
+        input,
+        Effect.andThen(Effect.yieldNow, Effect.sync(() => ++executions)),
+      ),
+      messaging.consumeOnce(
+        input,
+        Effect.andThen(Effect.yieldNow, Effect.sync(() => ++executions)),
+      ),
+    ], { concurrency: "unbounded" })
+
+    assert.strictEqual(results.filter((result) => result.duplicate).length, 1)
+    assert.strictEqual(results.filter((result) => !result.duplicate).length, 1)
+    assert.strictEqual(executions, 1)
+  }).pipe(Effect.provide(makeMessagingTestLayer())))
+
 it.effect("rolls back the consumer receipt when the consumer effect fails", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
