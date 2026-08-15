@@ -10,6 +10,7 @@ import {
   makeMessagingTestLayer,
   MessagingService,
 } from "../mod.ts"
+import { DatabaseFailure } from "../../kernel/mod.ts"
 
 const event = (overrides: Record<string, unknown> = {}) => ({
   eventId: "018f3f77-0c5a-7cc0-8b62-6a163d214123",
@@ -105,6 +106,7 @@ it.effect("appends idempotently and rejects a mismatched envelope", () =>
 it.effect("suppresses a duplicate event consumer effect with one consumer receipt", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
+    yield* messaging.append(event())
     const input = {
       tenantId: event().tenantId,
       consumerId: "accounting.project-order",
@@ -128,6 +130,7 @@ it.effect("suppresses a duplicate event consumer effect with one consumer receip
 it.effect("rolls back the consumer receipt when the consumer effect fails", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService
+    yield* messaging.append(event())
     const input = {
       tenantId: event().tenantId,
       consumerId: "inventory.project-order",
@@ -141,4 +144,41 @@ it.effect("rolls back the consumer receipt when the consumer effect fails", () =
     const retried = yield* messaging.consumeOnce(input, Effect.succeed("completed"))
     assert.strictEqual(retried.duplicate, false)
     if (!retried.duplicate) assert.strictEqual(retried.value, "completed")
+  }).pipe(Effect.provide(makeMessagingTestLayer())))
+
+it.effect("requires a tenant-matching source event and rolls back the consumer effect", () =>
+  Effect.gen(function* () {
+    const messaging = yield* MessagingService
+    const source = event()
+    const foreignTenantId = "018f3f77-0c5a-7cc0-8b62-6a163d214126"
+    const derivedEventId = "018f3f77-0c5a-7cc0-8b62-6a163d214127"
+    yield* messaging.append(source)
+
+    const input = {
+      tenantId: foreignTenantId,
+      consumerId: "accounting.project-order",
+      eventId: source.eventId,
+    }
+    let executions = 0
+    const consume = messaging.consumeOnce(
+      input,
+      Effect.gen(function* () {
+        executions++
+        return yield* messaging.append(event({
+          eventId: derivedEventId,
+          tenantId: foreignTenantId,
+          eventType: "accounting.order.projected",
+          idempotencyKey: "project-order-1",
+          payload: { attempt: executions },
+        }))
+      }),
+    )
+
+    const failure = yield* Effect.flip(consume)
+    assert.instanceOf(failure, DatabaseFailure)
+
+    yield* messaging.append(event({ tenantId: foreignTenantId }))
+    const retried = yield* consume
+    assert.strictEqual(retried.duplicate, false)
+    assert.strictEqual(executions, 2)
   }).pipe(Effect.provide(makeMessagingTestLayer())))

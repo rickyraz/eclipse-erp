@@ -301,15 +301,30 @@ export const makeMessagingTestLayer = () => {
 
         const eventSnapshot = new Map(eventsById)
         const dedupeSnapshot = new Map(eventIdsByDedupe)
-        const result = yield* Effect.result(effect)
-        if (Result.isFailure(result)) {
+        const receiptSnapshot = new Map(receipts)
+        const rollback = () => {
           eventsById.clear()
           eventIdsByDedupe.clear()
+          receipts.clear()
           for (const [snapshotKey, value] of eventSnapshot) eventsById.set(snapshotKey, value)
           for (const [snapshotKey, value] of dedupeSnapshot) {
             eventIdsByDedupe.set(snapshotKey, value)
           }
+          for (const [snapshotKey, value] of receiptSnapshot) receipts.set(snapshotKey, value)
+        }
+        const result = yield* Effect.result(effect)
+        if (Result.isFailure(result)) {
+          rollback()
           return yield* Effect.fail(result.failure)
+        }
+        if (!eventsById.has(eventKey(decoded.tenantId, decoded.eventId))) {
+          rollback()
+          return yield* Effect.fail(
+            new DatabaseFailure({
+              operation: "messaging.receipt.complete",
+              cause: new Error("source event does not exist for tenant"),
+            }),
+          )
         }
 
         const receipt: ConsumerReceipt = {
