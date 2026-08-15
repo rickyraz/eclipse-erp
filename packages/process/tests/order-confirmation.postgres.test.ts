@@ -91,6 +91,15 @@ it.effect.skipIf(databaseUrl === undefined)(
                ${aggregateId}, 'running', '{}'::jsonb)
           `
         )
+        const emptyWorkflowIdempotency = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', '   ', ${aggregateId}, 'running',
+               '{}'::jsonb)
+          `
+        )
         const unknownJobType = yield* postgresFailure(() =>
           client`
             insert into process.jobs
@@ -98,6 +107,24 @@ it.effect.skipIf(databaseUrl === undefined)(
             values
               (${tenant!.id}, 'process.unknown.post_commit', 'invalid-job-type', '{}'::jsonb,
                'invalid-job-type')
+          `
+        )
+        const emptyJobIdempotency = yield* postgresFailure(() =>
+          client`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.order_confirmation.post_commit', '   ', '{}'::jsonb,
+               'correlation')
+          `
+        )
+        const emptyJobCorrelation = yield* postgresFailure(() =>
+          client`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.order_confirmation.post_commit',
+               'empty-job-correlation', '{}'::jsonb, '   ')
           `
         )
         const runningRecovery = yield* postgresFailure(() =>
@@ -137,10 +164,25 @@ it.effect.skipIf(databaseUrl === undefined)(
           (unknownWorkflowType as { constraint_name?: string }).constraint_name,
           "workflow_runs_type_check",
         )
+        assert.strictEqual((emptyWorkflowIdempotency as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (emptyWorkflowIdempotency as { constraint_name?: string }).constraint_name,
+          "workflow_runs_idempotency_key_check",
+        )
         assert.strictEqual((unknownJobType as { code?: string }).code, "23514")
         assert.strictEqual(
           (unknownJobType as { constraint_name?: string }).constraint_name,
           "process_jobs_type_check",
+        )
+        assert.strictEqual((emptyJobIdempotency as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (emptyJobIdempotency as { constraint_name?: string }).constraint_name,
+          "process_jobs_idempotency_key_check",
+        )
+        assert.strictEqual((emptyJobCorrelation as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (emptyJobCorrelation as { constraint_name?: string }).constraint_name,
+          "process_jobs_correlation_id_check",
         )
         for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
           assert.strictEqual((failure as { code?: string }).code, "23514")

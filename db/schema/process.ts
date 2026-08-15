@@ -53,6 +53,10 @@ export const workflowRuns = processSchema.table("workflow_runs", {
     sql`${table.workflowType} in ('sales.order.confirmation', 'sales.order.cancellation', 'sales.order.fulfillment')`,
   ),
   check(
+    "workflow_runs_idempotency_key_check",
+    sql`${table.idempotencyKey} ~ '[^[:space:]]'`,
+  ),
+  check(
     "workflow_runs_state_check",
     sql`(${table.status} = 'running' and ${table.result} is null and ${table.recoveryReason} is null and ${table.completedAt} is null) or
       (${table.status} = 'succeeded' and ${table.result} is not null and ${table.recoveryReason} is null and ${table.completedAt} is not null) or
@@ -90,6 +94,14 @@ export const processJobs = processSchema.table("jobs", {
   check(
     "process_jobs_type_check",
     sql`${table.jobType} in ('process.order_confirmation.post_commit', 'process.order_cancellation.post_commit', 'process.order_fulfillment.post_commit')`,
+  ),
+  check(
+    "process_jobs_idempotency_key_check",
+    sql`${table.idempotencyKey} ~ '[^[:space:]]'`,
+  ),
+  check(
+    "process_jobs_correlation_id_check",
+    sql`${table.correlationId} ~ '[^[:space:]]'`,
   ),
   check("process_jobs_attempts_check", sql`${table.attempts} >= 0`),
 ])
