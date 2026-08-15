@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=77
+total=78
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -52,6 +52,7 @@ gate bash -c 'grep -Fq "workflow_runs_idempotency_key_check" db/schema/process.t
 gate bash -c 'grep -Fq "event_outbox_command_id_check" db/schema/messaging.ts && grep -Fq "event_outbox_causation_id_check" db/schema/messaging.ts && grep -Fq "consumer_receipts_consumer_id_check" db/schema/messaging.ts && grep -Fq "rejects blank persisted messaging identities" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "event_outbox_actor_principal_id_check" db/migrations/20260815000731_constrain_messaging_identities/migration.sql'
 gate bash -c 'grep -Fq "const receiptSnapshot = new Map(receipts)" packages/messaging/src/service.ts && grep -Fq "eventsById.has(eventKey(decoded.tenantId, decoded.eventId))" packages/messaging/src/service.ts && grep -Fq "source event does not exist for tenant" packages/messaging/src/service.ts && grep -Fq "requires a tenant-matching source event and rolls back the consumer effect" packages/messaging/tests/messaging.test.ts && test "$(grep -c "yield\* messaging.append(event())" packages/messaging/tests/messaging.test.ts)" -ge 3'
 gate bash -c 'grep -Fq "const consumeSemaphore = Semaphore.makeUnsafe(1)" packages/messaging/src/service.ts && grep -Fq "Semaphore.withPermit(" packages/messaging/src/service.ts && grep -Fq "consumeSemaphore," packages/messaging/src/service.ts && grep -Fq "suppresses concurrent duplicate consumer effects in the test layer" packages/messaging/tests/messaging.test.ts && grep -Fq "concurrency: \"unbounded\"" packages/messaging/tests/messaging.test.ts'
+gate bash -c 'grep -Fq "A extends { readonly workflowRunId: string }" packages/process/src/service.ts && grep -Fq "result.workflowRunId !== row.id" packages/process/src/service.ts && grep -Fq "jsonb_set(result, '\''{workflowRunId}'\''" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "WorkflowResultCorrupt" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "new Set(entry.scope).size" packages/catalog/tests/catalog.test.ts && grep -Fq "test(entry.description)" packages/catalog/tests/catalog.test.ts && grep -Fq "test(event.aggregateType)" packages/catalog/tests/catalog.test.ts'
 gate bash -c 'grep -Fq "Number.isInteger(action.timeoutPolicy.timeoutMs)" packages/catalog/tests/catalog.test.ts && grep -Fq "new Set(action.errorSchemas).size" packages/catalog/tests/catalog.test.ts && grep -Fq "action.preconditions.includes(\"idempotency_key_stable\")" packages/catalog/tests/catalog.test.ts'
 gate bash -c 'grep -Fq "Schema.isLessThanOrEqualTo(2_147_483_647)" packages/messaging/src/service.ts && grep -Fq "attempts: 2_147_483_648" packages/messaging/tests/messaging.test.ts && grep -Fq "overflowingAttempts._tag" packages/messaging/tests/messaging.test.ts'

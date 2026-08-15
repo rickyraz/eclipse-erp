@@ -522,7 +522,7 @@ export const makeProcessService = Effect.gen(function* () {
       return { payload, result }
     })
 
-  const resolveLifecycleExisting = <A>(
+  const resolveLifecycleExisting = <A extends { readonly workflowRunId: string }>(
     rows: ReadonlyArray<WorkflowRunRow>,
     input: Schema.Schema.Type<typeof CancelOrderInput>,
     payload: unknown,
@@ -561,7 +561,7 @@ export const makeProcessService = Effect.gen(function* () {
           }),
         )
       }
-      return yield* decodeResult(row.result).pipe(
+      const result = yield* decodeResult(row.result).pipe(
         Effect.mapError(() =>
           new WorkflowResultCorrupt({
             tenantId: input.tenantId,
@@ -569,6 +569,15 @@ export const makeProcessService = Effect.gen(function* () {
           })
         ),
       )
+      if (result.workflowRunId !== row.id) {
+        return yield* Effect.fail(
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
+      return result
     })
 
   const execute = (input: unknown) =>

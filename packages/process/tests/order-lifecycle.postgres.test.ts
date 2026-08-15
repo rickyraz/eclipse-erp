@@ -36,6 +36,7 @@ import {
   ProcessPostCommitJobTypes,
   ProcessWorkflowTypes,
   WorkflowIdempotencyConflict,
+  WorkflowResultCorrupt,
   WorkflowRun,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -498,6 +499,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           jobs: "2",
           journals: "2",
         })
+
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = jsonb_set(result, '{workflowRunId}', to_jsonb(${crypto.randomUUID()}::text))
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
       })),
 )
 
