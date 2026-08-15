@@ -91,6 +91,15 @@ it.effect.skipIf(databaseUrl === undefined)(
                ${aggregateId}, 'running', '{}'::jsonb)
           `
         )
+        const unknownJobType = yield* postgresFailure(() =>
+          client`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.unknown.post_commit', 'invalid-job-type', '{}'::jsonb,
+               'invalid-job-type')
+          `
+        )
         const runningRecovery = yield* postgresFailure(() =>
           client`
             insert into process.workflow_runs
@@ -127,6 +136,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.strictEqual(
           (unknownWorkflowType as { constraint_name?: string }).constraint_name,
           "workflow_runs_type_check",
+        )
+        assert.strictEqual((unknownJobType as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (unknownJobType as { constraint_name?: string }).constraint_name,
+          "process_jobs_type_check",
         )
         for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
           assert.strictEqual((failure as { code?: string }).code, "23514")

@@ -87,5 +87,9 @@ export const processJobs = processSchema.table("jobs", {
     foreignColumns: [tenants.id],
     name: "process_jobs_tenant_id_fkey",
   }).onDelete("cascade"),
+  check(
+    "process_jobs_type_check",
+    sql`${table.jobType} in ('process.order_confirmation.post_commit', 'process.order_cancellation.post_commit', 'process.order_fulfillment.post_commit')`,
+  ),
   check("process_jobs_attempts_check", sql`${table.attempts} >= 0`),
 ])
