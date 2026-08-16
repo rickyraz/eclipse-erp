@@ -589,6 +589,23 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const mismatchedReservationDetailsResult = {
+          ...result,
+          releasedReservations: result.releasedReservations.map((reservation, index) =>
+            index === 0 ? { ...reservation, quantity: "999" } : reservation
+          ),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(mismatchedReservationDetailsResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const detachedJournalResult = {
           ...result,
           reversalJournal: { ...result.reversalJournal, tenantId: crypto.randomUUID() },
@@ -906,6 +923,23 @@ it.effect.skipIf(databaseUrl === undefined)(
           client`
             update process.workflow_runs
             set result = ${JSON.stringify(mismatchedFulfilledOrderStateResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          WorkflowResultCorrupt,
+        )
+        const mismatchedFulfilledReservationDetailsResult = {
+          ...result,
+          fulfilledReservations: result.fulfilledReservations.map((reservation, index) =>
+            index === 0 ? { ...reservation, quantity: "999" } : reservation
+          ),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(mismatchedFulfilledReservationDetailsResult)}::jsonb
             where id = ${result.workflowRunId}
           `
         )

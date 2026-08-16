@@ -595,11 +595,21 @@ export const makeProcessService = Effect.gen(function* () {
     actual: ReadonlyArray<StockReservation>,
     status: "released" | "fulfilled",
   ) => {
-    const expectedIds = new Set(expected.map((reservation) => reservation.id))
+    const expectedById = new Map(expected.map((reservation) => [reservation.id, reservation]))
+    const expectedIds = new Set(expectedById.keys())
     const actualIds = new Set(actual.map((reservation) => reservation.id))
     return actual.length === expected.length && actualIds.size === expectedIds.size &&
       [...expectedIds].every((id) => actualIds.has(id)) &&
-      actual.every((reservation) => reservation.status === status)
+      actual.every((reservation) => {
+        const source = expectedById.get(reservation.id)
+        return source !== undefined &&
+          reservation.tenantId === source.tenantId &&
+          reservation.warehouseId === source.warehouseId &&
+          reservation.itemId === source.itemId &&
+          reservation.quantity === source.quantity &&
+          reservation.idempotencyKey === source.idempotencyKey &&
+          reservation.status === status
+      })
   }
 
   const resolveLifecycleExisting = <
