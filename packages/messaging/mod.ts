@@ -4,6 +4,7 @@ export {
   ConsumerReceipt,
   EventEnvelope,
   EventIdempotencyConflict,
+  GetEventInput,
   makeMessagingService,
   makeMessagingTestLayer,
   MessagingLive,
@@ -15,5 +16,6 @@ export type {
   ConsumeOnceResult,
   ConsumerReceipt as ConsumerReceiptShape,
   EventEnvelope as EventEnvelopeShape,
+  GetEventInput as GetEventInputShape,
   MessagingService as MessagingServiceShape,
 } from "./src/service.ts"

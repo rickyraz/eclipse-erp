@@ -50,6 +50,11 @@ export const EventEnvelope = Schema.Struct({
   attempts: NonNegativeInt,
 })
 
+export const GetEventInput = Schema.Struct({
+  tenantId: Uuid,
+  eventId: Uuid,
+})
+
 export const ConsumeOnceInput = Schema.Struct({
   tenantId: Uuid,
   consumerId: NonEmptyString,
@@ -63,6 +68,7 @@ export const ConsumerReceipt = Schema.Struct({
 
 export type AppendEventInput = Schema.Schema.Type<typeof AppendEventInput>
 export type EventEnvelope = Schema.Schema.Type<typeof EventEnvelope>
+export type GetEventInput = Schema.Schema.Type<typeof GetEventInput>
 export type ConsumeOnceInput = Schema.Schema.Type<typeof ConsumeOnceInput>
 export type ConsumerReceipt = Schema.Schema.Type<typeof ConsumerReceipt>
 
@@ -86,6 +92,9 @@ export interface MessagingService {
     EventEnvelope,
     EventIdempotencyConflict | DatabaseFailure | Schema.SchemaError
   >
+  readonly getEvent: (
+    input: unknown,
+  ) => Effect.Effect<EventEnvelope | undefined, DatabaseFailure | Schema.SchemaError>
   /** The effect must be PostgreSQL-local so it and the completed receipt share one transaction. */
   readonly consumeOnce: <A, E, R>(
     input: unknown,
@@ -229,6 +238,19 @@ export const makeMessagingService = Effect.gen(function* () {
           "messaging.event.append-transaction",
         )
       }),
+    getEvent: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(GetEventInput)(input)
+        const rows = yield* database.query(
+          (db) =>
+            db.select(selectEvent).from(eventOutbox).where(and(
+              eq(eventOutbox.tenantId, decoded.tenantId),
+              eq(eventOutbox.id, decoded.eventId),
+            )),
+          "messaging.event.get",
+        )
+        return rows[0] === undefined ? undefined : toEvent(rows[0])
+      }),
     consumeOnce: (input, effect) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ConsumeOnceInput)(input)
@@ -294,6 +316,11 @@ export const makeMessagingTestLayer = () => {
         eventsById.set(eventKey(decoded.tenantId, decoded.eventId), event)
         eventIdsByDedupe.set(dedupeKey(decoded), decoded.eventId)
         return event
+      }),
+    getEvent: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(GetEventInput)(input)
+        return eventsById.get(eventKey(decoded.tenantId, decoded.eventId))
       }),
     consumeOnce: (input, effect) =>
       Semaphore.withPermit(

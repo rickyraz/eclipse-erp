@@ -516,6 +516,41 @@ export const makeProcessService = Effect.gen(function* () {
         jobPayload.idempotencyKey === input.idempotencyKey
     })
 
+  const processEventMatches = (
+    result: { readonly eventId: string },
+    input: {
+      readonly principal: { readonly userAccountId: string }
+      readonly tenantId: string
+      readonly commandId: string
+      readonly correlationId: string
+      readonly causationId: string | null
+      readonly idempotencyKey: string
+    },
+    expected: {
+      readonly eventType: string
+      readonly eventVersion: number
+      readonly aggregateType: string
+      readonly aggregateId: string
+    },
+  ) =>
+    Effect.gen(function* () {
+      const event = yield* messaging.getEvent({
+        tenantId: input.tenantId,
+        eventId: result.eventId,
+      })
+      return event !== undefined &&
+        event.eventType === expected.eventType &&
+        event.eventVersion === expected.eventVersion &&
+        event.tenantId === input.tenantId &&
+        event.aggregateType === expected.aggregateType &&
+        event.aggregateId === expected.aggregateId &&
+        event.commandId === input.commandId &&
+        event.correlationId === input.correlationId &&
+        event.causationId === input.causationId &&
+        event.idempotencyKey === input.idempotencyKey &&
+        event.actorPrincipalId === input.principal.userAccountId
+    })
+
   const resolveExisting = (
     row: WorkflowRunRow,
     input: Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>,
@@ -568,11 +603,17 @@ export const makeProcessService = Effect.gen(function* () {
         input,
         ProcessPostCommitJobTypes.confirmation,
       )
+      const eventMatches = yield* processEventMatches(result, input, {
+        eventType: ProcessOrderConfirmationCompletedEvent.id,
+        eventVersion: ProcessOrderConfirmationCompletedEvent.version,
+        aggregateType: ProcessOrderConfirmationCompletedEvent.aggregateType,
+        aggregateId: input.orderId,
+      })
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
         result.order.id !== input.orderId || result.order.tenantId !== input.tenantId ||
         !confirmationResultMatches(result, input) || result.journal.tenantId !== input.tenantId ||
-        !jobMatches
+        !jobMatches || !eventMatches
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
@@ -696,10 +737,16 @@ export const makeProcessService = Effect.gen(function* () {
     payload: unknown,
     decodeResult: (value: unknown) => Effect.Effect<A, Schema.SchemaError>,
     jobType: string,
+    event: {
+      readonly eventType: string
+      readonly eventVersion: number
+      readonly aggregateType: string
+    },
     resultMatches: (result: A) => boolean,
   ): Effect.Effect<
     A | undefined,
     | DatabaseFailure
+    | Schema.SchemaError
     | WorkflowAlreadyInProgress
     | WorkflowIdempotencyConflict
     | WorkflowResultCorrupt
@@ -743,9 +790,14 @@ export const makeProcessService = Effect.gen(function* () {
         ),
       )
       const jobMatches = yield* processJobMatches(result, input, jobType)
+      const eventMatches = yield* processEventMatches(result, input, {
+        ...event,
+        aggregateId: input.orderId,
+      })
       if (
         result.workflowRunId !== row.id || result.order.id !== input.orderId ||
-        result.order.tenantId !== input.tenantId || !resultMatches(result) || !jobMatches
+        result.order.tenantId !== input.tenantId || !resultMatches(result) || !jobMatches ||
+        !eventMatches
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
@@ -942,6 +994,11 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderCancellationResult),
             ProcessPostCommitJobTypes.cancellation,
+            {
+              eventType: ProcessOrderCancellationCompletedEvent.id,
+              eventVersion: ProcessOrderCancellationCompletedEvent.version,
+              aggregateType: ProcessOrderCancellationCompletedEvent.aggregateType,
+            },
             (result) =>
               result.order.status === "cancelled" &&
               lifecycleReservationsMatch(
@@ -1110,6 +1167,11 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderFulfillmentResult),
             ProcessPostCommitJobTypes.fulfillment,
+            {
+              eventType: ProcessOrderFulfillmentCompletedEvent.id,
+              eventVersion: ProcessOrderFulfillmentCompletedEvent.version,
+              aggregateType: ProcessOrderFulfillmentCompletedEvent.aggregateType,
+            },
             (result) =>
               result.order.status === "confirmed" &&
               lifecycleReservationsMatch(

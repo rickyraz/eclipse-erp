@@ -103,6 +103,29 @@ it.effect("appends idempotently and rejects a mismatched envelope", () =>
     assert.instanceOf(failure, EventIdempotencyConflict)
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
+it.effect("loads events through a tenant-scoped public query", () =>
+  Effect.gen(function* () {
+    const messaging = yield* MessagingService
+    const source = yield* messaging.append(event())
+
+    assert.deepStrictEqual(
+      yield* messaging.getEvent({ tenantId: source.tenantId, eventId: source.eventId }),
+      source,
+    )
+    assert.isUndefined(
+      yield* messaging.getEvent({
+        tenantId: "018f3f77-0c5a-7cc0-8b62-6a163d214126",
+        eventId: source.eventId,
+      }),
+    )
+    assert.isUndefined(
+      yield* messaging.getEvent({
+        tenantId: source.tenantId,
+        eventId: "018f3f77-0c5a-7cc0-8b62-6a163d214126",
+      }),
+    )
+  }).pipe(Effect.provide(makeMessagingTestLayer())))
+
 it.effect("suppresses a duplicate event consumer effect with one consumer receipt", () =>
   Effect.gen(function* () {
     const messaging = yield* MessagingService

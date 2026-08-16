@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=115
+total=117
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -124,6 +124,8 @@ gate bash -c 'grep -Fq "result.reversalJournal.status === \"reversed\"" packages
 gate bash -c 'grep -Fq "const journalLinesAreInverse" packages/process/src/service.ts && grep -Fq "journalLinesAreInverse(confirmation.result.journal" packages/process/src/service.ts && grep -Fq "mismatchedReversalJournalLinesResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "process.workflow.job.replay.lookup" packages/process/src/service.ts && grep -Fq "jobPayload.workflowRunId === result.workflowRunId" packages/process/src/service.ts && grep -Fq "crossLinkedJobResult" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "const jobMatches = yield* processJobMatches(result, input, jobType)" packages/process/src/service.ts && grep -Fq "crossLinkedCancellationJobResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "crossLinkedFulfillmentJobResult" packages/process/tests/order-lifecycle.postgres.test.ts'
+gate bash -c 'grep -Fq "GetEventInput" packages/messaging/src/service.ts && grep -Fq "getEvent: (input)" packages/messaging/src/service.ts && grep -Fq "loads events through a tenant-scoped public query" packages/messaging/tests/messaging.test.ts && grep -Fq "GetEventInput" packages/messaging/mod.ts'
+gate bash -c 'grep -Fq "const processEventMatches" packages/process/src/service.ts && grep -Fq "!eventMatches" packages/process/src/service.ts && grep -Fq "crossLinkedEventResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "crossLinkedCancellationEventResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "crossLinkedFulfillmentEventResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
