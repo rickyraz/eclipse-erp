@@ -165,6 +165,10 @@ export const journalEntries = accountingSchema.table("journal_entries", {
     name: "journal_entries_reverses_entry_fkey",
   }),
   check(
+    "journal_entries_reference_check",
+    sql`${table.reference} ~ '[^[:space:]]'`,
+  ),
+  check(
     "journal_entries_posted_at_check",
     sql`(${table.status} = 'draft' and ${table.postedAt} is null) or
       (${table.status} in ('posted', 'reversed') and ${table.postedAt} is not null)`,

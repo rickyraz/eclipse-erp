@@ -230,6 +230,16 @@ describe("accounting contract", () => {
 
       assert.strictEqual(journal.status, "posted")
       assert.strictEqual(journal.lines.length, 2)
+      const invalidReference = yield* Effect.flip(accounting.postJournal({
+        principal,
+        tenantId,
+        reference: "   ",
+        lines: [
+          { accountId: cash.id, debit: "125.00", credit: "0" },
+          { accountId: revenue.id, debit: "0", credit: "125.00" },
+        ],
+      }))
+      assert.strictEqual(invalidReference._tag, "SchemaError")
       const repeated = yield* accounting.postJournal({
         principal,
         tenantId,

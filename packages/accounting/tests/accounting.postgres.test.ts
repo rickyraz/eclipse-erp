@@ -465,6 +465,17 @@ it.effect.skipIf(databaseUrl === undefined)(
               returning id
             `
           )
+          const blankReference = yield* postgresFailure(() =>
+            client`
+              insert into accounting.journal_entries (tenant_id, reference)
+              values (${tenant!.id}, '   ')
+            `
+          )
+          assert.strictEqual((blankReference as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (blankReference as { constraint_name?: string }).constraint_name,
+            "journal_entries_reference_check",
+          )
           const [source] = yield* Effect.promise(() =>
             client<{ id: string }[]>`
               insert into accounting.journal_entries (tenant_id, reference)

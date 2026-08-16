@@ -105,7 +105,7 @@ export const CreateAccountInput = Schema.Struct({
 
 export const PostJournalInput = Schema.Struct({
   ...ScopedInput,
-  reference: Schema.String,
+  reference: NonEmptyString,
   lines: Schema.Array(JournalLine),
 })
 
