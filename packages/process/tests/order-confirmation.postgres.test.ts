@@ -600,6 +600,36 @@ it.effect.skipIf(databaseUrl === undefined)(
               { item_id: cable.id, on_hand: "10", reserved: "1" },
             ].toSorted((a, b) => a.item_id.localeCompare(b.item_id)),
           )
+          const inactiveReservationResult = {
+            ...result,
+            reservations: result.reservations.map((reservation, index) =>
+              index === 0 ? { ...reservation, status: "fulfilled" as const } : reservation
+            ),
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(inactiveReservationResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const corruptJournalResult = {
+            ...result,
+            journal: {
+              ...result.journal,
+              status: "reversed" as const,
+              reversesEntryId: crypto.randomUUID(),
+            },
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(corruptJournalResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const detachedOrderResult = {
             ...result,
             order: { ...result.order, id: crypto.randomUUID() },

@@ -403,6 +403,27 @@ const lifecyclePayload = (
   idempotencyKey: input.idempotencyKey,
 })
 
+const confirmationResultMatches = (
+  result: OrderConfirmationResult,
+  input: Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>,
+) => {
+  const expectedLines = result.order.lines.map((line) => `${line.itemId}:${line.quantity}`)
+    .toSorted()
+  const actualLines = result.reservations.map((reservation) =>
+    `${reservation.itemId}:${reservation.quantity}`
+  ).toSorted()
+  return result.reservations.length === result.order.lines.length &&
+    result.reservations.every((reservation) =>
+      reservation.tenantId === input.tenantId &&
+      reservation.warehouseId === input.warehouseId &&
+      reservation.status === "active"
+    ) &&
+    JSON.stringify(actualLines) === JSON.stringify(expectedLines) &&
+    result.journal.status === "posted" &&
+    result.journal.reversesEntryId === undefined &&
+    result.journal.reference === `revenue:${input.legalEntityId}:${input.orderId}`
+}
+
 export const makeProcessService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
@@ -463,8 +484,7 @@ export const makeProcessService = Effect.gen(function* () {
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
         result.order.id !== input.orderId || result.order.tenantId !== input.tenantId ||
-        result.reservations.some((reservation) => reservation.tenantId !== input.tenantId) ||
-        result.journal.tenantId !== input.tenantId
+        !confirmationResultMatches(result, input) || result.journal.tenantId !== input.tenantId
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
