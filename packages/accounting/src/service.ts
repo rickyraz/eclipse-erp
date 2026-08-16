@@ -777,10 +777,43 @@ export const makeAccountingService = Effect.gen(function* () {
                   eq(journalEntries.tenantId, decoded.tenantId),
                   eq(journalEntries.reference, sourceReference),
                 )).for("update"))[0]
+            const matchesSourceLines = async (
+              entry: typeof existing,
+              source: typeof sourceForExisting,
+            ) => {
+              if (
+                entry === undefined || source === undefined || entry.status !== "reversed" ||
+                entry.postedAt === null || source.status !== "posted" ||
+                entry.reversesEntryId !== source.id
+              ) return false
+              const sourceLines = await tx.select(journalLineSelection).from(journalLines).where(
+                and(
+                  eq(journalLines.tenantId, decoded.tenantId),
+                  eq(journalLines.entryId, source.id),
+                ),
+              )
+              const reversalLines = await tx.select(journalLineSelection).from(journalLines).where(
+                and(
+                  eq(journalLines.tenantId, decoded.tenantId),
+                  eq(journalLines.entryId, entry.id),
+                ),
+              )
+              const expectedLines = sourceLines.map((line) => ({
+                accountId: line.accountId,
+                debit: String(line.credit ?? "0"),
+                credit: String(line.debit ?? "0"),
+              }))
+              const actualLines = reversalLines.map((line) => ({
+                accountId: line.accountId,
+                debit: String(line.debit ?? "0"),
+                credit: String(line.credit ?? "0"),
+              }))
+              return expectedLines.length === actualLines.length &&
+                JSON.stringify(normalizeLines(expectedLines)) ===
+                  JSON.stringify(normalizeLines(actualLines))
+            }
             if (existing !== undefined) {
-              return existing.status === "reversed" && existing.postedAt !== null &&
-                  sourceForExisting?.status === "posted" &&
-                  existing.reversesEntryId === sourceForExisting.id
+              return (await matchesSourceLines(existing, sourceForExisting))
                 ? { _tag: "existing" as const, entry: existing }
                 : { _tag: "idempotency-conflict" as const }
             }
@@ -804,10 +837,7 @@ export const makeAccountingService = Effect.gen(function* () {
                   eq(journalEntries.reference, sourceReference),
                 )).for("update"))[0]
             if (concurrentExisting !== undefined) {
-              return concurrentExisting.status === "reversed" &&
-                  concurrentExisting.postedAt !== null &&
-                  sourceForConcurrentExisting?.status === "posted" &&
-                  concurrentExisting.reversesEntryId === sourceForConcurrentExisting.id
+              return (await matchesSourceLines(concurrentExisting, sourceForConcurrentExisting))
                 ? { _tag: "existing" as const, entry: concurrentExisting }
                 : { _tag: "idempotency-conflict" as const }
             }

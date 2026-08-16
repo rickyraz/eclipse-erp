@@ -279,6 +279,66 @@ it.effect.skipIf(databaseUrl === undefined)(
               })),
               JournalIdempotencyConflict,
             )
+            const mismatchedReversalOrderId = crypto.randomUUID()
+            const [mismatchedSource] = yield* Effect.promise(() =>
+              client<{ id: string }[]>`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue:${legalEntity!.id}:${mismatchedReversalOrderId}`})
+                returning id
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_lines
+                  (tenant_id, entry_id, account_id, debit, credit)
+                values
+                  (${tenant!.id}, ${mismatchedSource!.id}, ${accounts[0]!.id}, 1.00, 0),
+                  (${tenant!.id}, ${mismatchedSource!.id}, ${accounts[1]!.id}, 0, 1.00)
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                update accounting.journal_entries
+                set status = 'posted', posted_at = now()
+                where tenant_id = ${tenant!.id} and id = ${mismatchedSource!.id}
+              `
+            )
+            const [mismatchedReversal] = yield* Effect.promise(() =>
+              client<{ id: string }[]>`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue-reversal:${
+                legalEntity!.id
+              }:${mismatchedReversalOrderId}`})
+                returning id
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_lines
+                  (tenant_id, entry_id, account_id, debit, credit)
+                values
+                  (${tenant!.id}, ${mismatchedReversal!.id}, ${accounts[0]!.id}, 1.00, 0),
+                  (${tenant!.id}, ${mismatchedReversal!.id}, ${accounts[1]!.id}, 0, 1.00)
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                update accounting.journal_entries
+                set status = 'reversed', reverses_entry_id = ${
+                mismatchedSource!.id
+              }, posted_at = now()
+                where tenant_id = ${tenant!.id} and id = ${mismatchedReversal!.id}
+              `
+            )
+            assert.instanceOf(
+              yield* Effect.flip(accounting.reverseRevenueForOrder({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                orderId: mismatchedReversalOrderId,
+              })),
+              JournalIdempotencyConflict,
+            )
             const draftReversalOrderId = crypto.randomUUID()
             yield* Effect.promise(() =>
               client`
