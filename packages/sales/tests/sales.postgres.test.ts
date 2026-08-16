@@ -10,6 +10,7 @@ import {
   SalesCapabilities,
   SalesOrderConfirmationIdempotencyConflict,
   SalesOrderConfirmedEvent,
+  SalesOrderNotFound,
 } from "../mod.ts"
 import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
@@ -97,6 +98,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             causationId: null,
             idempotencyKey: sameKeyDifferentTenant,
           }
+          assert.instanceOf(
+            yield* Effect.flip(sales.confirmOrder({
+              ...input,
+              tenantId: otherTenant!.id,
+              orderId: order.id,
+              commandId: "foreign-sales-confirm-command",
+              correlationId: "foreign-sales-confirm-correlation",
+            })),
+            SalesOrderNotFound,
+          )
           const confirmed = yield* sales.confirmOrder(input)
           const otherConfirmed = yield* sales.confirmOrder({
             principal,
