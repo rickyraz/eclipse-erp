@@ -19,6 +19,7 @@ import { AuthorizationDenied, AuthorizationService } from "../../authorization/m
 import { AccountingCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { AccountingRevenuePostedEvent, RevenuePostedEventPayload } from "./events.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
@@ -683,12 +684,17 @@ export const makeAccountingService = Effect.gen(function* () {
               "accounting.revenue.post",
             )
             if (mutation._tag === "posted") {
+              const payload = yield* Schema.decodeUnknownEffect(RevenuePostedEventPayload)({
+                journalId: mutation.journal.id,
+                legalEntityId: decoded.legalEntityId,
+                orderId: decoded.orderId,
+              })
               yield* messaging.append({
                 eventId: crypto.randomUUID(),
-                eventType: "accounting.revenue.posted",
-                eventVersion: 1,
+                eventType: AccountingRevenuePostedEvent.id,
+                eventVersion: AccountingRevenuePostedEvent.version,
                 tenantId: decoded.tenantId,
-                aggregateType: "journal_entry",
+                aggregateType: AccountingRevenuePostedEvent.aggregateType,
                 aggregateId: mutation.journal.id,
                 commandId,
                 correlationId,
@@ -696,11 +702,7 @@ export const makeAccountingService = Effect.gen(function* () {
                 idempotencyKey: decoded.orderId,
                 actorPrincipalId: decoded.principal.userAccountId,
                 occurredAt: mutation.journal.postedAt,
-                payload: {
-                  journalId: mutation.journal.id,
-                  legalEntityId: decoded.legalEntityId,
-                  orderId: decoded.orderId,
-                },
+                payload,
               })
             }
             return mutation
@@ -1066,8 +1068,7 @@ export const makeAccountingTestLayer = () =>
       const periods = new Map<string, AccountingPeriod>()
       const storedAccounts = new Map<string, Account>()
       const storedJournals = new Map<string, JournalEntry>()
-      let sequence = 1
-      const nextId = () => `accounting-test-${sequence++}`
+      const nextId = () => crypto.randomUUID()
       const service: AccountingService = {
         configureLegalEntity: (input) =>
           Effect.gen(function* () {
@@ -1283,10 +1284,10 @@ export const makeAccountingTestLayer = () =>
             }
             yield* messaging.append({
               eventId: crypto.randomUUID(),
-              eventType: "accounting.revenue.posted",
-              eventVersion: 1,
+              eventType: AccountingRevenuePostedEvent.id,
+              eventVersion: AccountingRevenuePostedEvent.version,
               tenantId: decoded.tenantId,
-              aggregateType: "journal_entry",
+              aggregateType: AccountingRevenuePostedEvent.aggregateType,
               aggregateId: journal.id,
               commandId,
               correlationId,

@@ -1,7 +1,5 @@
-import * as Schema from "effect/Schema"
-
 import { AuthorizationDenied } from "../../authorization/mod.ts"
-import { defineActionCatalogEntry, defineEventCatalogEntry } from "../../catalog/mod.ts"
+import { defineActionCatalogEntry } from "../../catalog/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict } from "../../messaging/mod.ts"
 import { InventoryCapabilities } from "./capabilities.ts"
@@ -13,14 +11,9 @@ import {
   StockCorrectionIdempotencyConflict,
   StockUnavailable,
 } from "./service.ts"
+import { InventoryStockCorrectedEvent } from "./events.ts"
 
-const Uuid = Schema.String.check(Schema.isUUID())
-
-export const StockCorrectedEventPayload = Schema.Struct({
-  correctionId: Uuid,
-  warehouseId: Uuid,
-  itemId: Uuid,
-})
+export { InventoryStockCorrectedEvent, StockCorrectedEventPayload } from "./events.ts"
 
 export const InventoryAdjustStockAction = defineActionCatalogEntry({
   kind: "DomainAction",
@@ -57,25 +50,6 @@ export const InventoryAdjustStockAction = defineActionCatalogEntry({
   ],
   effects: ["stock_balance_adjusted", "stock_correction_recorded"],
   compensation: { kind: "none", recovery: "manual" },
-})
-
-export const InventoryStockCorrectedEvent = defineEventCatalogEntry({
-  kind: "DomainEvent",
-  id: "inventory.stock.corrected",
-  version: 1,
-  owningDomain: "inventory",
-  title: "Stock corrected",
-  description: "Stock was corrected by its owning Inventory transaction.",
-  stability: "PUBLIC",
-  compatibilityRange: { minimumVersion: 1, maximumVersion: 1 },
-  payloadSchema: StockCorrectedEventPayload,
-  scope: ["tenant"],
-  aggregateType: "stock_correction",
-  correlationFields: ["correctionId"],
-  filterableFields: ["correctionId", "warehouseId", "itemId"],
-  occurredAtSemantics: "owner_commit_time",
-  deliveryExpectation: "at_least_once",
-  sensitivity: "business_internal_minimized",
 })
 
 export const InventoryTypedActionCatalog = [InventoryAdjustStockAction] as const

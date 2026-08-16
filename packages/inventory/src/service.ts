@@ -19,6 +19,7 @@ import { AuthorizationDenied, AuthorizationService } from "../../authorization/m
 import { InventoryCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { InventoryStockCorrectedEvent, StockCorrectedEventPayload } from "./events.ts"
 
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 const SignedQuantity = Schema.String.check(Schema.isPattern(/^-?[1-9]\d*$/))
@@ -717,12 +718,17 @@ export const makeInventoryService = Effect.gen(function* () {
             )
 
             if (mutation._tag === "created") {
+              const payload = yield* Schema.decodeUnknownEffect(StockCorrectedEventPayload)({
+                correctionId: mutation.correction.id,
+                warehouseId: mutation.correction.warehouseId,
+                itemId: mutation.correction.itemId,
+              })
               yield* messaging.append({
                 eventId: crypto.randomUUID(),
-                eventType: "inventory.stock.corrected",
-                eventVersion: 1,
+                eventType: InventoryStockCorrectedEvent.id,
+                eventVersion: InventoryStockCorrectedEvent.version,
                 tenantId: decoded.tenantId,
-                aggregateType: "stock_correction",
+                aggregateType: InventoryStockCorrectedEvent.aggregateType,
                 aggregateId: mutation.correction.id,
                 commandId,
                 correlationId,
@@ -730,11 +736,7 @@ export const makeInventoryService = Effect.gen(function* () {
                 idempotencyKey,
                 actorPrincipalId: decoded.principal.userAccountId,
                 occurredAt: mutation.occurredAt.toISOString(),
-                payload: {
-                  correctionId: mutation.correction.id,
-                  warehouseId: mutation.correction.warehouseId,
-                  itemId: mutation.correction.itemId,
-                },
+                payload,
               })
             }
             return mutation
@@ -1435,8 +1437,7 @@ export const makeInventoryTestLayer = () =>
       const storedReservations = new Map<string, StockReservation>()
       const reservationIdsByIdempotencyKey = new Map<string, string>()
       const correctionsByIdempotencyKey = new Map<string, StockCorrection>()
-      let sequence = 1
-      const nextId = () => `inventory-test-${sequence++}`
+      const nextId = () => crypto.randomUUID()
       const authorize = (principal: unknown, tenantId: string, capability: string) =>
         authorization.authorize({ principal, tenantId, capability })
       const service: InventoryService = {
@@ -1593,10 +1594,10 @@ export const makeInventoryTestLayer = () =>
             }
             yield* messaging.append({
               eventId: crypto.randomUUID(),
-              eventType: "inventory.stock.corrected",
-              eventVersion: 1,
+              eventType: InventoryStockCorrectedEvent.id,
+              eventVersion: InventoryStockCorrectedEvent.version,
               tenantId: decoded.tenantId,
-              aggregateType: "stock_correction",
+              aggregateType: InventoryStockCorrectedEvent.aggregateType,
               aggregateId: correction.id,
               commandId,
               correlationId,
