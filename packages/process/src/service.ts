@@ -408,6 +408,11 @@ type ConfirmationIdentity = Pick<
   "tenantId" | "orderId" | "warehouseId" | "legalEntityId" | "idempotencyKey"
 >
 
+const moneyToMinor = (value: string) => {
+  const [whole, fraction = ""] = value.split(".")
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"))
+}
+
 const confirmationResultMatches = (
   result: OrderConfirmationResult,
   input: ConfirmationIdentity,
@@ -426,6 +431,11 @@ const confirmationResultMatches = (
       reservation.idempotencyKey === `${input.idempotencyKey}:line:${index}`
     ) &&
     JSON.stringify(actualLines) === JSON.stringify(expectedLines) &&
+    result.journal.lines.length === 2 &&
+    result.journal.lines.reduce((total, line) => total + moneyToMinor(line.debit), 0n) ===
+      result.journal.lines.reduce((total, line) => total + moneyToMinor(line.credit), 0n) &&
+    result.journal.lines.reduce((total, line) => total + moneyToMinor(line.debit), 0n) ===
+      moneyToMinor(result.order.total) &&
     result.journal.status === "posted" &&
     result.journal.reversesEntryId === undefined &&
     result.journal.reference === `revenue:${input.legalEntityId}:${input.orderId}`

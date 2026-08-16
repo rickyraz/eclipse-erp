@@ -658,6 +658,23 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const mismatchedJournalLinesResult = {
+            ...result,
+            journal: {
+              ...result.journal,
+              lines: result.journal.lines.map((line, index) =>
+                index === 0 ? { ...line, debit: "124.00" } : line
+              ),
+            },
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(mismatchedJournalLinesResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const detachedOrderResult = {
             ...result,
             order: { ...result.order, id: crypto.randomUUID() },
