@@ -465,6 +465,24 @@ it.effect.skipIf(databaseUrl === undefined)(
               returning id
             `
           )
+          const [source] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.journal_entries (tenant_id, reference)
+              values (${tenant!.id}, 'REVERSAL-SOURCE') returning id
+            `
+          )
+          const invalidReversalState = yield* postgresFailure(() =>
+            client`
+              insert into accounting.journal_entries
+                (tenant_id, reference, reverses_entry_id)
+              values (${tenant!.id}, 'INVALID-REVERSAL-STATE', ${source!.id})
+            `
+          )
+          assert.strictEqual((invalidReversalState as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidReversalState as { constraint_name?: string }).constraint_name,
+            "journal_entries_reversal_state_check",
+          )
 
           const unbalanced = yield* postgresFailure(() =>
             client.begin(async (transaction) => {

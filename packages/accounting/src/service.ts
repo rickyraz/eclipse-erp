@@ -792,7 +792,6 @@ export const makeAccountingService = Effect.gen(function* () {
             const entry = (await tx.insert(journalEntries).values({
               tenantId: decoded.tenantId,
               reference,
-              reversesEntryId: source.id,
             }).returning({ id: journalEntries.id }))[0]!
             await tx.insert(journalLines).values(lines.map((line) => ({
               tenantId: decoded.tenantId,
@@ -802,6 +801,7 @@ export const makeAccountingService = Effect.gen(function* () {
             const postedAt = now()
             const posted = (await tx.update(journalEntries).set({
               status: "reversed",
+              reversesEntryId: source.id,
               postedAt,
               updatedAt: postedAt,
             })

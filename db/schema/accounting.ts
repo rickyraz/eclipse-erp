@@ -169,6 +169,11 @@ export const journalEntries = accountingSchema.table("journal_entries", {
     sql`(${table.status} = 'draft' and ${table.postedAt} is null) or
       (${table.status} in ('posted', 'reversed') and ${table.postedAt} is not null)`,
   ),
+  check(
+    "journal_entries_reversal_state_check",
+    sql`(${table.status} in ('draft', 'posted') and ${table.reversesEntryId} is null) or
+      (${table.status} = 'reversed' and ${table.reversesEntryId} is not null)`,
+  ),
 ])
 
 export const journalLines = accountingSchema.table("journal_lines", {
