@@ -373,6 +373,24 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(brokenMovementCount?.count, "0")
+          assert.instanceOf(
+            yield* Effect.flip(inventory.releaseReservation({
+              principal,
+              tenantId: tenant.id,
+              reservationId: brokenReservation.id,
+            })),
+            StockUnavailable,
+          )
+          const [brokenReleaseMovementCount] = yield* Effect.promise(() =>
+            client<{ count: string }[]>`
+              select count(*)::text as count
+              from inventory.movements
+              where tenant_id = ${tenant.id}
+                and kind = 'release'
+                and reference_id = ${brokenReservation.id}
+            `
+          )
+          assert.strictEqual(brokenReleaseMovementCount?.count, "0")
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
