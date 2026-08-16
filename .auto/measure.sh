@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=129
+total=130
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -138,6 +138,7 @@ gate bash -c 'grep -Fq "const orderFactsMatch" packages/process/src/service.ts &
 gate bash -c 'grep -Fq "row.idempotencyKey !== payload.idempotencyKey" packages/process/src/service.ts && grep -Fq "detached-confirmation-key" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "result.order.confirmedAt !== null" packages/process/src/service.ts && grep -Fq "missingConfirmationTimestampResult" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "job.priority !== ProcessLifecycleJobPriority" packages/process/src/service.ts && grep -Fq "set priority = 999" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "return yield* cancelOrder(decoded, true)" packages/process/src/service.ts && grep -Fq "return yield* fulfillOrder(decoded, true)" packages/process/src/service.ts && grep -Fq "concurrentCancellation" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "concurrentFulfillment" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

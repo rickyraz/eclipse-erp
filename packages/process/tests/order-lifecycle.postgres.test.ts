@@ -377,8 +377,16 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
 
-        const result = yield* process.cancelOrder(input)
+        const [concurrentCancellation, concurrentRetry] = yield* Effect.all(
+          [
+            process.cancelOrder(input),
+            process.cancelOrder(input),
+          ] as const,
+          { concurrency: "unbounded" },
+        )
+        const result = concurrentCancellation
         const repeated = yield* process.cancelOrder(input)
+        assert.strictEqual(concurrentRetry.workflowRunId, result.workflowRunId)
         const [storedWorkflow] = yield* Effect.promise(() =>
           client<Record<string, unknown>[]>`
             select
@@ -885,8 +893,16 @@ it.effect.skipIf(databaseUrl === undefined)(
           idempotencyKey: "fulfill-1",
         }
 
-        const result = yield* process.fulfillOrder(input)
+        const [concurrentFulfillment, concurrentRetry] = yield* Effect.all(
+          [
+            process.fulfillOrder(input),
+            process.fulfillOrder(input),
+          ] as const,
+          { concurrency: "unbounded" },
+        )
+        const result = concurrentFulfillment
         const repeated = yield* process.fulfillOrder(input)
+        assert.strictEqual(concurrentRetry.workflowRunId, result.workflowRunId)
         const [storedWorkflow] = yield* Effect.promise(() =>
           client<Record<string, unknown>[]>`
             select

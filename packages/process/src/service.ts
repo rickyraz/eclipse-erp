@@ -1030,7 +1030,10 @@ export const makeProcessService = Effect.gen(function* () {
       return result.success
     })
 
-  const cancelOrder = (input: unknown) =>
+  const cancelOrder = (input: unknown, retry = false): Effect.Effect<
+    OrderCancellationResult,
+    OrderLifecycleFailure
+  > =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
       const payload = lifecyclePayload(decoded)
@@ -1199,6 +1202,9 @@ export const makeProcessService = Effect.gen(function* () {
       ).pipe(Effect.result)
 
       if (Result.isFailure(outcome)) {
+        if (outcome.failure instanceof WorkflowIdempotencyConflict && !retry) {
+          return yield* cancelOrder(decoded, true)
+        }
         if (outcome.failure instanceof DatabaseFailure) {
           return yield* Effect.fail(
             new WorkflowOutcomeUnknown({
@@ -1212,7 +1218,10 @@ export const makeProcessService = Effect.gen(function* () {
       return outcome.success
     })
 
-  const fulfillOrder = (input: unknown) =>
+  const fulfillOrder = (input: unknown, retry = false): Effect.Effect<
+    OrderFulfillmentResult,
+    OrderLifecycleFailure
+  > =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(FulfillOrderInput)(input)
       const payload = lifecyclePayload(decoded)
@@ -1361,6 +1370,9 @@ export const makeProcessService = Effect.gen(function* () {
       ).pipe(Effect.result)
 
       if (Result.isFailure(outcome)) {
+        if (outcome.failure instanceof WorkflowIdempotencyConflict && !retry) {
+          return yield* fulfillOrder(decoded, true)
+        }
         if (outcome.failure instanceof DatabaseFailure) {
           return yield* Effect.fail(
             new WorkflowOutcomeUnknown({
