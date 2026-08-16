@@ -242,6 +242,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             },
             {
               userAccountId: principal.userAccountId,
+              tenantId: otherTenant!.id,
+              capability: AccountingCapabilities.revenueReverse,
+            },
+            {
+              userAccountId: principal.userAccountId,
               tenantId: tenant!.id,
               capability: AccountingCapabilities.revenueReverse,
             },
@@ -283,6 +288,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             assert.notStrictEqual(otherJournal.id, journal.id)
             assert.strictEqual(otherJournal.tenantId, otherTenant!.id)
             assert.strictEqual(otherJournal.lines[0]?.accountId, otherAccounts[0]!.id)
+            const otherReversal = yield* accounting.reverseRevenueForOrder({
+              principal,
+              tenantId: otherTenant!.id,
+              legalEntityId: otherLegalEntity!.id,
+              orderId: input.orderId,
+            })
+            assert.strictEqual(otherReversal.status, "reversed")
+            assert.notStrictEqual(otherReversal.id, otherJournal.id)
             const replay = yield* accounting.postRevenueForOrder({
               ...input,
               commandId: "revenue-command-retry",
