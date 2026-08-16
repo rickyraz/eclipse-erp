@@ -17,6 +17,7 @@ import {
   StockReservationNotFound,
   StockTransferDifferentLegalEntity,
   StockTransferItemNotFound,
+  StockTransferNotFound,
   StockTransferWarehouseNotFound,
   StockUnavailable,
   WarehouseBranchNotFound,
@@ -616,6 +617,14 @@ it.effect.skipIf(databaseUrl === undefined)(
               { itemId: cable.id, quantity: "3" },
             ],
           })
+          assert.instanceOf(
+            yield* Effect.flip(inventory.confirmTransfer({
+              principal,
+              tenantId: otherTenant.id,
+              transferId: transfer.id,
+            })),
+            StockTransferNotFound,
+          )
           const beforeConfirm = yield* Effect.promise(() => readBalances(client, tenant.id))
           assert.deepStrictEqual(
             beforeConfirm.map(({ warehouse_id, item_id, on_hand }) => ({
