@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=83
+total=84
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -13,7 +13,7 @@ gate bash -c 'grep -q "sales.order.confirmed" packages/sales/src/catalog.ts && g
 gate bash -c 'grep -q "assert.isNull(rollbackRows\[0\]?.confirmation_idempotency_key)" packages/sales/tests/sales.postgres.test.ts && grep -q "assert.isNull(rollbackRows\[0\]?.confirmed_at)" packages/sales/tests/sales.postgres.test.ts && grep -q "sales-confirm-retry-command" packages/sales/tests/sales.postgres.test.ts && grep -q "retryEvents" packages/sales/tests/sales.postgres.test.ts'
 gate bash -c 'test "$(grep -c "eventId: crypto.randomUUID()" packages/sales/src/service.ts)" -eq 2 && grep -q "assert.notStrictEqual(events\[0\]?.id, order.id)" packages/sales/tests/sales.postgres.test.ts && grep -q "e.aggregate_id = o.id" packages/sales/tests/sales.postgres.test.ts'
 gate bash -c 'test "$(grep -c "eventId: crypto.randomUUID()" packages/inventory/src/service.ts)" -eq 2 && test "$(grep -c "eventId: crypto.randomUUID()" packages/accounting/src/service.ts)" -eq 2 && grep -q "assert.notStrictEqual(event?.id, duplicates\[0\].id)" packages/inventory/tests/inventory.postgres.test.ts && grep -q "assert.notStrictEqual(events\[0\]?.id, journal.id)" packages/accounting/tests/accounting.postgres.test.ts'
-gate bash -c 'grep -q "correctionId: Uuid" packages/inventory/src/events.ts && grep -q "journalId: Uuid" packages/accounting/src/events.ts && grep -q "orderId: Uuid" packages/sales/src/catalog.ts && test "$(grep -R "Schema.isUUID()" packages/{inventory,accounting}/src/events.ts packages/sales/src/catalog.ts | wc -l)" -eq 3'
+gate bash -c 'grep -q "correctionId: Uuid" packages/inventory/src/events.ts && grep -q "journalId: Uuid" packages/accounting/src/events.ts && grep -q "orderId: Uuid" packages/sales/src/events.ts && test "$(grep -R "Schema.isUUID()" packages/{inventory,accounting,sales}/src/events.ts | wc -l)" -eq 3'
 gate bash -c 'grep -Fq "event.id.startsWith(\`\${event.owningDomain}.\`)" packages/catalog/tests/catalog.test.ts'
 gate bash -c 'grep -Fq "assert.strictEqual(action.id, action.requiredCapability)" packages/catalog/tests/catalog.test.ts'
 gate bash -c 'grep -Fq "event.filterableFields.includes(field)" packages/catalog/tests/catalog.test.ts && grep -Fq "new Set(event.correlationFields).size" packages/catalog/tests/catalog.test.ts && grep -Fq "new Set(event.filterableFields).size" packages/catalog/tests/catalog.test.ts'
@@ -91,6 +91,8 @@ gate bash -c 'grep -Fq "const resolveLifecycleExisting = <" packages/process/src
 gate bash -c 'grep -Fq "!resultMatches(result)" packages/process/src/service.ts && grep -Fq "result.releasedReservations.every" packages/process/src/service.ts && grep -Fq "result.reversalJournal.tenantId === decoded.tenantId" packages/process/src/service.ts && grep -Fq "result.fulfilledReservations.every" packages/process/src/service.ts && grep -Fq "const detachedFulfilledReservationResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 gate bash -c 'test "$(grep -c "eventType: InventoryStockCorrectedEvent.id" packages/inventory/src/service.ts)" -eq 2 && test "$(grep -c "eventType: AccountingRevenuePostedEvent.id" packages/accounting/src/service.ts)" -eq 2 && test "$(grep -c "Schema.decodeUnknownEffect(StockCorrectedEventPayload)" packages/inventory/src/service.ts)" -eq 1 && test "$(grep -c "Schema.decodeUnknownEffect(RevenuePostedEventPayload)" packages/accounting/src/service.ts)" -eq 1 && grep -Fq "const nextId = () => crypto.randomUUID()" packages/inventory/src/service.ts && grep -Fq "const nextId = () => crypto.randomUUID()" packages/accounting/src/service.ts && grep -Fq "./events.ts" packages/inventory/src/catalog.ts && grep -Fq "./events.ts" packages/accounting/src/catalog.ts'
+
+gate bash -c 'test "$(grep -c "eventType: SalesOrderConfirmedEvent.id" packages/sales/src/service.ts)" -eq 2 && test "$(grep -c "Schema.decodeUnknownEffect(SalesOrderConfirmedEventPayload)" packages/sales/src/service.ts)" -eq 2 && grep -Fq "./events.ts" packages/sales/src/catalog.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

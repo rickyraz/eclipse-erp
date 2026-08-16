@@ -1,7 +1,5 @@
-import * as Schema from "effect/Schema"
-
 import { AuthorizationDenied } from "../../authorization/mod.ts"
-import { defineActionCatalogEntry, defineEventCatalogEntry } from "../../catalog/mod.ts"
+import { defineActionCatalogEntry } from "../../catalog/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict } from "../../messaging/mod.ts"
 import { SalesCapabilities } from "./capabilities.ts"
@@ -12,13 +10,9 @@ import {
   SalesOrderInvalidState,
   SalesOrderNotFound,
 } from "./service.ts"
+import { SalesOrderConfirmedEvent } from "./events.ts"
 
-const Uuid = Schema.String.check(Schema.isUUID())
-
-export const SalesOrderConfirmedEventPayload = Schema.Struct({
-  orderId: Uuid,
-  total: SalesOrder.fields.total,
-})
+export { SalesOrderConfirmedEvent, SalesOrderConfirmedEventPayload } from "./events.ts"
 
 export const SalesConfirmOrderAction = defineActionCatalogEntry({
   kind: "DomainAction",
@@ -48,25 +42,6 @@ export const SalesConfirmOrderAction = defineActionCatalogEntry({
   preconditions: ["authorized", "idempotency_key_stable", "sales_order_draft"],
   effects: ["sales_order_confirmed"],
   compensation: { kind: "none", recovery: "manual" },
-})
-
-export const SalesOrderConfirmedEvent = defineEventCatalogEntry({
-  kind: "DomainEvent",
-  id: "sales.order.confirmed",
-  version: 1,
-  owningDomain: "sales",
-  title: "Sales order confirmed",
-  description: "A sales order was confirmed with its Sales-owned total.",
-  stability: "PUBLIC",
-  compatibilityRange: { minimumVersion: 1, maximumVersion: 1 },
-  payloadSchema: SalesOrderConfirmedEventPayload,
-  scope: ["tenant"],
-  aggregateType: "sales_order",
-  correlationFields: ["orderId"],
-  filterableFields: ["orderId"],
-  occurredAtSemantics: "owner_commit_time",
-  deliveryExpectation: "at_least_once",
-  sensitivity: "business_internal_minimized",
 })
 
 export const SalesTypedActionCatalog = [SalesConfirmOrderAction] as const

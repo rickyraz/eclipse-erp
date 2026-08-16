@@ -11,6 +11,7 @@ import { AuthorizationDenied, AuthorizationService } from "../../authorization/m
 import { SalesCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { SalesOrderConfirmedEvent, SalesOrderConfirmedEventPayload } from "./events.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
@@ -384,12 +385,16 @@ export const makeSalesService = Effect.gen(function* () {
               "sales.order.confirm",
             )
             if (mutation._tag === "confirmed") {
+              const payload = yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEventPayload)({
+                orderId: mutation.order.id,
+                total: mutation.order.total,
+              })
               yield* messaging.append({
                 eventId: crypto.randomUUID(),
-                eventType: "sales.order.confirmed",
-                eventVersion: 1,
+                eventType: SalesOrderConfirmedEvent.id,
+                eventVersion: SalesOrderConfirmedEvent.version,
                 tenantId: decoded.tenantId,
-                aggregateType: "sales_order",
+                aggregateType: SalesOrderConfirmedEvent.aggregateType,
                 aggregateId: mutation.order.id,
                 commandId: decoded.commandId,
                 correlationId: decoded.correlationId,
@@ -397,7 +402,7 @@ export const makeSalesService = Effect.gen(function* () {
                 idempotencyKey: decoded.idempotencyKey,
                 actorPrincipalId: decoded.principal.userAccountId,
                 occurredAt: mutation.order.confirmedAt!,
-                payload: { orderId: mutation.order.id, total: mutation.order.total },
+                payload,
               })
             }
             return mutation
@@ -639,12 +644,16 @@ export const makeSalesTestLayer = () =>
               status: "confirmed",
               confirmedAt: new Date().toISOString(),
             }
+            const payload = yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEventPayload)({
+              orderId: confirmed.id,
+              total: confirmed.total,
+            })
             yield* messaging.append({
               eventId: crypto.randomUUID(),
-              eventType: "sales.order.confirmed",
-              eventVersion: 1,
+              eventType: SalesOrderConfirmedEvent.id,
+              eventVersion: SalesOrderConfirmedEvent.version,
               tenantId: decoded.tenantId,
-              aggregateType: "sales_order",
+              aggregateType: SalesOrderConfirmedEvent.aggregateType,
               aggregateId: confirmed.id,
               commandId: decoded.commandId,
               correlationId: decoded.correlationId,
@@ -652,7 +661,7 @@ export const makeSalesTestLayer = () =>
               idempotencyKey: decoded.idempotencyKey,
               actorPrincipalId: decoded.principal.userAccountId,
               occurredAt: confirmed.confirmedAt!,
-              payload: { orderId: confirmed.id, total: confirmed.total },
+              payload,
             })
             storedOrders.set(order.id, confirmed)
             confirmationKeys.set(order.id, decoded.idempotencyKey)
