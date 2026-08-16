@@ -168,14 +168,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant.id,
             warehouseId: warehouse.id,
             itemId: item.id,
-            quantity: "3",
+            quantity: "4",
           })
           const [beforeCorrection] = yield* Effect.promise(() => readBalances(client, tenant.id))
           assert.deepStrictEqual(beforeCorrection, {
             warehouse_id: warehouse.id,
             item_id: item.id,
             on_hand: "10",
-            reserved: "4",
+            reserved: "5",
           })
           const correctionInput = {
             principal,
@@ -221,7 +221,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             warehouse_id: warehouse.id,
             item_id: item.id,
             on_hand: "5",
-            reserved: "4",
+            reserved: "5",
           })
           const [movementCount] = yield* Effect.promise(() =>
             client<{ count: string }[]>`

@@ -655,17 +655,39 @@ export const makeInventoryService = Effect.gen(function* () {
 
                 const adjustment = BigInt(decoded.adjustment)
                 const occurredAt = now()
+                const [balance] = await tx.select({
+                  onHand: stockBalances.onHand,
+                  reserved: stockBalances.reserved,
+                }).from(stockBalances).where(
+                  and(
+                    eq(stockBalances.tenantId, decoded.tenantId),
+                    eq(stockBalances.warehouseId, decoded.warehouseId),
+                    eq(stockBalances.itemId, decoded.itemId),
+                  ),
+                ).for("update")
+                if (balance !== undefined) {
+                  const [existingAfterLock] = await tx.select(correctionSelection)
+                    .from(movements)
+                    .where(and(
+                      eq(movements.tenantId, decoded.tenantId),
+                      eq(movements.idempotencyKey, idempotencyKey),
+                    ))
+                    .for("update")
+                  if (existingAfterLock !== undefined) {
+                    if (
+                      existingAfterLock.warehouseId !== decoded.warehouseId ||
+                      existingAfterLock.itemId !== decoded.itemId ||
+                      existingAfterLock.adjustment !== decoded.adjustment ||
+                      existingAfterLock.unitOfMeasure !== unitOfMeasure ||
+                      existingAfterLock.reason !== reason
+                    ) return { _tag: "idempotency-conflict" as const }
+                    return {
+                      _tag: "existing" as const,
+                      correction: toStockCorrection(existingAfterLock),
+                    }
+                  }
+                }
                 if (adjustment < 0n) {
-                  const [balance] = await tx.select({
-                    onHand: stockBalances.onHand,
-                    reserved: stockBalances.reserved,
-                  }).from(stockBalances).where(
-                    and(
-                      eq(stockBalances.tenantId, decoded.tenantId),
-                      eq(stockBalances.warehouseId, decoded.warehouseId),
-                      eq(stockBalances.itemId, decoded.itemId),
-                    ),
-                  ).for("update")
                   if (
                     balance === undefined ||
                     BigInt(balance.onHand) + adjustment < BigInt(balance.reserved)
