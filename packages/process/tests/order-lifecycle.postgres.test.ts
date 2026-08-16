@@ -1466,3 +1466,82 @@ it.effect.skipIf(databaseUrl === undefined)(
         }
       })),
 )
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "scopes order confirmation workflow idempotency by tenant",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant, otherTenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug)
+            values (${crypto.randomUUID()}), (${crypto.randomUUID()})
+            returning id
+          `
+        )
+        const authorizationLayer = makeAuthorizationTestLayer(
+          [tenant!.id, otherTenant!.id].flatMap((tenantId) =>
+            capabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability,
+            }))
+          ),
+        )
+        const first = yield* makeFixture(client, tenant!.id, "TENANT-A").pipe(
+          Effect.provide(authorizationLayer),
+        )
+        const other = yield* makeFixture(client, otherTenant!.id, "TENANT-B").pipe(
+          Effect.provide(authorizationLayer),
+        )
+        const sharedIdempotencyKey = "shared-confirmation-tenant-key"
+        const firstResult = yield* first.process.confirmOrder({
+          principal,
+          tenantId: tenant!.id,
+          orderId: first.order.id,
+          warehouseId: first.warehouse.id,
+          legalEntityId: first.legalEntity.id,
+          commandId: "tenant-a-confirm-command",
+          correlationId: "tenant-a-confirm-correlation",
+          causationId: null,
+          idempotencyKey: sharedIdempotencyKey,
+        })
+        const otherResult = yield* other.process.confirmOrder({
+          principal,
+          tenantId: otherTenant!.id,
+          orderId: other.order.id,
+          warehouseId: other.warehouse.id,
+          legalEntityId: other.legalEntity.id,
+          commandId: "tenant-b-confirm-command",
+          correlationId: "tenant-b-confirm-correlation",
+          causationId: null,
+          idempotencyKey: sharedIdempotencyKey,
+        })
+        assert.notStrictEqual(firstResult.workflowRunId, otherResult.workflowRunId)
+        assert.notStrictEqual(firstResult.eventId, otherResult.eventId)
+        assert.notStrictEqual(firstResult.jobId, otherResult.jobId)
+        assert.notStrictEqual(firstResult.journal.id, otherResult.journal.id)
+        assert.strictEqual(firstResult.order.tenantId, tenant!.id)
+        assert.strictEqual(otherResult.order.tenantId, otherTenant!.id)
+        const workflowTenantCounts = yield* Effect.promise(() =>
+          client<{ tenant_id: string; count: number }[]>`
+            select tenant_id, count(*)::integer as count
+            from process.workflow_runs
+            where workflow_type = 'sales.order.confirmation'
+              and idempotency_key = ${sharedIdempotencyKey}
+            group by tenant_id
+            order by tenant_id
+          `
+        )
+        assert.deepStrictEqual(workflowTenantCounts.map((row) => row.count), [1, 1])
+        assert.deepStrictEqual(
+          (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0],
+          { workflow_runs: "1", events: "3", jobs: "1", journals: "1" },
+        )
+        assert.deepStrictEqual(
+          (yield* Effect.promise(() => readCounts(client, otherTenant!.id)))[0],
+          { workflow_runs: "1", events: "3", jobs: "1", journals: "1" },
+        )
+      })),
+)
