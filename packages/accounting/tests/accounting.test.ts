@@ -251,6 +251,16 @@ describe("accounting contract", () => {
         ],
       })
       assert.strictEqual(repeated.id, journal.id)
+      const scaledReplay = yield* accounting.postJournal({
+        principal,
+        tenantId,
+        reference: "SALE-1",
+        lines: [
+          { accountId: cash.id, debit: "125.0", credit: "0" },
+          { accountId: revenue.id, debit: "0", credit: "125.0" },
+        ],
+      })
+      assert.strictEqual(scaledReplay.id, journal.id)
       assert.instanceOf(
         yield* Effect.flip(accounting.postJournal({
           principal,

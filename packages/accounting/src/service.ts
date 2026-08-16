@@ -324,12 +324,6 @@ const utcDate = (clock: Clock.Clock) =>
   new Date(clock.currentTimeMillisUnsafe()).toISOString().slice(0, 10)
 
 const normalizeLines = (lines: readonly JournalLine[]) =>
-  lines.map((line) => `${line.accountId}:${line.debit}:${line.credit}`).toSorted()
-const normalizeMoneyLines = (
-  lines: ReadonlyArray<
-    { readonly accountId: string; readonly debit: string; readonly credit: string }
-  >,
-) =>
   lines.map((line) => `${line.accountId}:${toMinor(line.debit)}:${toMinor(line.credit)}`).toSorted()
 
 const validateLines = (lines: readonly JournalLine[]) => {
@@ -649,8 +643,8 @@ export const makeAccountingService = Effect.gen(function* () {
             }))
             if (
               profile === undefined || actualLines.length !== expectedLines.length ||
-              JSON.stringify(normalizeMoneyLines(actualLines)) !==
-                JSON.stringify(normalizeMoneyLines(expectedLines))
+              JSON.stringify(normalizeLines(actualLines)) !==
+                JSON.stringify(normalizeLines(expectedLines))
             ) {
               return yield* Effect.fail(
                 new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
