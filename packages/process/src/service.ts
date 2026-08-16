@@ -27,6 +27,7 @@ import {
   StockUnavailable,
 } from "../../inventory/mod.ts"
 import {
+  SalesCapabilities,
   SalesOrder,
   SalesOrderConfirmationIdempotencyConflict,
   SalesOrderInvalidState,
@@ -640,6 +641,11 @@ export const makeProcessService = Effect.gen(function* () {
           reservationIds: confirmed.reservations.map(({ id }) => id),
           journalId: confirmed.journal.id,
         }),
+      })
+      yield* authorization.authorize({
+        principal: input.principal,
+        tenantId: input.tenantId,
+        capability: SalesCapabilities.orderConfirm,
       })
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||

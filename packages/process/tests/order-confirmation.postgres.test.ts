@@ -9,7 +9,11 @@ import {
   AccountingService,
   makeAccountingService,
 } from "../../accounting/mod.ts"
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import {
+  AuthorizationDenied,
+  AuthorizationService,
+  makeAuthorizationTestLayer,
+} from "../../authorization/mod.ts"
 import {
   InventoryCapabilities,
   InventoryService,
@@ -380,6 +384,18 @@ it.effect.skipIf(databaseUrl === undefined)(
 
           const result = yield* process.confirmOrder(input)
           const repeated = yield* process.confirmOrder(input)
+          yield* authorization.suspendMember({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+          })
+          assert.instanceOf(
+            yield* Effect.flip(process.confirmOrder(input)),
+            AuthorizationDenied,
+          )
+          yield* authorization.activateMember({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+          })
           const [storedWorkflow] = yield* Effect.promise(() =>
             client<Record<string, unknown>[]>`
               select
