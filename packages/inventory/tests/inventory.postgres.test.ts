@@ -39,6 +39,8 @@ const capabilities = [
   InventoryCapabilities.stockReceive,
   InventoryCapabilities.stockAdjust,
   InventoryCapabilities.stockReserve,
+  InventoryCapabilities.stockRelease,
+  InventoryCapabilities.stockFulfill,
   InventoryCapabilities.stockTransferCreate,
   InventoryCapabilities.stockTransferConfirm,
   InventoryCapabilities.stockTransferComplete,
@@ -314,6 +316,63 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.deepStrictEqual(rolledBackCounts, { movements: "0", events: "0" })
+
+          const brokenItem = yield* inventory.createItem({
+            principal,
+            tenantId: tenant.id,
+            sku: "FULFILLMENT-GUARD",
+            name: "Fulfillment Guard Item",
+            unitOfMeasure: "box",
+          })
+          yield* inventory.receiveStock({
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: brokenItem.id,
+            quantity: "1",
+          })
+          const brokenReservation = yield* inventory.reserveStock({
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: brokenItem.id,
+            quantity: "1",
+          })
+          yield* Effect.promise(() =>
+            client`
+              update inventory.stock_balances
+              set on_hand = 0, reserved = 0
+              where tenant_id = ${tenant.id}
+                and warehouse_id = ${warehouse.id}
+                and item_id = ${brokenItem.id}
+            `
+          )
+          assert.instanceOf(
+            yield* Effect.flip(inventory.fulfillReservation({
+              principal,
+              tenantId: tenant.id,
+              reservationId: brokenReservation.id,
+            })),
+            StockUnavailable,
+          )
+          const [brokenReservationRow] = yield* Effect.promise(() =>
+            client<{ status: string }[]>`
+              select status
+              from inventory.reservations
+              where tenant_id = ${tenant.id} and id = ${brokenReservation.id}
+            `
+          )
+          assert.strictEqual(brokenReservationRow?.status, "active")
+          const [brokenMovementCount] = yield* Effect.promise(() =>
+            client<{ count: string }[]>`
+              select count(*)::text as count
+              from inventory.movements
+              where tenant_id = ${tenant.id}
+                and kind = 'issue'
+                and reference_id = ${brokenReservation.id}
+            `
+          )
+          assert.strictEqual(brokenMovementCount?.count, "0")
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )

@@ -296,6 +296,7 @@ type OrderLifecycleFailure =
   | Schema.SchemaError
   | StockReservationInvalidState
   | StockReservationNotFound
+  | StockUnavailable
   | WorkflowAlreadyInProgress
   | WorkflowIdempotencyConflict
   | WorkflowOutcomeUnknown

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=96
+total=97
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -106,6 +106,7 @@ gate bash -c 'grep -Fq "const loadExisting = ()" packages/accounting/src/service
 gate bash -c 'grep -Fq "existingAfterLock" packages/inventory/src/service.ts && grep -Fq "reserved: \"5\"" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "duplicateReservations" packages/inventory/tests/inventory.postgres.test.ts'
 gate bash -c 'grep -Fq "const concurrentExisting" packages/accounting/src/service.ts && grep -Fq "concurrentReversal" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "AccountingCapabilities.revenueReverse" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "_tag: \"idempotency-conflict\" as const" packages/accounting/src/service.ts && grep -Fq "draftReversalOrderId" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "JournalIdempotencyConflict" packages/accounting/tests/accounting.postgres.test.ts'
+gate bash -c 'grep -Fq "fulfilledBalance" packages/inventory/src/service.ts && grep -Fq "StockUnavailable" packages/inventory/src/service.ts && grep -Fq "brokenReservation" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "brokenMovementCount" packages/inventory/tests/inventory.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

@@ -310,7 +310,7 @@ export interface InventoryService {
     input: unknown,
   ) => Effect.Effect<
     StockReservation,
-    StockReservationInvalidState | StockReservationNotFound | CommonFailure
+    StockReservationInvalidState | StockReservationNotFound | StockUnavailable | CommonFailure
   >
   readonly createTransfer: (
     input: unknown,
@@ -1059,7 +1059,7 @@ export const makeInventoryService = Effect.gen(function* () {
             }
 
             const timestamp = now()
-            await tx.update(stockBalances)
+            const [fulfilledBalance] = await tx.update(stockBalances)
               .set({
                 onHand: sql`${stockBalances.onHand} - ${reservation.quantity}`,
                 reserved: sql`${stockBalances.reserved} - ${reservation.quantity}`,
@@ -1070,8 +1070,19 @@ export const makeInventoryService = Effect.gen(function* () {
                   eq(stockBalances.tenantId, decoded.tenantId),
                   eq(stockBalances.warehouseId, reservation.warehouseId),
                   eq(stockBalances.itemId, reservation.itemId),
+                  sql`${stockBalances.onHand} >= ${reservation.quantity}`,
+                  sql`${stockBalances.reserved} >= ${reservation.quantity}`,
                 ),
               )
+              .returning({ tenantId: stockBalances.tenantId })
+            if (fulfilledBalance === undefined) {
+              return {
+                _tag: "unavailable" as const,
+                warehouseId: reservation.warehouseId,
+                itemId: reservation.itemId,
+                requested: reservation.quantity,
+              }
+            }
             const [fulfilled] = await tx.update(reservations)
               .set({ status: "fulfilled", updatedAt: timestamp })
               .where(eq(reservations.id, reservation.id))
@@ -1103,6 +1114,16 @@ export const makeInventoryService = Effect.gen(function* () {
               reservationId: decoded.reservationId,
               operation: "fulfill",
               status: result.status,
+            }),
+          )
+        }
+        if (result._tag === "unavailable") {
+          return yield* Effect.fail(
+            new StockUnavailable({
+              tenantId: decoded.tenantId,
+              warehouseId: result.warehouseId,
+              itemId: result.itemId,
+              requested: result.requested,
             }),
           )
         }
