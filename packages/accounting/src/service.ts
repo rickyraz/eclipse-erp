@@ -325,6 +325,12 @@ const utcDate = (clock: Clock.Clock) =>
 
 const normalizeLines = (lines: readonly JournalLine[]) =>
   lines.map((line) => `${line.accountId}:${line.debit}:${line.credit}`).toSorted()
+const normalizeMoneyLines = (
+  lines: ReadonlyArray<
+    { readonly accountId: string; readonly debit: string; readonly credit: string }
+  >,
+) =>
+  lines.map((line) => `${line.accountId}:${toMinor(line.debit)}:${toMinor(line.credit)}`).toSorted()
 
 const validateLines = (lines: readonly JournalLine[]) => {
   if (lines.length < 2) return new UnbalancedJournal({ debit: "0", credit: "0" })
@@ -604,6 +610,18 @@ export const makeAccountingService = Effect.gen(function* () {
                 new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
               )
             }
+            const profiles = yield* database.query(
+              (db) =>
+                db.select({
+                  receivableAccountId: revenuePostingProfiles.receivableAccountId,
+                  revenueAccountId: revenuePostingProfiles.revenueAccountId,
+                }).from(revenuePostingProfiles).where(and(
+                  eq(revenuePostingProfiles.tenantId, decoded.tenantId),
+                  eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
+                )),
+              "accounting.revenue.profile.lookup",
+            )
+            const profile = profiles[0]
             const lines = yield* database.query(
               (db) =>
                 db.select(journalLineSelection).from(journalLines).where(and(
@@ -612,8 +630,28 @@ export const makeAccountingService = Effect.gen(function* () {
                 )),
               "accounting.revenue.lines.lookup",
             )
-            const storedAmount = lines.find((line) => String(line.debit ?? "0") !== "0")?.debit
-            if (String(storedAmount) !== decoded.amount) {
+            const expectedLines = profile === undefined ? [] : [
+              {
+                accountId: profile.receivableAccountId,
+                debit: decoded.amount,
+                credit: "0",
+              },
+              {
+                accountId: profile.revenueAccountId,
+                debit: "0",
+                credit: decoded.amount,
+              },
+            ]
+            const actualLines = lines.map((line) => ({
+              accountId: line.accountId,
+              debit: String(line.debit ?? "0"),
+              credit: String(line.credit ?? "0"),
+            }))
+            if (
+              profile === undefined || actualLines.length !== expectedLines.length ||
+              JSON.stringify(normalizeMoneyLines(actualLines)) !==
+                JSON.stringify(normalizeMoneyLines(expectedLines))
+            ) {
               return yield* Effect.fail(
                 new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
               )

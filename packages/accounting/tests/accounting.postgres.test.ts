@@ -357,6 +357,39 @@ it.effect.skipIf(databaseUrl === undefined)(
               })),
               JournalIdempotencyConflict,
             )
+            const corruptRevenueOrderId = crypto.randomUUID()
+            const [corruptRevenue] = yield* Effect.promise(() =>
+              client<{ id: string }[]>`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue:${legalEntity!.id}:${corruptRevenueOrderId}`})
+                returning id
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_lines
+                  (tenant_id, entry_id, account_id, debit, credit)
+                values
+                  (${tenant!.id}, ${corruptRevenue!.id}, ${accounts[1]!.id}, 10.00, 0),
+                  (${tenant!.id}, ${corruptRevenue!.id}, ${accounts[0]!.id}, 0, 10.00)
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                update accounting.journal_entries
+                set status = 'posted', posted_at = now()
+                where tenant_id = ${tenant!.id} and id = ${corruptRevenue!.id}
+              `
+            )
+            assert.instanceOf(
+              yield* Effect.flip(accounting.postRevenueForOrder({
+                ...input,
+                orderId: corruptRevenueOrderId,
+                commandId: "revenue-corrupt-command",
+                correlationId: "revenue-corrupt-correlation",
+              })),
+              JournalIdempotencyConflict,
+            )
             const draftOrderId = crypto.randomUUID()
             yield* Effect.promise(() =>
               client`
