@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=120
+total=121
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -129,6 +129,7 @@ gate bash -c 'grep -Fq "const processEventMatches" packages/process/src/service.
 gate bash -c 'grep -Fq "JSON.stringify(canonicalize(event.payload))" packages/process/src/service.ts && grep -Fq "mismatchedConfirmationEventPayload" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "mismatchedCancellationEventPayload" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "mismatchedFulfillmentEventPayload" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "Schema.decodeUnknownEffect(EventEnvelope)(toEvent(rows[0]))" packages/messaging/src/service.ts && grep -Fq "const invalidGetEvent" packages/messaging/tests/messaging.test.ts'
 gate bash -c 'grep -Fq "const confirmationInput =" packages/process/src/service.ts && grep -Fq "!jobMatches || !eventMatches" packages/process/src/service.ts && grep -Fq "corruptConfirmationEventPayload" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "corruptConfirmationJobResult" packages/process/tests/order-lifecycle.postgres.test.ts'
+gate bash -c 'grep -Fq "result.journal.tenantId === input.tenantId" packages/process/src/service.ts && grep -Fq "detachedConfirmationJournalResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

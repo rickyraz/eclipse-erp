@@ -336,6 +336,28 @@ it.effect.skipIf(databaseUrl === undefined)(
             where id = ${confirmation.workflowRunId}
           `
         )
+        const detachedConfirmationJournalResult = {
+          ...confirmation,
+          journal: { ...confirmation.journal, tenantId: crypto.randomUUID() },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(detachedConfirmationJournalResult)}::jsonb
+            where id = ${confirmation.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          OrderConfirmationCorrupt,
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(confirmation)}::jsonb
+            where id = ${confirmation.workflowRunId}
+          `
+        )
 
         const result = yield* process.cancelOrder(input)
         const repeated = yield* process.cancelOrder(input)
