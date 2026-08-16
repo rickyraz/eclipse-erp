@@ -169,6 +169,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             name: "Adjustment Item",
             unitOfMeasure: "box",
           })
+          assert.notStrictEqual(otherItem.id, item.id)
           yield* inventory.receiveStock({
             principal,
             tenantId: tenant.id,
