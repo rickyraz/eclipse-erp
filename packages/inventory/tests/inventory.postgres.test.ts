@@ -248,6 +248,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             { concurrency: "unbounded" },
           )
           assert.strictEqual(duplicates[0].id, duplicates[1].id)
+          const otherCorrection = yield* inventory.adjustStock({
+            ...correctionInput,
+            tenantId: otherTenant.id,
+            warehouseId: otherWarehouse.id,
+            itemId: otherItem.id,
+            commandId: "other-correction-command-1",
+            correlationId: "other-correction-correlation-1",
+          })
+          assert.notStrictEqual(otherCorrection.id, duplicates[0].id)
+          assert.strictEqual(otherCorrection.tenantId, otherTenant.id)
+          assert.deepStrictEqual(
+            (yield* Effect.promise(() => readBalances(client, otherTenant.id)))[0],
+            {
+              warehouse_id: otherWarehouse.id,
+              item_id: otherItem.id,
+              on_hand: "7",
+              reserved: "1",
+            },
+          )
           assert.instanceOf(
             yield* Effect.flip(inventory.adjustStock({
               ...correctionInput,
