@@ -286,6 +286,7 @@ type OrderLifecycleFailure =
   | AuthorizationDenied
   | DatabaseFailure
   | EventIdempotencyConflict
+  | JournalIdempotencyConflict
   | OrderConfirmationCorrupt
   | OrderConfirmationNotFound
   | RevenueJournalNotFound

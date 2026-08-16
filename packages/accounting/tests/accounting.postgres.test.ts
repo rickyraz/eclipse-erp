@@ -243,6 +243,24 @@ it.effect.skipIf(databaseUrl === undefined)(
             )
             assert.strictEqual(concurrentReversal.id, reversal.id)
             assert.strictEqual(reversal.status, "reversed")
+            const draftReversalOrderId = crypto.randomUUID()
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue-reversal:${
+                legalEntity!.id
+              }:${draftReversalOrderId}`})
+              `
+            )
+            assert.instanceOf(
+              yield* Effect.flip(accounting.reverseRevenueForOrder({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                orderId: draftReversalOrderId,
+              })),
+              JournalIdempotencyConflict,
+            )
             const draftOrderId = crypto.randomUUID()
             yield* Effect.promise(() =>
               client`

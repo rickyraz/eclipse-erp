@@ -274,6 +274,7 @@ export interface AccountingService {
   ) => Effect.Effect<
     JournalEntry,
     | AccountingPeriodNotOpen
+    | JournalIdempotencyConflict
     | RevenueJournalNotFound
     | RevenuePostingProfileNotFound
     | CommonFailure
@@ -768,7 +769,11 @@ export const makeAccountingService = Effect.gen(function* () {
               eq(journalEntries.tenantId, decoded.tenantId),
               eq(journalEntries.reference, reference),
             )).for("update"))[0]
-            if (existing !== undefined) return { _tag: "existing" as const, entry: existing }
+            if (existing !== undefined) {
+              return existing.status === "reversed" && existing.postedAt !== null
+                ? { _tag: "existing" as const, entry: existing }
+                : { _tag: "idempotency-conflict" as const }
+            }
             const profile =
               (await tx.select({ legalEntityId: revenuePostingProfiles.legalEntityId })
                 .from(revenuePostingProfiles).where(and(
@@ -782,7 +787,10 @@ export const makeAccountingService = Effect.gen(function* () {
                 eq(journalEntries.reference, reference),
               )).for("update"))[0]
             if (concurrentExisting !== undefined) {
-              return { _tag: "existing" as const, entry: concurrentExisting }
+              return concurrentExisting.status === "reversed" &&
+                  concurrentExisting.postedAt !== null
+                ? { _tag: "existing" as const, entry: concurrentExisting }
+                : { _tag: "idempotency-conflict" as const }
             }
             const configuration = (await tx.select({
               postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
@@ -864,6 +872,11 @@ export const makeAccountingService = Effect.gen(function* () {
               tenantId: decoded.tenantId,
               legalEntityId: decoded.legalEntityId,
             }),
+          )
+        }
+        if (journal._tag === "idempotency-conflict") {
+          return yield* Effect.fail(
+            new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
           )
         }
         if (journal._tag === "source-missing") {
