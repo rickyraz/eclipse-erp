@@ -331,31 +331,36 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const principal = { userAccountId: "representation-admin", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `representation-${crypto.randomUUID()}` })
+        const otherTenant = yield* auth.createTenant({
+          slug: `representation-other-${crypto.randomUUID()}`,
+        })
         const userAccount = yield* userAccountService.create({
           email: `representation-${crypto.randomUUID()}@example.test`,
         })
-        const authorizationLayer = makeAuthorizationTestLayer([
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: PartyCapabilities.partyCreate,
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: PartyCapabilities.partyRepresentationCreate,
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: PartyCapabilities.partyRepresentationActivate,
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: PartyCapabilities.partyRepresentationDeactivate,
-          },
-        ])
+        const authorizationLayer = makeAuthorizationTestLayer(
+          [tenant.id, otherTenant.id].flatMap((tenantId) => [
+            {
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability: PartyCapabilities.partyCreate,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability: PartyCapabilities.partyRepresentationCreate,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability: PartyCapabilities.partyRepresentationActivate,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability: PartyCapabilities.partyRepresentationDeactivate,
+            },
+          ]),
+        )
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -369,6 +374,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "organization",
             name: "Represented Organization",
           })
+          const otherParty = yield* party.create({
+            principal,
+            tenantId: otherTenant.id,
+            kind: "organization",
+            name: "Other Represented Organization",
+          })
           const input = {
             principal,
             tenantId: tenant.id,
@@ -377,7 +388,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "representative",
           }
           const representation = yield* party.createPartyRepresentation(input)
+          const otherRepresentation = yield* party.createPartyRepresentation({
+            ...input,
+            tenantId: otherTenant.id,
+            partyId: otherParty.id,
+          })
           assert.strictEqual(representation.active, true)
+          assert.notStrictEqual(otherRepresentation.id, representation.id)
+          assert.strictEqual(otherRepresentation.tenantId, otherTenant.id)
           assert.instanceOf(
             yield* Effect.flip(party.createPartyRepresentation(input)),
             PartyRepresentationAlreadyExists,
