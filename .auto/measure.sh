@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=90
+total=91
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -100,6 +100,7 @@ gate bash -c 'grep -Fq "orders_confirmation_metadata_check" db/schema/sales.ts &
 gate bash -c 'grep -Fq "journal_entries_reversal_state_check" db/schema/accounting.ts && grep -Fq "journal_entries_reversal_state_check" db/migrations/20260816110509_constrain_journal_reversal_state/migration.sql && grep -Fq "invalidReversalState" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "journal_entries_reference_check" db/schema/accounting.ts && grep -Fq "journal_entries_reference_check" db/migrations/20260816110832_constrain_journal_reference/migration.sql && grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "invalidReference" packages/accounting/tests/accounting.test.ts && grep -Fq "blankReference" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "existing[0].status !== \"posted\"" packages/accounting/src/service.ts && grep -Fq "revenue-draft-command" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "JournalIdempotencyConflict" packages/accounting/tests/accounting.postgres.test.ts'
+gate bash -c 'grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "rejects blank journal references" packages/accounting/tests/accounting.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

@@ -14,6 +14,7 @@ import {
   AccountingConfigurationAlreadyExists,
   AccountingPeriodNotOpen,
   AccountingService,
+  JournalEntry,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
   PostRevenueForOrderInput,
@@ -263,6 +264,14 @@ describe("accounting contract", () => {
         JournalIdempotencyConflict,
       )
     })))
+
+  it.effect("rejects blank journal references", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalEntry.fields.reference)("   "),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
 
   it.effect("rejects malformed revenue order identities", () =>
     Effect.gen(function* () {

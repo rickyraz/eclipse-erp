@@ -55,7 +55,7 @@ export const JournalLine = Schema.Struct({
 export const JournalEntry = Schema.Struct({
   id: Schema.String,
   tenantId: Schema.String,
-  reference: Schema.String,
+  reference: NonEmptyString,
   status: Schema.Literals(["posted", "reversed"]),
   postedAt: Schema.String,
   reversesEntryId: Schema.optional(Schema.String),
