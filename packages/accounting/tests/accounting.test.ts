@@ -14,6 +14,7 @@ import {
   AccountingConfigurationAlreadyExists,
   AccountingPeriodNotOpen,
   AccountingService,
+  AccountNotFound,
   JournalEntry,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
@@ -259,6 +260,18 @@ describe("accounting contract", () => {
       })
       assert.notStrictEqual(otherJournal.id, journal.id)
       assert.strictEqual(otherJournal.tenantId, otherTenantId)
+      assert.instanceOf(
+        yield* Effect.flip(accounting.postJournal({
+          principal,
+          tenantId: otherTenantId,
+          reference: "FOREIGN-ACCOUNT",
+          lines: [
+            { accountId: cash.id, debit: "125.00", credit: "0" },
+            { accountId: revenue.id, debit: "0", credit: "125.00" },
+          ],
+        })),
+        AccountNotFound,
+      )
       const invalidReference = yield* Effect.flip(accounting.postJournal({
         principal,
         tenantId,
