@@ -854,6 +854,7 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderCancellationResult),
             (result) =>
+              result.order.status === "cancelled" &&
               lifecycleReservationsMatch(
                 confirmation.result.reservations,
                 result.releasedReservations,
@@ -1016,6 +1017,7 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderFulfillmentResult),
             (result) =>
+              result.order.status === "confirmed" &&
               lifecycleReservationsMatch(
                 confirmation.result.reservations,
                 result.fulfilledReservations,
@@ -1024,7 +1026,9 @@ export const makeProcessService = Effect.gen(function* () {
                 reservation.tenantId === decoded.tenantId
               ),
           )
-          if (existing !== undefined) return existing
+          if (existing !== undefined) {
+            return existing
+          }
 
           const [run] = yield* database.query(
             (db) =>
@@ -1048,7 +1052,9 @@ export const makeProcessService = Effect.gen(function* () {
           )
 
           const fulfilledReservations = yield* Effect.forEach(
-            confirmation.result.reservations.toSorted((a, b) => a.id.localeCompare(b.id)),
+            confirmation.result.reservations.toSorted((a, b) =>
+              a.id.localeCompare(b.id)
+            ),
             (reservation) =>
               inventory.fulfillReservation({
                 principal: decoded.principal,

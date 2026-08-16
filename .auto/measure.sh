@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=109
+total=110
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -118,6 +118,7 @@ gate bash -c 'grep -Fq "type ConfirmationIdentity" packages/process/src/service.
 gate bash -c 'grep -Fq "result.order.status === \"confirmed\"" packages/process/src/service.ts && grep -Fq "cancelledOrderResult" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "reservation.idempotencyKey ===" packages/process/src/service.ts && grep -Fq "mismatchedReservationIdempotencyResult" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "const moneyToMinor" packages/process/src/service.ts && grep -Fq "result.journal.lines.length === 2" packages/process/src/service.ts && grep -Fq "mismatchedJournalLinesResult" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "result.order.status === \"cancelled\"" packages/process/src/service.ts && grep -Fq "result.order.status === \"confirmed\"" packages/process/src/service.ts && grep -Fq "mismatchedCancelledOrderStateResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "mismatchedFulfilledOrderStateResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
