@@ -609,6 +609,21 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          yield* Effect.promise(() =>
+            client`
+              update process.jobs
+              set priority = 999
+              where id = ${result.jobId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          yield* Effect.promise(() =>
+            client`
+              update process.jobs
+              set priority = ${ProcessLifecycleJobPriority}
+              where id = ${result.jobId}
+            `
+          )
           const mismatchedConfirmationEventPayload = {
             workflowRunId: result.workflowRunId,
             orderId: input.orderId,

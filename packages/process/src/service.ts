@@ -506,6 +506,7 @@ export const makeProcessService = Effect.gen(function* () {
           db.select({
             tenantId: processJobs.tenantId,
             jobType: processJobs.jobType,
+            priority: processJobs.priority,
             idempotencyKey: processJobs.idempotencyKey,
             correlationId: processJobs.correlationId,
             payload: processJobs.payload,
@@ -517,6 +518,7 @@ export const makeProcessService = Effect.gen(function* () {
       )
       if (
         job === undefined || job.tenantId !== input.tenantId || job.jobType !== jobType ||
+        job.priority !== ProcessLifecycleJobPriority ||
         job.idempotencyKey !== input.idempotencyKey || job.correlationId !== input.correlationId
       ) return false
       const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(
