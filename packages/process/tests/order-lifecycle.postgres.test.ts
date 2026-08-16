@@ -1360,3 +1360,109 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
       })),
 )
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rejects a mixed cancellation and fulfillment race with one durable winner",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        const { tenantId, process, order, warehouse, legalEntity } = yield* prepare(
+          client,
+          "MIXED-RACE",
+        )
+        yield* process.confirmOrder({
+          principal,
+          tenantId,
+          orderId: order.id,
+          warehouseId: warehouse.id,
+          legalEntityId: legalEntity.id,
+          commandId: "command-confirm-mixed-race-1",
+          correlationId: "correlation-confirm-mixed-race-1",
+          causationId: null,
+          idempotencyKey: "confirm-mixed-race-1",
+        })
+        const cancellationInput = {
+          principal,
+          tenantId,
+          orderId: order.id,
+          commandId: "command-cancel-mixed-race-1",
+          correlationId: "correlation-cancel-mixed-race-1",
+          causationId: null,
+          idempotencyKey: "cancel-mixed-race-1",
+        }
+        const fulfillmentInput = {
+          principal,
+          tenantId,
+          orderId: order.id,
+          commandId: "command-fulfill-mixed-race-1",
+          correlationId: "correlation-fulfill-mixed-race-1",
+          causationId: null,
+          idempotencyKey: "fulfill-mixed-race-1",
+        }
+        const [cancellationOutcome, fulfillmentOutcome] = yield* Effect.all(
+          [
+            process.cancelOrder(cancellationInput).pipe(Effect.result),
+            process.fulfillOrder(fulfillmentInput).pipe(Effect.result),
+          ] as const,
+          { concurrency: "unbounded" },
+        )
+        const concurrentLifecycleSuccesses = [cancellationOutcome, fulfillmentOutcome].filter(
+          (outcome) => outcome._tag === "Success",
+        )
+        assert.strictEqual(concurrentLifecycleSuccesses.length, 1)
+        assert.strictEqual(
+          [cancellationOutcome, fulfillmentOutcome].filter((outcome) => outcome._tag === "Failure")
+            .length,
+          1,
+        )
+
+        const [lifecycleRaceArtifacts] = yield* Effect.promise(() =>
+          client<{ workflows: string; events: string; jobs: string; reversals: string }[]>`
+            select
+              (select count(*)::text from process.workflow_runs
+                where tenant_id = ${tenantId}
+                  and workflow_type in ('sales.order.cancellation', 'sales.order.fulfillment')) as workflows,
+              (select count(*)::text from messaging.event_outbox
+                where tenant_id = ${tenantId}
+                  and event_type in ('process.order_cancellation.completed', 'process.order_fulfillment.completed')) as events,
+              (select count(*)::text from process.jobs
+                where tenant_id = ${tenantId}
+                  and job_type in ('process.order_cancellation.post_commit', 'process.order_fulfillment.post_commit')) as jobs,
+              (select count(*)::text from accounting.journal_entries
+                where tenant_id = ${tenantId} and reverses_entry_id is not null) as reversals
+          `
+        )
+        assert.deepStrictEqual(lifecycleRaceArtifacts, {
+          workflows: "1",
+          events: "1",
+          jobs: "1",
+          reversals: cancellationOutcome._tag === "Success" ? "1" : "0",
+        })
+
+        const [storedOrder] = yield* Effect.promise(() =>
+          client<{ status: string }[]>`select status from sales.orders where id = ${order.id}`
+        )
+        const reservations = yield* Effect.promise(() =>
+          client<{ id: string; status: string }[]>`
+            select id, status
+            from inventory.reservations
+            where tenant_id = ${tenantId}
+            order by id
+          `
+        )
+        if (storedOrder?.status === "cancelled") {
+          assert.strictEqual(cancellationOutcome._tag, "Success")
+          assert.deepStrictEqual(
+            reservations.map(({ status }) => status),
+            ["released", "released"],
+          )
+        } else {
+          assert.strictEqual(storedOrder?.status, "confirmed")
+          assert.strictEqual(fulfillmentOutcome._tag, "Success")
+          assert.deepStrictEqual(
+            reservations.map(({ status }) => status),
+            ["fulfilled", "fulfilled"],
+          )
+        }
+      })),
+)
