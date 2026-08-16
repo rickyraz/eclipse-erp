@@ -103,6 +103,14 @@ export const orders = salesSchema.table("orders", {
       (${table.status} = 'confirmed' and ${table.confirmedAt} is not null) or
       (${table.status} = 'cancelled')`,
   ),
+  check(
+    "orders_confirmation_metadata_check",
+    sql`(${table.status} = 'draft' and ${table.confirmationIdempotencyKey} is null) or
+      (${table.status} in ('confirmed', 'cancelled') and
+        ${table.confirmationIdempotencyKey} is not null and
+        ${table.confirmationIdempotencyKey} ~ '[^[:space:]]' and
+        ${table.confirmedAt} is not null)`,
+  ),
 ])
 
 export const orderLines = salesSchema.table("order_lines", {

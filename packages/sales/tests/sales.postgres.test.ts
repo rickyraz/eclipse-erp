@@ -17,6 +17,8 @@ import { withTemporaryDatabase } from "../../../tests/support/postgres-database.
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const principal = { userAccountId: "sales-postgres", sessionId: "session" }
+const postgresFailure = (effect: () => Promise<unknown>) =>
+  Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
 const capabilities = [
   SalesCapabilities.customerCreate,
   SalesCapabilities.orderCreate,
@@ -209,6 +211,48 @@ it.effect.skipIf(databaseUrl === undefined)(
             SalesOrderConfirmationIdempotencyConflict,
           )
         }).pipe(Effect.provide(authorizationLayer))
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "rejects orphaned order confirmation metadata in PostgreSQL",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const [customer] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into sales.customers (tenant_id, name, email)
+            values (${tenant!.id}, 'Metadata Customer', ${crypto.randomUUID()} || '@example.test')
+            returning id
+          `
+        )
+        const draftKey = yield* postgresFailure(() =>
+          client`
+            insert into sales.orders
+              (tenant_id, customer_id, status, confirmation_idempotency_key, total)
+            values (${tenant!.id}, ${customer!.id}, 'draft', 'orphaned-key', 10)
+          `
+        )
+        const confirmedKey = yield* postgresFailure(() =>
+          client`
+            insert into sales.orders
+              (tenant_id, customer_id, status, confirmed_at, total)
+            values (${tenant!.id}, ${customer!.id}, 'confirmed', now(), 10)
+          `
+        )
+        for (const failure of [draftKey, confirmedKey]) {
+          assert.strictEqual((failure as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (failure as { constraint_name?: string }).constraint_name,
+            "orders_confirmation_metadata_check",
+          )
+        }
       })),
 )
 
