@@ -630,6 +630,18 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const cancelledOrderResult = {
+            ...result,
+            order: { ...result.order, status: "cancelled" as const },
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(cancelledOrderResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const detachedOrderResult = {
             ...result,
             order: { ...result.order, id: crypto.randomUUID() },

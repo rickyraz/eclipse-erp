@@ -417,7 +417,8 @@ const confirmationResultMatches = (
   const actualLines = result.reservations.map((reservation) =>
     `${reservation.itemId}:${reservation.quantity}`
   ).toSorted()
-  return result.reservations.length === result.order.lines.length &&
+  return result.order.status === "confirmed" &&
+    result.reservations.length === result.order.lines.length &&
     result.reservations.every((reservation) =>
       reservation.tenantId === input.tenantId &&
       reservation.warehouseId === input.warehouseId &&
