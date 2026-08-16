@@ -888,15 +888,30 @@ export const makeInventoryService = Effect.gen(function* () {
           },
           "inventory.stock.reserve",
         ).pipe(
-          Effect.mapError((error) =>
-            isDatabaseConstraint(error, "reservations_tenant_idempotency_key") &&
-              decoded.idempotencyKey !== undefined
-              ? new StockReservationIdempotencyConflict({
-                tenantId: decoded.tenantId,
-                idempotencyKey: decoded.idempotencyKey,
-              })
-              : error
-          ),
+          Effect.catch((error) => {
+            if (
+              !isDatabaseConstraint(error, "reservations_tenant_idempotency_key") ||
+              decoded.idempotencyKey === undefined
+            ) return Effect.fail(error)
+            return database.query(
+              (db) =>
+                db.select(reservationSelection).from(reservations).where(and(
+                  eq(reservations.tenantId, decoded.tenantId),
+                  eq(reservations.idempotencyKey, decoded.idempotencyKey!),
+                )),
+              "inventory.stock.reserve.idempotency",
+            ).pipe(
+              Effect.map((rows) => {
+                const existing = rows[0]
+                return existing !== undefined &&
+                    existing.warehouseId === decoded.warehouseId &&
+                    existing.itemId === decoded.itemId &&
+                    existing.quantity === decoded.quantity
+                  ? { _tag: "existing" as const, reservation: existing }
+                  : { _tag: "idempotency-conflict" as const }
+              }),
+            )
+          }),
         )
         if (reservation._tag === "idempotency-conflict") {
           return yield* Effect.fail(

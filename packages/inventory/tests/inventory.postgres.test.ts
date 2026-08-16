@@ -13,6 +13,7 @@ import {
   InventoryStockCorrectedEvent,
   makeInventoryService,
   StockCorrectionIdempotencyConflict,
+  StockReservationIdempotencyConflict,
   StockTransferDifferentLegalEntity,
   StockUnavailable,
   WarehouseBranchNotFound,
@@ -142,12 +143,39 @@ it.effect.skipIf(databaseUrl === undefined)(
             itemId: item.id,
             quantity: "10",
           })
+          const reservationInput = {
+            principal,
+            tenantId: tenant.id,
+            warehouseId: warehouse.id,
+            itemId: item.id,
+            quantity: "1",
+            idempotencyKey: "reservation-1",
+          }
+          const duplicateReservations = yield* Effect.all(
+            [inventory.reserveStock(reservationInput), inventory.reserveStock(reservationInput)],
+            { concurrency: "unbounded" },
+          )
+          assert.strictEqual(duplicateReservations[0].id, duplicateReservations[1].id)
+          assert.instanceOf(
+            yield* Effect.flip(inventory.reserveStock({
+              ...reservationInput,
+              quantity: "2",
+            })),
+            StockReservationIdempotencyConflict,
+          )
           yield* inventory.reserveStock({
             principal,
             tenantId: tenant.id,
             warehouseId: warehouse.id,
             itemId: item.id,
-            quantity: "4",
+            quantity: "3",
+          })
+          const [beforeCorrection] = yield* Effect.promise(() => readBalances(client, tenant.id))
+          assert.deepStrictEqual(beforeCorrection, {
+            warehouse_id: warehouse.id,
+            item_id: item.id,
+            on_hand: "10",
+            reserved: "4",
           })
           const correctionInput = {
             principal,

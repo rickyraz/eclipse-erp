@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=91
+total=92
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -101,6 +101,7 @@ gate bash -c 'grep -Fq "journal_entries_reversal_state_check" db/schema/accounti
 gate bash -c 'grep -Fq "journal_entries_reference_check" db/schema/accounting.ts && grep -Fq "journal_entries_reference_check" db/migrations/20260816110832_constrain_journal_reference/migration.sql && grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "invalidReference" packages/accounting/tests/accounting.test.ts && grep -Fq "blankReference" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "existing[0].status !== \"posted\"" packages/accounting/src/service.ts && grep -Fq "revenue-draft-command" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "JournalIdempotencyConflict" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "rejects blank journal references" packages/accounting/tests/accounting.test.ts'
+gate bash -c 'grep -Fq "inventory.stock.reserve.idempotency" packages/inventory/src/service.ts && grep -Fq "duplicateReservations" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "StockReservationIdempotencyConflict" packages/inventory/tests/inventory.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
