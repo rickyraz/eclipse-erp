@@ -400,6 +400,15 @@ it.effect.skipIf(databaseUrl === undefined)(
             yield* Effect.flip(party.createPartyRepresentation(input)),
             PartyRepresentationAlreadyExists,
           )
+          assert.instanceOf(
+            yield* Effect.flip(party.setPartyRepresentationActive({
+              principal,
+              tenantId: otherTenant.id,
+              representationId: representation.id,
+              active: false,
+            })),
+            PartyRepresentationNotFound,
+          )
           const inactive = yield* party.setPartyRepresentationActive({
             principal,
             tenantId: tenant.id,
