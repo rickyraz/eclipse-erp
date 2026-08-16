@@ -548,6 +548,18 @@ export const makeProcessService = Effect.gen(function* () {
       return { payload, result }
     })
 
+  const lifecycleReservationsMatch = (
+    expected: ReadonlyArray<StockReservation>,
+    actual: ReadonlyArray<StockReservation>,
+    status: "released" | "fulfilled",
+  ) => {
+    const expectedIds = new Set(expected.map((reservation) => reservation.id))
+    const actualIds = new Set(actual.map((reservation) => reservation.id))
+    return actual.length === expected.length && actualIds.size === expectedIds.size &&
+      [...expectedIds].every((id) => actualIds.has(id)) &&
+      actual.every((reservation) => reservation.status === status)
+  }
+
   const resolveLifecycleExisting = <
     A extends {
       readonly workflowRunId: string
@@ -800,11 +812,18 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderCancellationResult),
             (result) =>
-              result.releasedReservations.every((reservation) =>
+              lifecycleReservationsMatch(
+                confirmation.result.reservations,
+                result.releasedReservations,
+                "released",
+              ) && result.releasedReservations.every((reservation) =>
                 reservation.tenantId === decoded.tenantId
-              ) && result.reversalJournal.tenantId === decoded.tenantId,
+              ) && result.reversalJournal.tenantId === decoded.tenantId &&
+              result.reversalJournal.reversesEntryId === confirmation.result.journal.id,
           )
-          if (existing !== undefined) return existing
+          if (existing !== undefined) {
+            return existing
+          }
 
           const [run] = yield* database.query(
             (db) =>
@@ -833,7 +852,9 @@ export const makeProcessService = Effect.gen(function* () {
             orderId: decoded.orderId,
           })
           const releasedReservations = yield* Effect.forEach(
-            confirmation.result.reservations.toSorted((a, b) => a.id.localeCompare(b.id)),
+            confirmation.result.reservations.toSorted((a, b) =>
+              a.id.localeCompare(b.id)
+            ),
             (reservation) =>
               inventory.releaseReservation({
                 principal: decoded.principal,
@@ -953,7 +974,11 @@ export const makeProcessService = Effect.gen(function* () {
             payload,
             Schema.decodeUnknownEffect(OrderFulfillmentResult),
             (result) =>
-              result.fulfilledReservations.every((reservation) =>
+              lifecycleReservationsMatch(
+                confirmation.result.reservations,
+                result.fulfilledReservations,
+                "fulfilled",
+              ) && result.fulfilledReservations.every((reservation) =>
                 reservation.tenantId === decoded.tenantId
               ),
           )
