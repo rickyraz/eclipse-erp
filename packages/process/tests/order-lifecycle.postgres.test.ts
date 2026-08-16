@@ -678,6 +678,21 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const selfReversalJournalResult = {
+          ...result,
+          reversalJournal: { ...result.reversalJournal, id: confirmation.journal.id },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(selfReversalJournalResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const mismatchedReversalJournalStateResult = {
           ...result,
           reversalJournal: { ...result.reversalJournal, status: "posted" as const },

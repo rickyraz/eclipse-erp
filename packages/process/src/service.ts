@@ -1061,6 +1061,7 @@ export const makeProcessService = Effect.gen(function* () {
               result.reversalJournal.status === "reversed" &&
               result.reversalJournal.reference ===
                 `revenue-reversal:${confirmation.payload.legalEntityId}:${decoded.orderId}` &&
+              result.reversalJournal.id !== confirmation.result.journal.id &&
               result.reversalJournal.reversesEntryId === confirmation.result.journal.id &&
               journalLinesAreInverse(confirmation.result.journal, result.reversalJournal),
           )
