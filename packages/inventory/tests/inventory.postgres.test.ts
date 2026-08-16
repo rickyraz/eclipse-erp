@@ -14,6 +14,7 @@ import {
   makeInventoryService,
   StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
+  StockReservationNotFound,
   StockTransferDifferentLegalEntity,
   StockTransferWarehouseNotFound,
   StockUnavailable,
@@ -209,6 +210,22 @@ it.effect.skipIf(databaseUrl === undefined)(
               on_hand: "10",
               reserved: "1",
             },
+          )
+          assert.instanceOf(
+            yield* Effect.flip(inventory.releaseReservation({
+              principal,
+              tenantId: otherTenant.id,
+              reservationId: duplicateReservations[0].id,
+            })),
+            StockReservationNotFound,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(inventory.fulfillReservation({
+              principal,
+              tenantId: otherTenant.id,
+              reservationId: duplicateReservations[0].id,
+            })),
+            StockReservationNotFound,
           )
           assert.instanceOf(
             yield* Effect.flip(inventory.reserveStock({
