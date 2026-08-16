@@ -19,6 +19,7 @@ import {
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import {
+  InventoryCapabilities,
   InventoryService,
   StockReservation,
   StockReservationIdempotencyConflict,
@@ -1042,6 +1043,11 @@ export const makeProcessService = Effect.gen(function* () {
   > =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: SalesCapabilities.orderCancel,
+      })
       const payload = lifecyclePayload(decoded)
       const outcome = yield* database.withTransaction(
         Effect.gen(function* () {
@@ -1230,6 +1236,11 @@ export const makeProcessService = Effect.gen(function* () {
   > =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(FulfillOrderInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: InventoryCapabilities.stockFulfill,
+      })
       const payload = lifecyclePayload(decoded)
       const outcome = yield* database.withTransaction(
         Effect.gen(function* () {

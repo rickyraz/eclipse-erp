@@ -9,7 +9,11 @@ import {
   AccountingService,
   makeAccountingService,
 } from "../../accounting/mod.ts"
-import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import {
+  AuthorizationDenied,
+  AuthorizationService,
+  makeAuthorizationTestLayer,
+} from "../../authorization/mod.ts"
 import {
   InventoryCapabilities,
   InventoryService,
@@ -208,7 +212,7 @@ const makeFixture = (client: Sql, tenantId: string, label: string) =>
       ],
     })
 
-    return { process, order, warehouse, legalEntity, widget, cable }
+    return { authorization, process, order, warehouse, legalEntity, widget, cable }
   })
 
 const prepare = (client: Sql, label: string) =>
@@ -238,10 +242,11 @@ it.effect.skipIf(databaseUrl === undefined)(
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
-        const { tenantId, process, order, warehouse, legalEntity, widget, cable } = yield* prepare(
-          client,
-          "CANCEL",
-        )
+        const { authorization, tenantId, process, order, warehouse, legalEntity, widget, cable } =
+          yield* prepare(
+            client,
+            "CANCEL",
+          )
         const confirmation = yield* process.confirmOrder({
           principal,
           tenantId,
@@ -387,6 +392,18 @@ it.effect.skipIf(databaseUrl === undefined)(
         const result = concurrentCancellation
         const repeated = yield* process.cancelOrder(input)
         assert.strictEqual(concurrentRetry.workflowRunId, result.workflowRunId)
+        yield* authorization.suspendMember({
+          userAccountId: principal.userAccountId,
+          tenantId,
+        })
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          AuthorizationDenied,
+        )
+        yield* authorization.activateMember({
+          userAccountId: principal.userAccountId,
+          tenantId,
+        })
         const [storedWorkflow] = yield* Effect.promise(() =>
           client<Record<string, unknown>[]>`
             select
@@ -868,10 +885,11 @@ it.effect.skipIf(databaseUrl === undefined)(
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
-        const { tenantId, process, order, warehouse, legalEntity, widget, cable } = yield* prepare(
-          client,
-          "FULFILL",
-        )
+        const { authorization, tenantId, process, order, warehouse, legalEntity, widget, cable } =
+          yield* prepare(
+            client,
+            "FULFILL",
+          )
         const confirmation = yield* process.confirmOrder({
           principal,
           tenantId,
@@ -903,6 +921,18 @@ it.effect.skipIf(databaseUrl === undefined)(
         const result = concurrentFulfillment
         const repeated = yield* process.fulfillOrder(input)
         assert.strictEqual(concurrentRetry.workflowRunId, result.workflowRunId)
+        yield* authorization.suspendMember({
+          userAccountId: principal.userAccountId,
+          tenantId,
+        })
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          AuthorizationDenied,
+        )
+        yield* authorization.activateMember({
+          userAccountId: principal.userAccountId,
+          tenantId,
+        })
         const [storedWorkflow] = yield* Effect.promise(() =>
           client<Record<string, unknown>[]>`
             select
