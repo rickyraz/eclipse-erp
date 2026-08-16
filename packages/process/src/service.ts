@@ -872,6 +872,9 @@ export const makeProcessService = Effect.gen(function* () {
               ) && result.releasedReservations.every((reservation) =>
                 reservation.tenantId === decoded.tenantId
               ) && result.reversalJournal.tenantId === decoded.tenantId &&
+              result.reversalJournal.status === "reversed" &&
+              result.reversalJournal.reference ===
+                `revenue-reversal:${confirmation.payload.legalEntityId}:${decoded.orderId}` &&
               result.reversalJournal.reversesEntryId === confirmation.result.journal.id,
           )
           if (existing !== undefined) {
