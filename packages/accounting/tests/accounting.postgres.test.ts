@@ -147,6 +147,23 @@ it.effect.skipIf(databaseUrl === undefined)(
               values (${tenant!.id}, ${organization!.id}) returning id
             `
           )
+          const [otherTenant] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+            `
+          )
+          const [otherOrganization] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.parties (tenant_id, kind, name)
+              values (${otherTenant!.id}, 'organization', 'Other Revenue Organization') returning id
+            `
+          )
+          const [otherLegalEntity] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.legal_entities (tenant_id, organization_party_id)
+              values (${otherTenant!.id}, ${otherOrganization!.id}) returning id
+            `
+          )
           const accounts = yield* Effect.promise(() =>
             client<{ id: string }[]>`
               insert into accounting.accounts (tenant_id, code, name, type)
@@ -178,11 +195,49 @@ it.effect.skipIf(databaseUrl === undefined)(
               values (${tenant!.id}, ${legalEntity!.id}, '1900-01-01', '2100-12-31')
             `
           )
+          const otherAccounts = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounts (tenant_id, code, name, type)
+              values
+                (${otherTenant!.id}, 'OTHER-ATOMIC-RECEIVABLE', 'Receivable', 'asset'),
+                (${otherTenant!.id}, 'OTHER-ATOMIC-REVENUE', 'Revenue', 'revenue')
+              returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.legal_entity_accounting_configurations
+                (tenant_id, legal_entity_id, base_currency, decimal_precision,
+                 fiscal_year_start_month, posting_enabled)
+              values (${otherTenant!.id}, ${otherLegalEntity!.id}, 'USD', 2, 1, true)
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.revenue_posting_profiles
+                (tenant_id, legal_entity_id, receivable_account_id, revenue_account_id)
+              values (${otherTenant!.id}, ${otherLegalEntity!.id}, ${otherAccounts[0]!.id}, ${
+              otherAccounts[1]!.id
+            })
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on)
+              values (${otherTenant!.id}, ${otherLegalEntity!.id}, '1900-01-01', '2100-12-31')
+            `
+          )
           const principal = { userAccountId: "accounting-atomic", sessionId: "session" }
           const authorizationLayer = makeAuthorizationTestLayer([
             {
               userAccountId: principal.userAccountId,
               tenantId: tenant!.id,
+              capability: AccountingCapabilities.revenuePost,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId: otherTenant!.id,
               capability: AccountingCapabilities.revenuePost,
             },
             {
@@ -218,6 +273,16 @@ it.effect.skipIf(databaseUrl === undefined)(
               { concurrency: "unbounded" },
             )
             assert.strictEqual(concurrent.id, journal.id)
+            const otherJournal = yield* accounting.postRevenueForOrder({
+              ...input,
+              tenantId: otherTenant!.id,
+              legalEntityId: otherLegalEntity!.id,
+              commandId: "other-revenue-command-atomic",
+              correlationId: "other-revenue-correlation-atomic",
+            })
+            assert.notStrictEqual(otherJournal.id, journal.id)
+            assert.strictEqual(otherJournal.tenantId, otherTenant!.id)
+            assert.strictEqual(otherJournal.lines[0]?.accountId, otherAccounts[0]!.id)
             const replay = yield* accounting.postRevenueForOrder({
               ...input,
               commandId: "revenue-command-retry",
@@ -431,6 +496,17 @@ it.effect.skipIf(databaseUrl === undefined)(
               `
             )
             assert.strictEqual(events.length, 1)
+            const otherEvents = yield* Effect.promise(() =>
+              client<{ id: string; idempotency_key: string }[]>`
+                select id, idempotency_key
+                from messaging.event_outbox
+                where tenant_id = ${otherTenant!.id}
+                  and event_type = ${AccountingRevenuePostedEvent.id}
+              `
+            )
+            assert.strictEqual(otherEvents.length, 1)
+            assert.strictEqual(otherEvents[0]?.idempotency_key, input.orderId)
+            assert.notStrictEqual(otherEvents[0]?.id, events[0]?.id)
             yield* Schema.decodeUnknownEffect(AccountingRevenuePostedEvent.payloadSchema)(
               events[0]?.payload,
             )
