@@ -179,11 +179,18 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           const principal = { userAccountId: "accounting-atomic", sessionId: "session" }
-          const authorizationLayer = makeAuthorizationTestLayer([{
-            userAccountId: principal.userAccountId,
-            tenantId: tenant!.id,
-            capability: AccountingCapabilities.revenuePost,
-          }])
+          const authorizationLayer = makeAuthorizationTestLayer([
+            {
+              userAccountId: principal.userAccountId,
+              tenantId: tenant!.id,
+              capability: AccountingCapabilities.revenuePost,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId: tenant!.id,
+              capability: AccountingCapabilities.revenueReverse,
+            },
+          ])
 
           yield* Effect.gen(function* () {
             const authorization = yield* AuthorizationService
@@ -217,6 +224,25 @@ it.effect.skipIf(databaseUrl === undefined)(
               correlationId: "revenue-correlation-retry",
             })
             assert.strictEqual(replay.id, journal.id)
+            const [reversal, concurrentReversal] = yield* Effect.all(
+              [
+                accounting.reverseRevenueForOrder({
+                  principal,
+                  tenantId: tenant!.id,
+                  legalEntityId: legalEntity!.id,
+                  orderId: input.orderId,
+                }),
+                accounting.reverseRevenueForOrder({
+                  principal,
+                  tenantId: tenant!.id,
+                  legalEntityId: legalEntity!.id,
+                  orderId: input.orderId,
+                }),
+              ],
+              { concurrency: "unbounded" },
+            )
+            assert.strictEqual(concurrentReversal.id, reversal.id)
+            assert.strictEqual(reversal.status, "reversed")
             const draftOrderId = crypto.randomUUID()
             yield* Effect.promise(() =>
               client`

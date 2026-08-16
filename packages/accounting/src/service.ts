@@ -776,6 +776,14 @@ export const makeAccountingService = Effect.gen(function* () {
                   eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
                 )).for("update"))[0]
             if (profile === undefined) return { _tag: "profile-missing" as const }
+            const concurrentExisting = (await tx.select(journalEntrySelection)
+              .from(journalEntries).where(and(
+                eq(journalEntries.tenantId, decoded.tenantId),
+                eq(journalEntries.reference, reference),
+              )).for("update"))[0]
+            if (concurrentExisting !== undefined) {
+              return { _tag: "existing" as const, entry: concurrentExisting }
+            }
             const configuration = (await tx.select({
               postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
             })
