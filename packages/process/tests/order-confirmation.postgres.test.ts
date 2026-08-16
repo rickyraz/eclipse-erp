@@ -642,6 +642,22 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const mismatchedReservationIdempotencyResult = {
+            ...result,
+            reservations: result.reservations.map((reservation, index) =>
+              index === 0
+                ? { ...reservation, idempotencyKey: `${input.idempotencyKey}:line:99` }
+                : reservation
+            ),
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(mismatchedReservationIdempotencyResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const detachedOrderResult = {
             ...result,
             order: { ...result.order, id: crypto.randomUUID() },

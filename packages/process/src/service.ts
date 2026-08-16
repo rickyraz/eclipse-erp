@@ -405,7 +405,7 @@ const lifecyclePayload = (
 
 type ConfirmationIdentity = Pick<
   Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>,
-  "tenantId" | "orderId" | "warehouseId" | "legalEntityId"
+  "tenantId" | "orderId" | "warehouseId" | "legalEntityId" | "idempotencyKey"
 >
 
 const confirmationResultMatches = (
@@ -419,10 +419,11 @@ const confirmationResultMatches = (
   ).toSorted()
   return result.order.status === "confirmed" &&
     result.reservations.length === result.order.lines.length &&
-    result.reservations.every((reservation) =>
+    result.reservations.every((reservation, index) =>
       reservation.tenantId === input.tenantId &&
       reservation.warehouseId === input.warehouseId &&
-      reservation.status === "active"
+      reservation.status === "active" &&
+      reservation.idempotencyKey === `${input.idempotencyKey}:line:${index}`
     ) &&
     JSON.stringify(actualLines) === JSON.stringify(expectedLines) &&
     result.journal.status === "posted" &&
@@ -571,6 +572,7 @@ export const makeProcessService = Effect.gen(function* () {
           orderId,
           warehouseId: payload.warehouseId,
           legalEntityId: payload.legalEntityId,
+          idempotencyKey: payload.idempotencyKey,
         })
       ) {
         return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
