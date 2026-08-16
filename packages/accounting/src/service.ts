@@ -306,6 +306,7 @@ const journalEntrySelection = {
   tenantId: journalEntries.tenantId,
   reference: journalEntries.reference,
   status: journalEntries.status,
+  reversesEntryId: journalEntries.reversesEntryId,
   postedAt: journalEntries.postedAt,
 }
 
@@ -769,8 +770,17 @@ export const makeAccountingService = Effect.gen(function* () {
               eq(journalEntries.tenantId, decoded.tenantId),
               eq(journalEntries.reference, reference),
             )).for("update"))[0]
+            const sourceForExisting = existing === undefined
+              ? undefined
+              : (await tx.select({ id: journalEntries.id, status: journalEntries.status })
+                .from(journalEntries).where(and(
+                  eq(journalEntries.tenantId, decoded.tenantId),
+                  eq(journalEntries.reference, sourceReference),
+                )).for("update"))[0]
             if (existing !== undefined) {
-              return existing.status === "reversed" && existing.postedAt !== null
+              return existing.status === "reversed" && existing.postedAt !== null &&
+                  sourceForExisting?.status === "posted" &&
+                  existing.reversesEntryId === sourceForExisting.id
                 ? { _tag: "existing" as const, entry: existing }
                 : { _tag: "idempotency-conflict" as const }
             }
@@ -786,9 +796,18 @@ export const makeAccountingService = Effect.gen(function* () {
                 eq(journalEntries.tenantId, decoded.tenantId),
                 eq(journalEntries.reference, reference),
               )).for("update"))[0]
+            const sourceForConcurrentExisting = concurrentExisting === undefined
+              ? undefined
+              : (await tx.select({ id: journalEntries.id, status: journalEntries.status })
+                .from(journalEntries).where(and(
+                  eq(journalEntries.tenantId, decoded.tenantId),
+                  eq(journalEntries.reference, sourceReference),
+                )).for("update"))[0]
             if (concurrentExisting !== undefined) {
               return concurrentExisting.status === "reversed" &&
-                  concurrentExisting.postedAt !== null
+                  concurrentExisting.postedAt !== null &&
+                  sourceForConcurrentExisting?.status === "posted" &&
+                  concurrentExisting.reversesEntryId === sourceForConcurrentExisting.id
                 ? { _tag: "existing" as const, entry: concurrentExisting }
                 : { _tag: "idempotency-conflict" as const }
             }

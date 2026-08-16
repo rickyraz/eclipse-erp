@@ -243,6 +243,42 @@ it.effect.skipIf(databaseUrl === undefined)(
             )
             assert.strictEqual(concurrentReversal.id, reversal.id)
             assert.strictEqual(reversal.status, "reversed")
+            const corruptReversalOrderId = crypto.randomUUID()
+            const [corruptReversal] = yield* Effect.promise(() =>
+              client<{ id: string }[]>`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue-reversal:${
+                legalEntity!.id
+              }:${corruptReversalOrderId}`})
+                returning id
+              `
+            )
+            assert.notStrictEqual(corruptReversal?.id, undefined)
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_lines
+                  (tenant_id, entry_id, account_id, debit, credit)
+                values
+                  (${tenant!.id}, ${corruptReversal!.id}, ${accounts[0]!.id}, 1.00, 0),
+                  (${tenant!.id}, ${corruptReversal!.id}, ${accounts[1]!.id}, 0, 1.00)
+              `
+            )
+            yield* Effect.promise(() =>
+              client`
+                update accounting.journal_entries
+                set status = 'reversed', reverses_entry_id = ${journal.id}, posted_at = now()
+                where tenant_id = ${tenant!.id} and id = ${corruptReversal!.id}
+              `
+            )
+            assert.instanceOf(
+              yield* Effect.flip(accounting.reverseRevenueForOrder({
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                orderId: corruptReversalOrderId,
+              })),
+              JournalIdempotencyConflict,
+            )
             const draftReversalOrderId = crypto.randomUUID()
             yield* Effect.promise(() =>
               client`
