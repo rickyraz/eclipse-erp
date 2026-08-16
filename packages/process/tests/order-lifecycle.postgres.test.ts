@@ -500,6 +500,21 @@ it.effect.skipIf(databaseUrl === undefined)(
           journals: "2",
         })
 
+        const detachedOrderResult = {
+          ...result,
+          order: { ...result.order, id: crypto.randomUUID() },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(detachedOrderResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         yield* Effect.promise(() =>
           client`
             update process.workflow_runs
