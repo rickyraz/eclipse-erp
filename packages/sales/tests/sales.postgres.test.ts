@@ -195,6 +195,15 @@ it.effect.skipIf(databaseUrl === undefined)(
             customerId: customer.id,
             lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "25.00" }],
           })
+          assert.instanceOf(
+            yield* Effect.flip(sales.confirmOrder({
+              ...input,
+              orderId: rollbackOrder.id,
+              commandId: "sales-confirm-shared-key-command",
+              correlationId: "sales-confirm-shared-key-correlation",
+            })),
+            SalesOrderConfirmationIdempotencyConflict,
+          )
           const failingSales = yield* Effect.provide(
             makeSalesService,
             Layer.mergeAll(

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=166
+total=167
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -175,6 +175,7 @@ gate bash -c 'grep -Fq "denies accounting capability in an ungranted tenant" pac
 gate bash -c 'grep -Fq "denies inventory capability in an ungranted tenant" packages/inventory/tests/inventory.test.ts && grep -Fq "tenantId: \"00000000-0000-4000-8000-000000000003\"" packages/inventory/tests/inventory.test.ts && grep -Fq "AuthorizationDenied" packages/inventory/tests/inventory.test.ts'
 gate bash -c 'grep -Fq "const missingEvent = yield* messaging.getEvent" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.isUndefined(missingEvent)" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -Fq "payload: { state: \"other\" }" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.deepStrictEqual(otherEvent?.payload, { state: \"other\" })" packages/messaging/tests/messaging.postgres.test.ts'
+gate bash -c 'grep -Fq "sales-confirm-shared-key-command" packages/sales/tests/sales.postgres.test.ts && grep -Fq "orderId: rollbackOrder.id" packages/sales/tests/sales.postgres.test.ts && grep -Fq "SalesOrderConfirmationIdempotencyConflict" packages/sales/tests/sales.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
