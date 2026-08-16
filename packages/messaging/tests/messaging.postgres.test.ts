@@ -374,7 +374,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           idempotencyKey: "shared-consumer-tenant-key",
         })
         yield* messaging.append(shared)
-        yield* messaging.append({ ...shared, tenantId: tenants[1]!.id })
+        yield* messaging.append({
+          ...shared,
+          tenantId: tenants[1]!.id,
+          payload: { state: "other" },
+        })
         const firstEvent = yield* messaging.getEvent({
           tenantId: tenants[0]!.id,
           eventId,
@@ -385,6 +389,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         })
         assert.strictEqual(firstEvent?.tenantId, tenants[0]!.id)
         assert.strictEqual(otherEvent?.tenantId, tenants[1]!.id)
+        assert.deepStrictEqual(otherEvent?.payload, { state: "other" })
         const missingEvent = yield* messaging.getEvent({
           tenantId: tenants[0]!.id,
           eventId: crypto.randomUUID(),

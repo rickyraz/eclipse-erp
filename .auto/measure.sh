@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=165
+total=166
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -174,6 +174,7 @@ gate bash -c 'grep -Fq "denies sales confirmation in an ungranted tenant" packag
 gate bash -c 'grep -Fq "denies accounting capability in an ungranted tenant" packages/accounting/tests/accounting.test.ts && grep -Fq "tenantId: \"00000000-0000-4000-8000-000000000003\"" packages/accounting/tests/accounting.test.ts && grep -Fq "AuthorizationDenied" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "denies inventory capability in an ungranted tenant" packages/inventory/tests/inventory.test.ts && grep -Fq "tenantId: \"00000000-0000-4000-8000-000000000003\"" packages/inventory/tests/inventory.test.ts && grep -Fq "AuthorizationDenied" packages/inventory/tests/inventory.test.ts'
 gate bash -c 'grep -Fq "const missingEvent = yield* messaging.getEvent" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.isUndefined(missingEvent)" packages/messaging/tests/messaging.postgres.test.ts'
+gate bash -c 'grep -Fq "payload: { state: \"other\" }" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.deepStrictEqual(otherEvent?.payload, { state: \"other\" })" packages/messaging/tests/messaging.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
