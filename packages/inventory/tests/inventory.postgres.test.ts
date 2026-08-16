@@ -101,15 +101,20 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `adjust-${crypto.randomUUID()}` })
+        const otherTenant = yield* auth.createTenant({
+          slug: `adjust-other-${crypto.randomUUID()}`,
+        })
         const messaging = yield* makeMessagingService.pipe(
           Effect.provideService(Database, database),
         )
         const authorizationLayer = makeAuthorizationTestLayer(
-          capabilities.map((capability) => ({
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability,
-          })),
+          [tenant.id, otherTenant.id].flatMap((tenantId) =>
+            capabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability,
+            }))
+          ),
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -125,6 +130,31 @@ it.effect.skipIf(databaseUrl === undefined)(
             party,
           )
           const inventory = yield* Effect.provide(makeInventoryService, requirements)
+          const otherScope = yield* Effect.provideService(
+            createLegalEntityScope(otherTenant.id, "Other Adjustment"),
+            PartyService,
+            party,
+          )
+          const otherWarehouse = yield* inventory.createWarehouse({
+            principal,
+            tenantId: otherTenant.id,
+            legalEntityId: otherScope.legalEntity.id,
+            name: "Other Adjustment Warehouse",
+          })
+          const otherItem = yield* inventory.createItem({
+            principal,
+            tenantId: otherTenant.id,
+            sku: "ADJUSTMENT",
+            name: "Other Adjustment Item",
+            unitOfMeasure: "box",
+          })
+          yield* inventory.receiveStock({
+            principal,
+            tenantId: otherTenant.id,
+            warehouseId: otherWarehouse.id,
+            itemId: otherItem.id,
+            quantity: "10",
+          })
           const warehouse = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
@@ -158,6 +188,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             { concurrency: "unbounded" },
           )
           assert.strictEqual(duplicateReservations[0].id, duplicateReservations[1].id)
+          const otherReservation = yield* inventory.reserveStock({
+            principal,
+            tenantId: otherTenant.id,
+            warehouseId: otherWarehouse.id,
+            itemId: otherItem.id,
+            quantity: "1",
+            idempotencyKey: reservationInput.idempotencyKey,
+          })
+          assert.notStrictEqual(otherReservation.id, duplicateReservations[0].id)
+          assert.strictEqual(otherReservation.tenantId, otherTenant.id)
+          assert.deepStrictEqual(
+            (yield* Effect.promise(() => readBalances(client, otherTenant.id)))[0],
+            {
+              warehouse_id: otherWarehouse.id,
+              item_id: otherItem.id,
+              on_hand: "10",
+              reserved: "1",
+            },
+          )
           assert.instanceOf(
             yield* Effect.flip(inventory.reserveStock({
               ...reservationInput,
