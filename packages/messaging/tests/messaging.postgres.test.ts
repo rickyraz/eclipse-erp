@@ -375,6 +375,16 @@ it.effect.skipIf(databaseUrl === undefined)(
         })
         yield* messaging.append(shared)
         yield* messaging.append({ ...shared, tenantId: tenants[1]!.id })
+        const firstEvent = yield* messaging.getEvent({
+          tenantId: tenants[0]!.id,
+          eventId,
+        })
+        const otherEvent = yield* messaging.getEvent({
+          tenantId: tenants[1]!.id,
+          eventId,
+        })
+        assert.strictEqual(firstEvent?.tenantId, tenants[0]!.id)
+        assert.strictEqual(otherEvent?.tenantId, tenants[1]!.id)
         const consumerId = "accounting.shared-tenant-consumer"
         const mutation = (tenantId: string) =>
           database.query(
