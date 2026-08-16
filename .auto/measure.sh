@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=156
+total=157
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -157,6 +157,7 @@ gate bash -c 'grep -Fq "SalesCapabilities.orderCancel" packages/sales/tests/sale
 gate bash -c 'grep -Fq "AccountNotFound" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "tenantId: otherTenant!.id" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "receivableAccountId: accounts[0]!.id" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "legalEntityId: otherLegalEntity!.id" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "const otherJournal = yield* accounting.postJournal" packages/accounting/tests/accounting.test.ts && grep -Fq "assert.notStrictEqual(otherJournal.id, journal.id)" packages/accounting/tests/accounting.test.ts && grep -Fq "reference: \"SALE-1\"" packages/accounting/tests/accounting.test.ts && grep -Fq "const otherTenantId" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "reference: \"FOREIGN-ACCOUNT\"" packages/accounting/tests/accounting.test.ts && grep -Fq "AccountNotFound" packages/accounting/tests/accounting.test.ts && grep -Fq "accountId: cash.id" packages/accounting/tests/accounting.test.ts'
+gate bash -c 'grep -Fq "const otherSource = yield* inventory.createWarehouse" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "sourceWarehouseId: otherSource.id" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "StockTransferItemNotFound" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "itemId: widget.id" packages/inventory/tests/inventory.postgres.test.ts'
 gate bash -c 'grep -Fq "sameKeyDifferentTenant" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.notStrictEqual(confirmed.id, otherConfirmed.id)" packages/sales/tests/sales.postgres.test.ts && grep -Fq "group by tenant_id" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.deepStrictEqual(sameKeyEvents.map((row) => row.count), [1, 1])" packages/sales/tests/sales.postgres.test.ts'
 gate bash -c 'grep -Fq "const otherJournal = yield* accounting.postRevenueForOrder" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherJournal.id, journal.id)" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.strictEqual(otherJournal.tenantId, otherTenant!.id)" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "const otherEvents" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherEvents[0]?.id, events[0]?.id)" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'test "$(grep -c "ATOMIC-RECEIVABLE" packages/accounting/tests/accounting.postgres.test.ts)" -ge 2 && grep -Fq "assert.notStrictEqual(otherAccounts[0]!.id, accounts[0]!.id)" packages/accounting/tests/accounting.postgres.test.ts'

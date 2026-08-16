@@ -16,6 +16,7 @@ import {
   StockReservationIdempotencyConflict,
   StockReservationNotFound,
   StockTransferDifferentLegalEntity,
+  StockTransferItemNotFound,
   StockTransferWarehouseNotFound,
   StockUnavailable,
   WarehouseBranchNotFound,
@@ -527,6 +528,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             party,
           )
           const inventory = yield* Effect.provide(makeInventoryService, requirements)
+          const otherScope = yield* Effect.provideService(
+            createLegalEntityScope(otherTenant.id, "Other Transfer"),
+            PartyService,
+            party,
+          )
           const source = yield* inventory.createWarehouse({
             principal,
             tenantId: tenant.id,
@@ -538,6 +544,19 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant.id,
             legalEntityId: scope.legalEntity.id,
+            name: "Destination",
+          })
+          const otherSource = yield* inventory.createWarehouse({
+            principal,
+            tenantId: otherTenant.id,
+            legalEntityId: otherScope.legalEntity.id,
+            primaryBranchId: otherScope.branch.id,
+            name: "Source",
+          })
+          const otherDestination = yield* inventory.createWarehouse({
+            principal,
+            tenantId: otherTenant.id,
+            legalEntityId: otherScope.legalEntity.id,
             name: "Destination",
           })
           const widget = yield* inventory.createItem({
@@ -575,6 +594,16 @@ it.effect.skipIf(databaseUrl === undefined)(
               lines: [{ itemId: widget.id, quantity: "1" }],
             })),
             StockTransferWarehouseNotFound,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(inventory.createTransfer({
+              principal,
+              tenantId: otherTenant.id,
+              sourceWarehouseId: otherSource.id,
+              destinationWarehouseId: otherDestination.id,
+              lines: [{ itemId: widget.id, quantity: "1" }],
+            })),
+            StockTransferItemNotFound,
           )
 
           const transfer = yield* inventory.createTransfer({
