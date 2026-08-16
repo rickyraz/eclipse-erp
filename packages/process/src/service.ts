@@ -553,6 +553,7 @@ export const makeProcessService = Effect.gen(function* () {
     input: Schema.Schema.Type<typeof CancelOrderInput>,
     payload: unknown,
     decodeResult: (value: unknown) => Effect.Effect<A, Schema.SchemaError>,
+    resultMatches: (result: A) => boolean,
   ): Effect.Effect<
     A | undefined,
     WorkflowAlreadyInProgress | WorkflowIdempotencyConflict | WorkflowResultCorrupt
@@ -597,7 +598,7 @@ export const makeProcessService = Effect.gen(function* () {
       )
       if (
         result.workflowRunId !== row.id || result.order.id !== input.orderId ||
-        result.order.tenantId !== input.tenantId
+        result.order.tenantId !== input.tenantId || !resultMatches(result)
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
@@ -793,6 +794,10 @@ export const makeProcessService = Effect.gen(function* () {
             decoded,
             payload,
             Schema.decodeUnknownEffect(OrderCancellationResult),
+            (result) =>
+              result.releasedReservations.every((reservation) =>
+                reservation.tenantId === decoded.tenantId
+              ) && result.reversalJournal.tenantId === decoded.tenantId,
           )
           if (existing !== undefined) return existing
 
@@ -942,6 +947,10 @@ export const makeProcessService = Effect.gen(function* () {
             decoded,
             payload,
             Schema.decodeUnknownEffect(OrderFulfillmentResult),
+            (result) =>
+              result.fulfilledReservations.every((reservation) =>
+                reservation.tenantId === decoded.tenantId
+              ),
           )
           if (existing !== undefined) return existing
 

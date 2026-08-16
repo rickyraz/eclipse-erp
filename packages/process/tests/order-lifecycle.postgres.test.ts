@@ -515,6 +515,38 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const detachedReservationResult = {
+          ...result,
+          releasedReservations: result.releasedReservations.map((reservation, index) =>
+            index === 0 ? { ...reservation, tenantId: crypto.randomUUID() } : reservation
+          ),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(detachedReservationResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
+        const detachedJournalResult = {
+          ...result,
+          reversalJournal: { ...result.reversalJournal, tenantId: crypto.randomUUID() },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(detachedJournalResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         yield* Effect.promise(() =>
           client`
             update process.workflow_runs
@@ -791,6 +823,23 @@ it.effect.skipIf(databaseUrl === undefined)(
           jobs: "0",
           reversals: "0",
         })
+        const detachedFulfilledReservationResult = {
+          ...result,
+          fulfilledReservations: result.fulfilledReservations.map((reservation, index) =>
+            index === 0 ? { ...reservation, tenantId: crypto.randomUUID() } : reservation
+          ),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(detachedFulfilledReservationResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          WorkflowResultCorrupt,
+        )
       })),
 )
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=81
+total=82
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -88,6 +88,7 @@ gate bash -c 'grep -q "cancelOrder" packages/process/src/service.ts && grep -q "
 gate bash -c 'grep -q "P3 baseline status:.*READY" docs/roadmap/erp-primitives.md && grep -q "Level 3" docs/roadmap/domain-maturity.md && grep -q "Superseded by:.*0038" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -q "Process coordinates fulfillment" docs/roadmap/domain-maturity.md && grep -q "selected future fan-out" docs/decisions/0018-adopt-typed-process-studio.md && ./.auto/checks.sh >/dev/null'
 
 gate bash -c 'grep -Fq "const resolveLifecycleExisting = <" packages/process/src/service.ts && grep -Fq "result.workflowRunId !== row.id || result.order.id !== input.orderId" packages/process/src/service.ts && grep -Fq "result.order.tenantId !== input.tenantId" packages/process/src/service.ts && grep -Fq "const detachedOrderResult" packages/process/tests/order-lifecycle.postgres.test.ts'
+gate bash -c 'grep -Fq "!resultMatches(result)" packages/process/src/service.ts && grep -Fq "result.releasedReservations.every" packages/process/src/service.ts && grep -Fq "result.reversalJournal.tenantId === decoded.tenantId" packages/process/src/service.ts && grep -Fq "result.fulfilledReservations.every" packages/process/src/service.ts && grep -Fq "const detachedFulfilledReservationResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
