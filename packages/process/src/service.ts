@@ -455,6 +455,19 @@ export const makeProcessService = Effect.gen(function* () {
           }),
         )
       }
+      if (
+        row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
+        result.order.id !== input.orderId || result.order.tenantId !== input.tenantId ||
+        result.reservations.some((reservation) => reservation.tenantId !== input.tenantId) ||
+        result.journal.tenantId !== input.tenantId
+      ) {
+        return yield* Effect.fail(
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
       return result
     })
 

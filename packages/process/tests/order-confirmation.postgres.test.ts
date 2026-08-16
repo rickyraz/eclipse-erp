@@ -572,6 +572,18 @@ it.effect.skipIf(databaseUrl === undefined)(
               { item_id: cable.id, on_hand: "10", reserved: "1" },
             ].toSorted((a, b) => a.item_id.localeCompare(b.item_id)),
           )
+          const detachedOrderResult = {
+            ...result,
+            order: { ...result.order, id: crypto.randomUUID() },
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(detachedOrderResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const crossLinkedResult = { ...result, workflowRunId: crypto.randomUUID() }
           yield* Effect.promise(() =>
             client`
