@@ -447,6 +447,14 @@ export const makeProcessService = Effect.gen(function* () {
           })
         ),
       )
+      if (result.workflowRunId !== row.id) {
+        return yield* Effect.fail(
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          }),
+        )
+      }
       return result
     })
 

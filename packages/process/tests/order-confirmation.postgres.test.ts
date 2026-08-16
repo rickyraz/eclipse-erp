@@ -31,6 +31,7 @@ import {
   ProcessPostCommitJobTypes,
   ProcessWorkflowTypes,
   WorkflowManualRecoveryRequired,
+  WorkflowResultCorrupt,
   WorkflowRun,
 } from "../mod.ts"
 import { makeSalesService, SalesCapabilities, SalesService } from "../../sales/mod.ts"
@@ -571,6 +572,15 @@ it.effect.skipIf(databaseUrl === undefined)(
               { item_id: cable.id, on_hand: "10", reserved: "1" },
             ].toSorted((a, b) => a.item_id.localeCompare(b.item_id)),
           )
+          const crossLinkedResult = { ...result, workflowRunId: crypto.randomUUID() }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(crossLinkedResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
