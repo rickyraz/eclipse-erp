@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=139
+total=140
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -148,6 +148,7 @@ gate bash -c 'grep -Fq "const otherJournal = yield* accounting.postRevenueForOrd
 gate bash -c 'grep -Fq "const otherReversal = yield* accounting.reverseRevenueForOrder" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.strictEqual(otherReversal.status, \"reversed\")" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherReversal.id, otherJournal.id)" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "scopes order lifecycle workflow idempotency by tenant" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "sharedIdempotencyKey" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "assert.notStrictEqual(firstResult.workflowRunId, otherResult.workflowRunId)" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "workflowTenantCounts" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "sharedCancellationKey" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "const firstCancellation = yield* first.process.cancelOrder" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "assert.notStrictEqual(firstCancellation.workflowRunId, otherCancellation.workflowRunId)" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "lifecycleTenantCounts" packages/process/tests/order-lifecycle.postgres.test.ts'
+gate bash -c 'grep -Fq "sharedFulfillmentKey" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "const firstFulfillment = yield* fulfillmentFirst.process.fulfillOrder" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "assert.notStrictEqual(firstFulfillment.workflowRunId, otherFulfillment.workflowRunId)" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "fulfillmentTenantCounts" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

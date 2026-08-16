@@ -1473,20 +1473,24 @@ it.effect.skipIf(databaseUrl === undefined)(
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
         yield* runMigrations(client)
-        const [tenant, otherTenant] = yield* Effect.promise(() =>
-          client<{ id: string }[]>`
-            insert into auth.tenants (slug)
-            values (${crypto.randomUUID()}), (${crypto.randomUUID()})
-            returning id
-          `
-        )
+        const [tenant, otherTenant, fulfillmentTenant, otherFulfillmentTenant] = yield* Effect
+          .promise(() =>
+            client<{ id: string }[]>`
+              insert into auth.tenants (slug)
+              values
+                (${crypto.randomUUID()}), (${crypto.randomUUID()}),
+                (${crypto.randomUUID()}), (${crypto.randomUUID()})
+              returning id
+            `
+          )
         const authorizationLayer = makeAuthorizationTestLayer(
-          [tenant!.id, otherTenant!.id].flatMap((tenantId) =>
-            capabilities.map((capability) => ({
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability,
-            }))
+          [tenant!.id, otherTenant!.id, fulfillmentTenant!.id, otherFulfillmentTenant!.id].flatMap(
+            (tenantId) =>
+              capabilities.map((capability) => ({
+                userAccountId: principal.userAccountId,
+                tenantId,
+                capability,
+              })),
           ),
         )
         const first = yield* makeFixture(client, tenant!.id, "TENANT-A").pipe(
@@ -1581,6 +1585,88 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.deepStrictEqual(
           (yield* Effect.promise(() => readCounts(client, otherTenant!.id)))[0],
           { workflow_runs: "2", events: "4", jobs: "2", journals: "2" },
+        )
+        const fulfillmentFirst = yield* makeFixture(
+          client,
+          fulfillmentTenant!.id,
+          "FULFILLMENT-A",
+        ).pipe(Effect.provide(authorizationLayer))
+        const fulfillmentOther = yield* makeFixture(
+          client,
+          otherFulfillmentTenant!.id,
+          "FULFILLMENT-B",
+        ).pipe(Effect.provide(authorizationLayer))
+        const sharedFulfillmentConfirmationKey = "shared-fulfillment-confirmation-key"
+        yield* fulfillmentFirst.process.confirmOrder({
+          principal,
+          tenantId: fulfillmentTenant!.id,
+          orderId: fulfillmentFirst.order.id,
+          warehouseId: fulfillmentFirst.warehouse.id,
+          legalEntityId: fulfillmentFirst.legalEntity.id,
+          commandId: "fulfillment-a-confirm-command",
+          correlationId: "fulfillment-a-confirm-correlation",
+          causationId: null,
+          idempotencyKey: sharedFulfillmentConfirmationKey,
+        })
+        yield* fulfillmentOther.process.confirmOrder({
+          principal,
+          tenantId: otherFulfillmentTenant!.id,
+          orderId: fulfillmentOther.order.id,
+          warehouseId: fulfillmentOther.warehouse.id,
+          legalEntityId: fulfillmentOther.legalEntity.id,
+          commandId: "fulfillment-b-confirm-command",
+          correlationId: "fulfillment-b-confirm-correlation",
+          causationId: null,
+          idempotencyKey: sharedFulfillmentConfirmationKey,
+        })
+        const sharedFulfillmentKey = "shared-fulfillment-tenant-key"
+        const firstFulfillment = yield* fulfillmentFirst.process.fulfillOrder({
+          principal,
+          tenantId: fulfillmentTenant!.id,
+          orderId: fulfillmentFirst.order.id,
+          commandId: "fulfillment-a-command",
+          correlationId: "fulfillment-a-correlation",
+          causationId: null,
+          idempotencyKey: sharedFulfillmentKey,
+        })
+        const otherFulfillment = yield* fulfillmentOther.process.fulfillOrder({
+          principal,
+          tenantId: otherFulfillmentTenant!.id,
+          orderId: fulfillmentOther.order.id,
+          commandId: "fulfillment-b-command",
+          correlationId: "fulfillment-b-correlation",
+          causationId: null,
+          idempotencyKey: sharedFulfillmentKey,
+        })
+        assert.notStrictEqual(firstFulfillment.workflowRunId, otherFulfillment.workflowRunId)
+        assert.notStrictEqual(firstFulfillment.eventId, otherFulfillment.eventId)
+        assert.notStrictEqual(firstFulfillment.jobId, otherFulfillment.jobId)
+        assert.strictEqual(firstFulfillment.order.status, "confirmed")
+        assert.strictEqual(otherFulfillment.order.status, "confirmed")
+        assert(
+          firstFulfillment.fulfilledReservations.every(({ status }) => status === "fulfilled"),
+        )
+        assert(
+          otherFulfillment.fulfilledReservations.every(({ status }) => status === "fulfilled"),
+        )
+        const fulfillmentTenantCounts = yield* Effect.promise(() =>
+          client<{ tenant_id: string; count: number }[]>`
+            select tenant_id, count(*)::integer as count
+            from process.workflow_runs
+            where workflow_type = 'sales.order.fulfillment'
+              and idempotency_key = ${sharedFulfillmentKey}
+            group by tenant_id
+            order by tenant_id
+          `
+        )
+        assert.deepStrictEqual(fulfillmentTenantCounts.map((row) => row.count), [1, 1])
+        assert.deepStrictEqual(
+          (yield* Effect.promise(() => readCounts(client, fulfillmentTenant!.id)))[0],
+          { workflow_runs: "2", events: "4", jobs: "2", journals: "1" },
+        )
+        assert.deepStrictEqual(
+          (yield* Effect.promise(() => readCounts(client, otherFulfillmentTenant!.id)))[0],
+          { workflow_runs: "2", events: "4", jobs: "2", journals: "1" },
         )
       })),
 )
