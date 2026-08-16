@@ -24,6 +24,7 @@ import {
 
 const principal = { userAccountId: "accountant", sessionId: "session" }
 const tenantId = "00000000-0000-4000-8000-000000000001"
+const otherTenantId = "00000000-0000-4000-8000-000000000002"
 const revenueOrderIds = {
   open: "00000000-0000-4000-8000-000000000010",
   closed: "00000000-0000-4000-8000-000000000011",
@@ -57,11 +58,13 @@ const withAccounting = <A, E>(
     makeAccountingTestLayer().pipe(
       Layer.provide(Layer.merge(
         makeAuthorizationTestLayer(
-          grantedCapabilities.map((capability) => ({
-            userAccountId: principal.userAccountId,
-            tenantId,
-            capability: capability as (typeof capabilities)[number],
-          })),
+          [tenantId, otherTenantId].flatMap((tenantId) =>
+            grantedCapabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability: capability as (typeof capabilities)[number],
+            }))
+          ),
         ),
         messaging,
       )),
@@ -231,6 +234,31 @@ describe("accounting contract", () => {
 
       assert.strictEqual(journal.status, "posted")
       assert.strictEqual(journal.lines.length, 2)
+      const otherCash = yield* accounting.createAccount({
+        principal,
+        tenantId: otherTenantId,
+        code: "1000",
+        name: "Cash",
+        type: "asset",
+      })
+      const otherRevenue = yield* accounting.createAccount({
+        principal,
+        tenantId: otherTenantId,
+        code: "4000",
+        name: "Revenue",
+        type: "revenue",
+      })
+      const otherJournal = yield* accounting.postJournal({
+        principal,
+        tenantId: otherTenantId,
+        reference: "SALE-1",
+        lines: [
+          { accountId: otherCash.id, debit: "125.00", credit: "0" },
+          { accountId: otherRevenue.id, debit: "0", credit: "125.00" },
+        ],
+      })
+      assert.notStrictEqual(otherJournal.id, journal.id)
+      assert.strictEqual(otherJournal.tenantId, otherTenantId)
       const invalidReference = yield* Effect.flip(accounting.postJournal({
         principal,
         tenantId,
