@@ -624,6 +624,22 @@ it.effect.skipIf(databaseUrl === undefined)(
               where id = ${result.jobId}
             `
           )
+          const mismatchedActorPrincipalId = crypto.randomUUID()
+          yield* Effect.promise(() =>
+            client`
+              update messaging.event_outbox
+              set actor_principal_id = ${mismatchedActorPrincipalId}
+              where id = ${result.eventId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          yield* Effect.promise(() =>
+            client`
+              update messaging.event_outbox
+              set actor_principal_id = ${input.principal.userAccountId}
+              where id = ${result.eventId}
+            `
+          )
           const mismatchedConfirmationEventPayload = {
             workflowRunId: result.workflowRunId,
             orderId: input.orderId,
