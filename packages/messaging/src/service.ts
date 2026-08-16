@@ -249,7 +249,8 @@ export const makeMessagingService = Effect.gen(function* () {
             )),
           "messaging.event.get",
         )
-        return rows[0] === undefined ? undefined : toEvent(rows[0])
+        if (rows[0] === undefined) return undefined
+        return yield* Schema.decodeUnknownEffect(EventEnvelope)(toEvent(rows[0]))
       }),
     consumeOnce: (input, effect) =>
       Effect.gen(function* () {

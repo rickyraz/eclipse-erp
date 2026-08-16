@@ -124,6 +124,10 @@ it.effect("loads events through a tenant-scoped public query", () =>
         eventId: "018f3f77-0c5a-7cc0-8b62-6a163d214126",
       }),
     )
+    const invalidGetEvent = yield* Effect.flip(
+      messaging.getEvent({ tenantId: "not-a-uuid", eventId: source.eventId }),
+    )
+    assert.strictEqual(invalidGetEvent._tag, "SchemaError")
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
 it.effect("suppresses a duplicate event consumer effect with one consumer receipt", () =>
