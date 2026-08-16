@@ -512,10 +512,41 @@ export const makeProcessService = Effect.gen(function* () {
           }),
         )
       }
+      const [job] = yield* database.query(
+        (db) =>
+          db.select({
+            tenantId: processJobs.tenantId,
+            jobType: processJobs.jobType,
+            idempotencyKey: processJobs.idempotencyKey,
+            correlationId: processJobs.correlationId,
+            payload: processJobs.payload,
+          }).from(processJobs).where(and(
+            eq(processJobs.id, result.jobId),
+            eq(processJobs.tenantId, input.tenantId),
+          )),
+        "process.confirmation.job.replay.lookup",
+      )
+      const jobPayload = job === undefined
+        ? undefined
+        : yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(job.payload).pipe(
+          Effect.mapError(() =>
+            new WorkflowResultCorrupt({
+              tenantId: input.tenantId,
+              idempotencyKey: input.idempotencyKey,
+            })
+          ),
+        )
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
         result.order.id !== input.orderId || result.order.tenantId !== input.tenantId ||
-        !confirmationResultMatches(result, input) || result.journal.tenantId !== input.tenantId
+        !confirmationResultMatches(result, input) || result.journal.tenantId !== input.tenantId ||
+        job === undefined || job.jobType !== ProcessPostCommitJobTypes.confirmation ||
+        job.idempotencyKey !== input.idempotencyKey || job.correlationId !== input.correlationId ||
+        jobPayload === undefined || jobPayload.eventId !== result.eventId ||
+        jobPayload.workflowRunId !== row.id || jobPayload.commandId !== input.commandId ||
+        jobPayload.correlationId !== input.correlationId ||
+        jobPayload.causationId !== input.causationId ||
+        jobPayload.idempotencyKey !== input.idempotencyKey
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
