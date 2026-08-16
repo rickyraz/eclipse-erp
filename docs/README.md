@@ -35,6 +35,8 @@
 
 ## Reference Material
 
+- [`./architecture/reference/accidental-duplication.md`](./architecture/reference/accidental-duplication.md)
+- [`./architecture/reference/engineering-lineage.md`](./architecture/reference/engineering-lineage.md)
 - [`./architecture/reference/orthogonal-erp-design.md`](./architecture/reference/orthogonal-erp-design.md)
 - [`./architecture/reference/orthogonal-erp-areas.md`](./architecture/reference/orthogonal-erp-areas.md)
 - [`./architecture/reference/graph-models.md`](./architecture/reference/graph-models.md)

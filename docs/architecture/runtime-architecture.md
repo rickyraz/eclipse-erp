@@ -222,6 +222,33 @@ return typed result
 The application must not expose adapter stubs as public domain contracts. Internal calls remain
 typed service calls; they do not use loopback HTTP merely because a distributed adapter exists.
 
+## Category Execution Contract
+
+Runtime adoption is optional for EclipseERP as a whole. An approved entity category may nevertheless
+declare entity-serialized execution as required for its consistency boundary. Once it does, runtime
+semantics are mandatory for that category even though the adapter remains replaceable:
+
+- every command that can mutate the same serialized invariant must enter the `StatefulEntityRuntime`
+  contract;
+- a local or direct-PostgreSQL adapter is a valid fallback only if it preserves the category's
+  address, active-owner, fencing, serialization, recovery, and observability semantics;
+- a command must not use the runtime for one transition and silently bypass it with a direct domain
+  write for another transition on the same invariant;
+- the public domain contract, authorization, idempotency, PostgreSQL transaction, and constraints
+  remain in force on every adapter path.
+
+Therefore:
+
+```text
+runtime adoption:       optional globally
+category declaration:   may require runtime semantics
+adapter selection:      replaceable
+celld:                   experimental candidate, not mandatory
+```
+
+Disabling or changing a category's runtime requirement is a reviewed category-level change. It must
+not be introduced as an incidental fallback after an adapter failure.
+
 ## Entity Lifecycle
 
 ### 1. Resolve
