@@ -437,6 +437,10 @@ const confirmationResultMatches = (
     `${reservation.itemId}:${reservation.quantity}`
   ).toSorted()
   const reservationIds = new Set(result.reservations.map(({ id }) => id))
+  const orderTotal = result.order.lines.reduce(
+    (total, line) => total + BigInt(line.quantity) * moneyToMinor(line.unitPrice),
+    0n,
+  )
   return result.order.status === "confirmed" &&
     reservationIds.size === result.reservations.length &&
     result.reservations.length === result.order.lines.length &&
@@ -452,6 +456,7 @@ const confirmationResultMatches = (
       result.journal.lines.reduce((total, line) => total + moneyToMinor(line.credit), 0n) &&
     result.journal.lines.reduce((total, line) => total + moneyToMinor(line.debit), 0n) ===
       moneyToMinor(result.order.total) &&
+    orderTotal === moneyToMinor(result.order.total) &&
     result.journal.lines.every((line) =>
       (moneyToMinor(line.debit) > 0n) !== (moneyToMinor(line.credit) > 0n)
     ) &&

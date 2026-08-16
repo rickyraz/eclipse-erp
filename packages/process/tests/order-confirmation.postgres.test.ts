@@ -724,6 +724,23 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const mismatchedOrderLinePriceResult = {
+            ...result,
+            order: {
+              ...result.order,
+              lines: result.order.lines.map((line, index) =>
+                index === 0 ? { ...line, unitPrice: "1.00" } : line
+              ),
+            },
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(mismatchedOrderLinePriceResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const invalidJournalLineResult = {
             ...result,
             journal: {
