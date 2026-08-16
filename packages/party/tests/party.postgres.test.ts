@@ -13,6 +13,7 @@ import {
   makePartyService,
   OrganizationRequired,
   PartyCapabilities,
+  PartyNotFound,
   PartyRelationshipAlreadyExists,
   PartyRelationshipRoleNotAssigned,
   PartyRepresentationAlreadyExists,
@@ -192,6 +193,15 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: otherTenant.id,
             organizationId: otherOrganization.id,
           })
+          assert.instanceOf(
+            yield* Effect.flip(party.assignRole({
+              principal,
+              tenantId: otherTenant.id,
+              partyId: organization.id,
+              role: "customer",
+            })),
+            PartyNotFound,
+          )
           const scopedIdentifier = {
             principal,
             tenantId: tenant.id,

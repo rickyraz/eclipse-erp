@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=160
+total=161
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -161,6 +161,7 @@ gate bash -c 'grep -Fq "const otherSource = yield* inventory.createWarehouse" pa
 gate bash -c 'grep -Fq "transferId: transfer.id" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "tenantId: otherTenant.id" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "StockTransferNotFound" packages/inventory/tests/inventory.postgres.test.ts'
 gate bash -c 'grep -Fq "const otherIdentifier = yield* party.attachIdentifier" packages/party/tests/party.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherIdentifier.id, firstIdentifier.id)" packages/party/tests/party.postgres.test.ts && grep -Fq "party-other-" packages/party/tests/party.postgres.test.ts'
 gate bash -c 'grep -Fq "const otherBranch = yield* party.createBranch" packages/party/tests/party.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherBranch.id, branch.id)" packages/party/tests/party.postgres.test.ts && grep -Fq "name: \"Jakarta\"" packages/party/tests/party.postgres.test.ts'
+gate bash -c 'grep -Fq "partyId: organization.id" packages/party/tests/party.postgres.test.ts && grep -Fq "legalEntityId: otherLegalEntity.id" packages/party/tests/party.postgres.test.ts && grep -Fq "PartyNotFound" packages/party/tests/party.postgres.test.ts'
 gate bash -c 'grep -Fq "sameKeyDifferentTenant" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.notStrictEqual(confirmed.id, otherConfirmed.id)" packages/sales/tests/sales.postgres.test.ts && grep -Fq "group by tenant_id" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.deepStrictEqual(sameKeyEvents.map((row) => row.count), [1, 1])" packages/sales/tests/sales.postgres.test.ts'
 gate bash -c 'grep -Fq "const otherJournal = yield* accounting.postRevenueForOrder" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherJournal.id, journal.id)" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.strictEqual(otherJournal.tenantId, otherTenant!.id)" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "const otherEvents" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherEvents[0]?.id, events[0]?.id)" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'test "$(grep -c "ATOMIC-RECEIVABLE" packages/accounting/tests/accounting.postgres.test.ts)" -ge 2 && grep -Fq "assert.notStrictEqual(otherAccounts[0]!.id, accounts[0]!.id)" packages/accounting/tests/accounting.postgres.test.ts'
