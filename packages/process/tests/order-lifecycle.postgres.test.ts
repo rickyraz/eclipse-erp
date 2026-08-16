@@ -621,6 +621,26 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const mismatchedReversalJournalLinesResult = {
+          ...result,
+          reversalJournal: {
+            ...result.reversalJournal,
+            lines: result.reversalJournal.lines.map((line, index) =>
+              index === 0 ? { ...line, accountId: crypto.randomUUID() } : line
+            ),
+          },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(mismatchedReversalJournalLinesResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const detachedJournalResult = {
           ...result,
           reversalJournal: { ...result.reversalJournal, tenantId: crypto.randomUUID() },

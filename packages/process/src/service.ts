@@ -413,6 +413,20 @@ const moneyToMinor = (value: string) => {
   return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"))
 }
 
+const journalLinesAreInverse = (
+  source: JournalEntry,
+  reversal: JournalEntry,
+) => {
+  const reversalLines = reversal.lines.map((line) =>
+    `${line.accountId}:${moneyToMinor(line.debit)}:${moneyToMinor(line.credit)}`
+  ).toSorted()
+  const expectedReversalLines = source.lines.map((line) =>
+    `${line.accountId}:${moneyToMinor(line.credit)}:${moneyToMinor(line.debit)}`
+  ).toSorted()
+  return source.lines.length === reversalLines.length &&
+    JSON.stringify(reversalLines) === JSON.stringify(expectedReversalLines)
+}
+
 const confirmationResultMatches = (
   result: OrderConfirmationResult,
   input: ConfirmationIdentity,
@@ -875,7 +889,8 @@ export const makeProcessService = Effect.gen(function* () {
               result.reversalJournal.status === "reversed" &&
               result.reversalJournal.reference ===
                 `revenue-reversal:${confirmation.payload.legalEntityId}:${decoded.orderId}` &&
-              result.reversalJournal.reversesEntryId === confirmation.result.journal.id,
+              result.reversalJournal.reversesEntryId === confirmation.result.journal.id &&
+              journalLinesAreInverse(confirmation.result.journal, result.reversalJournal),
           )
           if (existing !== undefined) {
             return existing
