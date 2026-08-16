@@ -15,6 +15,7 @@ import {
   StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
   StockTransferDifferentLegalEntity,
+  StockTransferWarehouseNotFound,
   StockUnavailable,
   WarehouseBranchNotFound,
 } from "../mod.ts"
@@ -481,12 +482,17 @@ it.effect.skipIf(databaseUrl === undefined)(
           Effect.provideService(UserAccountService, userAccountService),
         )
         const tenant = yield* auth.createTenant({ slug: `transfer-${crypto.randomUUID()}` })
+        const otherTenant = yield* auth.createTenant({
+          slug: `transfer-other-${crypto.randomUUID()}`,
+        })
         const authorizationLayer = makeAuthorizationTestLayer(
-          capabilities.map((capability) => ({
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability,
-          })),
+          [tenant.id, otherTenant.id].flatMap((tenantId) =>
+            capabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability,
+            }))
+          ),
         )
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -543,6 +549,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             itemId: cable.id,
             quantity: "8",
           })
+          assert.instanceOf(
+            yield* Effect.flip(inventory.createTransfer({
+              principal,
+              tenantId: otherTenant.id,
+              sourceWarehouseId: source.id,
+              destinationWarehouseId: destination.id,
+              lines: [{ itemId: widget.id, quantity: "1" }],
+            })),
+            StockTransferWarehouseNotFound,
+          )
 
           const transfer = yield* inventory.createTransfer({
             principal,
