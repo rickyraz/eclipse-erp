@@ -8,6 +8,7 @@ import {
   AccountingCapabilities,
   AccountingPeriodNotOpen,
   AccountingRevenuePostedEvent,
+  AccountNotFound,
   JournalIdempotencyConflict,
   makeAccountingService,
 } from "../mod.ts"
@@ -243,6 +244,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             {
               userAccountId: principal.userAccountId,
               tenantId: otherTenant!.id,
+              capability: AccountingCapabilities.revenueConfigure,
+            },
+            {
+              userAccountId: principal.userAccountId,
+              tenantId: otherTenant!.id,
               capability: AccountingCapabilities.revenueReverse,
             },
             {
@@ -273,6 +279,16 @@ it.effect.skipIf(databaseUrl === undefined)(
               correlationId: "revenue-correlation-atomic",
               causationId: "order-confirmed-atomic",
             }
+            assert.instanceOf(
+              yield* Effect.flip(accounting.configureRevenuePosting({
+                principal,
+                tenantId: otherTenant!.id,
+                legalEntityId: otherLegalEntity!.id,
+                receivableAccountId: accounts[0]!.id,
+                revenueAccountId: accounts[1]!.id,
+              })),
+              AccountNotFound,
+            )
             const [journal, concurrent] = yield* Effect.all(
               [accounting.postRevenueForOrder(input), accounting.postRevenueForOrder(input)],
               { concurrency: "unbounded" },
