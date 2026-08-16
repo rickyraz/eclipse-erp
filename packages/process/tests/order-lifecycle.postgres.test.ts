@@ -1528,6 +1528,18 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.notStrictEqual(firstResult.journal.id, otherResult.journal.id)
         assert.strictEqual(firstResult.order.tenantId, tenant!.id)
         assert.strictEqual(otherResult.order.tenantId, otherTenant!.id)
+        assert.instanceOf(
+          yield* Effect.flip(other.process.cancelOrder({
+            principal,
+            tenantId: otherTenant!.id,
+            orderId: first.order.id,
+            commandId: "foreign-cancel-command",
+            correlationId: "foreign-cancel-correlation",
+            causationId: null,
+            idempotencyKey: "foreign-cancel-key",
+          })),
+          OrderConfirmationNotFound,
+        )
         const workflowTenantCounts = yield* Effect.promise(() =>
           client<{ tenant_id: string; count: number }[]>`
             select tenant_id, count(*)::integer as count
