@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=92
+total=93
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -99,9 +99,10 @@ gate bash -c 'grep -Fq "process_jobs_state_check" db/schema/process.ts && grep -
 gate bash -c 'grep -Fq "orders_confirmation_metadata_check" db/schema/sales.ts && grep -Fq "orders_confirmation_metadata_check" db/migrations/20260816105956_constrain_sales_confirmation_metadata/migration.sql && grep -Fq "rejects orphaned order confirmation metadata" packages/sales/tests/sales.postgres.test.ts'
 gate bash -c 'grep -Fq "journal_entries_reversal_state_check" db/schema/accounting.ts && grep -Fq "journal_entries_reversal_state_check" db/migrations/20260816110509_constrain_journal_reversal_state/migration.sql && grep -Fq "invalidReversalState" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "journal_entries_reference_check" db/schema/accounting.ts && grep -Fq "journal_entries_reference_check" db/migrations/20260816110832_constrain_journal_reference/migration.sql && grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "invalidReference" packages/accounting/tests/accounting.test.ts && grep -Fq "blankReference" packages/accounting/tests/accounting.postgres.test.ts'
-gate bash -c 'grep -Fq "existing[0].status !== \"posted\"" packages/accounting/src/service.ts && grep -Fq "revenue-draft-command" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "JournalIdempotencyConflict" packages/accounting/tests/accounting.postgres.test.ts'
+gate bash -c 'grep -Fq "entry.status !== \"posted\" || entry.postedAt === null" packages/accounting/src/service.ts && grep -Fq "revenue-draft-command" packages/accounting/tests/accounting.postgres.test.ts && grep -Fq "JournalIdempotencyConflict" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "reference: NonEmptyString" packages/accounting/src/service.ts && grep -Fq "rejects blank journal references" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "inventory.stock.reserve.idempotency" packages/inventory/src/service.ts && grep -Fq "duplicateReservations" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "StockReservationIdempotencyConflict" packages/inventory/tests/inventory.postgres.test.ts'
+gate bash -c 'grep -Fq "const loadExisting = ()" packages/accounting/src/service.ts && grep -Fq "accounting.revenue.lines.lookup" packages/accounting/src/service.ts && grep -Fq "assert.strictEqual(concurrent.id, journal.id)" packages/accounting/tests/accounting.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

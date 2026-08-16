@@ -585,47 +585,52 @@ export const makeAccountingService = Effect.gen(function* () {
         const commandId = decoded.commandId.trim()
         const correlationId = decoded.correlationId.trim()
         const causationId = decoded.causationId?.trim() ?? null
-        const existing = yield* database.query(
-          (db) =>
-            db.select(journalEntrySelection).from(journalEntries).where(and(
-              eq(journalEntries.tenantId, decoded.tenantId),
-              eq(journalEntries.reference, reference),
-            )),
-          "accounting.revenue.lookup",
-        )
-        if (existing[0] !== undefined) {
-          if (existing[0].status !== "posted" || existing[0].postedAt === null) {
-            return yield* Effect.fail(
-              new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+        const loadExisting = () =>
+          Effect.gen(function* () {
+            const entries = yield* database.query(
+              (db) =>
+                db.select(journalEntrySelection).from(journalEntries).where(and(
+                  eq(journalEntries.tenantId, decoded.tenantId),
+                  eq(journalEntries.reference, reference),
+                )),
+              "accounting.revenue.lookup",
             )
-          }
-          const lines = yield* database.query(
-            (db) =>
-              db.select(journalLineSelection).from(journalLines).where(and(
-                eq(journalLines.tenantId, decoded.tenantId),
-                eq(journalLines.entryId, existing[0]!.id),
-              )),
-            "accounting.revenue.lines.lookup",
-          )
-          const storedAmount = lines.find((line) => String(line.debit ?? "0") !== "0")?.debit
-          if (String(storedAmount) !== decoded.amount) {
-            return yield* Effect.fail(
-              new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+            const entry = entries[0]
+            if (entry === undefined) return undefined
+            if (entry.status !== "posted" || entry.postedAt === null) {
+              return yield* Effect.fail(
+                new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+              )
+            }
+            const lines = yield* database.query(
+              (db) =>
+                db.select(journalLineSelection).from(journalLines).where(and(
+                  eq(journalLines.tenantId, decoded.tenantId),
+                  eq(journalLines.entryId, entry.id),
+                )),
+              "accounting.revenue.lines.lookup",
             )
-          }
-          return {
-            id: existing[0].id,
-            tenantId: existing[0].tenantId,
-            reference,
-            status: "posted" as const,
-            postedAt: existing[0].postedAt!.toISOString(),
-            lines: lines.map((line) => ({
-              accountId: line.accountId,
-              debit: String(line.debit ?? "0"),
-              credit: String(line.credit ?? "0"),
-            })),
-          }
-        }
+            const storedAmount = lines.find((line) => String(line.debit ?? "0") !== "0")?.debit
+            if (String(storedAmount) !== decoded.amount) {
+              return yield* Effect.fail(
+                new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+              )
+            }
+            return {
+              id: entry.id,
+              tenantId: entry.tenantId,
+              reference,
+              status: "posted" as const,
+              postedAt: entry.postedAt.toISOString(),
+              lines: lines.map((line) => ({
+                accountId: line.accountId,
+                debit: String(line.debit ?? "0"),
+                credit: String(line.credit ?? "0"),
+              })),
+            }
+          })
+        const existing = yield* loadExisting()
+        if (existing !== undefined) return existing
         const journal = yield* database.withTransaction(
           Effect.gen(function* () {
             const mutation = yield* database.transaction(
@@ -713,11 +718,22 @@ export const makeAccountingService = Effect.gen(function* () {
             return mutation
           }),
           "accounting.revenue.post.atomic",
-        ).pipe(Effect.mapError((error) =>
-          isDatabaseConstraint(error, "journal_entries_reference_key")
-            ? new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference })
-            : error
-        ))
+        ).pipe(
+          Effect.catchIf(
+            (error): error is DatabaseFailure =>
+              isDatabaseConstraint(error, "journal_entries_reference_key"),
+            () =>
+              Effect.gen(function* () {
+                const existing = yield* loadExisting()
+                if (existing === undefined) {
+                  return yield* Effect.fail(
+                    new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+                  )
+                }
+                return { _tag: "posted" as const, journal: existing }
+              }),
+          ),
+        )
         if (journal._tag === "profile-missing") {
           return yield* Effect.fail(
             new RevenuePostingProfileNotFound({

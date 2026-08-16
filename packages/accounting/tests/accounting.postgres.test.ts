@@ -206,7 +206,11 @@ it.effect.skipIf(databaseUrl === undefined)(
               correlationId: "revenue-correlation-atomic",
               causationId: "order-confirmed-atomic",
             }
-            const journal = yield* accounting.postRevenueForOrder(input)
+            const [journal, concurrent] = yield* Effect.all(
+              [accounting.postRevenueForOrder(input), accounting.postRevenueForOrder(input)],
+              { concurrency: "unbounded" },
+            )
+            assert.strictEqual(concurrent.id, journal.id)
             const replay = yield* accounting.postRevenueForOrder({
               ...input,
               commandId: "revenue-command-retry",
