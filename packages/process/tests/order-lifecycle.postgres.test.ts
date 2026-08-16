@@ -653,6 +653,24 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const mismatchedCancellationEventPayload = {
+          workflowRunId: result.workflowRunId,
+          confirmationWorkflowRunId: confirmation.workflowRunId,
+          orderId: order.id,
+          reservationIds: result.releasedReservations.map(({ id }) => id),
+          reversalJournalId: crypto.randomUUID(),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update messaging.event_outbox
+            set payload = ${JSON.stringify(mismatchedCancellationEventPayload)}::jsonb
+            where id = ${result.eventId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const crossLinkedCancellationEventResult = { ...result, eventId: crypto.randomUUID() }
         yield* Effect.promise(() =>
           client`
@@ -1012,6 +1030,23 @@ it.effect.skipIf(databaseUrl === undefined)(
             update process.workflow_runs
             set result = ${JSON.stringify(crossLinkedFulfillmentJobResult)}::jsonb
             where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          WorkflowResultCorrupt,
+        )
+        const mismatchedFulfillmentEventPayload = {
+          workflowRunId: result.workflowRunId,
+          confirmationWorkflowRunId: confirmation.workflowRunId,
+          orderId: crypto.randomUUID(),
+          reservationIds: result.fulfilledReservations.map(({ id }) => id),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update messaging.event_outbox
+            set payload = ${JSON.stringify(mismatchedFulfillmentEventPayload)}::jsonb
+            where id = ${result.eventId}
           `
         )
         assert.instanceOf(

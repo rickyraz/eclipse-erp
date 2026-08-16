@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=117
+total=118
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -126,6 +126,7 @@ gate bash -c 'grep -Fq "process.workflow.job.replay.lookup" packages/process/src
 gate bash -c 'grep -Fq "const jobMatches = yield* processJobMatches(result, input, jobType)" packages/process/src/service.ts && grep -Fq "crossLinkedCancellationJobResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "crossLinkedFulfillmentJobResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "GetEventInput" packages/messaging/src/service.ts && grep -Fq "getEvent: (input)" packages/messaging/src/service.ts && grep -Fq "loads events through a tenant-scoped public query" packages/messaging/tests/messaging.test.ts && grep -Fq "GetEventInput" packages/messaging/mod.ts'
 gate bash -c 'grep -Fq "const processEventMatches" packages/process/src/service.ts && grep -Fq "!eventMatches" packages/process/src/service.ts && grep -Fq "crossLinkedEventResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "crossLinkedCancellationEventResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "crossLinkedFulfillmentEventResult" packages/process/tests/order-lifecycle.postgres.test.ts'
+gate bash -c 'grep -Fq "JSON.stringify(canonicalize(event.payload))" packages/process/src/service.ts && grep -Fq "mismatchedConfirmationEventPayload" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "mismatchedCancellationEventPayload" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "mismatchedFulfillmentEventPayload" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

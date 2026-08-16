@@ -516,8 +516,8 @@ export const makeProcessService = Effect.gen(function* () {
         jobPayload.idempotencyKey === input.idempotencyKey
     })
 
-  const processEventMatches = (
-    result: { readonly eventId: string },
+  const processEventMatches = <A extends { readonly eventId: string }>(
+    result: A,
     input: {
       readonly principal: { readonly userAccountId: string }
       readonly tenantId: string
@@ -531,6 +531,7 @@ export const makeProcessService = Effect.gen(function* () {
       readonly eventVersion: number
       readonly aggregateType: string
       readonly aggregateId: string
+      readonly payload: (result: A) => unknown
     },
   ) =>
     Effect.gen(function* () {
@@ -548,7 +549,9 @@ export const makeProcessService = Effect.gen(function* () {
         event.correlationId === input.correlationId &&
         event.causationId === input.causationId &&
         event.idempotencyKey === input.idempotencyKey &&
-        event.actorPrincipalId === input.principal.userAccountId
+        event.actorPrincipalId === input.principal.userAccountId &&
+        JSON.stringify(canonicalize(event.payload)) ===
+          JSON.stringify(canonicalize(expected.payload(result)))
     })
 
   const resolveExisting = (
@@ -608,6 +611,12 @@ export const makeProcessService = Effect.gen(function* () {
         eventVersion: ProcessOrderConfirmationCompletedEvent.version,
         aggregateType: ProcessOrderConfirmationCompletedEvent.aggregateType,
         aggregateId: input.orderId,
+        payload: (confirmed) => ({
+          workflowRunId: confirmed.workflowRunId,
+          orderId: confirmed.order.id,
+          reservationIds: confirmed.reservations.map(({ id }) => id),
+          journalId: confirmed.journal.id,
+        }),
       })
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
@@ -741,6 +750,7 @@ export const makeProcessService = Effect.gen(function* () {
       readonly eventType: string
       readonly eventVersion: number
       readonly aggregateType: string
+      readonly payload: (result: A) => unknown
     },
     resultMatches: (result: A) => boolean,
   ): Effect.Effect<
@@ -998,6 +1008,13 @@ export const makeProcessService = Effect.gen(function* () {
               eventType: ProcessOrderCancellationCompletedEvent.id,
               eventVersion: ProcessOrderCancellationCompletedEvent.version,
               aggregateType: ProcessOrderCancellationCompletedEvent.aggregateType,
+              payload: (cancelled) => ({
+                workflowRunId: cancelled.workflowRunId,
+                confirmationWorkflowRunId: confirmation.result.workflowRunId,
+                orderId: cancelled.order.id,
+                reservationIds: cancelled.releasedReservations.map(({ id }) => id),
+                reversalJournalId: cancelled.reversalJournal.id,
+              }),
             },
             (result) =>
               result.order.status === "cancelled" &&
@@ -1171,6 +1188,12 @@ export const makeProcessService = Effect.gen(function* () {
               eventType: ProcessOrderFulfillmentCompletedEvent.id,
               eventVersion: ProcessOrderFulfillmentCompletedEvent.version,
               aggregateType: ProcessOrderFulfillmentCompletedEvent.aggregateType,
+              payload: (fulfilled) => ({
+                workflowRunId: fulfilled.workflowRunId,
+                confirmationWorkflowRunId: confirmation.result.workflowRunId,
+                orderId: fulfilled.order.id,
+                reservationIds: fulfilled.fulfilledReservations.map(({ id }) => id),
+              }),
             },
             (result) =>
               result.order.status === "confirmed" &&

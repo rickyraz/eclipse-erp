@@ -609,6 +609,23 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const mismatchedConfirmationEventPayload = {
+            workflowRunId: result.workflowRunId,
+            orderId: input.orderId,
+            reservationIds: result.reservations.map(({ id }) => id),
+            journalId: crypto.randomUUID(),
+          }
+          yield* Effect.promise(() =>
+            client`
+              update messaging.event_outbox
+              set payload = ${JSON.stringify(mismatchedConfirmationEventPayload)}::jsonb
+              where id = ${result.eventId}
+            `
+          )
+          assert.instanceOf(
+            yield* Effect.flip(process.confirmOrder(input)),
+            WorkflowResultCorrupt,
+          )
           const crossLinkedEventResult = { ...result, eventId: crypto.randomUUID() }
           yield* Effect.promise(() =>
             client`
