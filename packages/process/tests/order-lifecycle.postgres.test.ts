@@ -1468,7 +1468,7 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
-  "scopes order confirmation workflow idempotency by tenant",
+  "scopes order lifecycle workflow idempotency by tenant",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
       Effect.gen(function* () {
@@ -1535,13 +1535,52 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         assert.deepStrictEqual(workflowTenantCounts.map((row) => row.count), [1, 1])
+        const sharedCancellationKey = "shared-cancellation-tenant-key"
+        const firstCancellation = yield* first.process.cancelOrder({
+          principal,
+          tenantId: tenant!.id,
+          orderId: first.order.id,
+          commandId: "tenant-a-cancel-command",
+          correlationId: "tenant-a-cancel-correlation",
+          causationId: null,
+          idempotencyKey: sharedCancellationKey,
+        })
+        const otherCancellation = yield* other.process.cancelOrder({
+          principal,
+          tenantId: otherTenant!.id,
+          orderId: other.order.id,
+          commandId: "tenant-b-cancel-command",
+          correlationId: "tenant-b-cancel-correlation",
+          causationId: null,
+          idempotencyKey: sharedCancellationKey,
+        })
+        assert.notStrictEqual(firstCancellation.workflowRunId, otherCancellation.workflowRunId)
+        assert.notStrictEqual(firstCancellation.eventId, otherCancellation.eventId)
+        assert.notStrictEqual(firstCancellation.jobId, otherCancellation.jobId)
+        assert.notStrictEqual(
+          firstCancellation.reversalJournal.id,
+          otherCancellation.reversalJournal.id,
+        )
+        assert.strictEqual(firstCancellation.order.status, "cancelled")
+        assert.strictEqual(otherCancellation.order.status, "cancelled")
+        const lifecycleTenantCounts = yield* Effect.promise(() =>
+          client<{ tenant_id: string; count: number }[]>`
+            select tenant_id, count(*)::integer as count
+            from process.workflow_runs
+            where workflow_type = 'sales.order.cancellation'
+              and idempotency_key = ${sharedCancellationKey}
+            group by tenant_id
+            order by tenant_id
+          `
+        )
+        assert.deepStrictEqual(lifecycleTenantCounts.map((row) => row.count), [1, 1])
         assert.deepStrictEqual(
           (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0],
-          { workflow_runs: "1", events: "3", jobs: "1", journals: "1" },
+          { workflow_runs: "2", events: "4", jobs: "2", journals: "2" },
         )
         assert.deepStrictEqual(
           (yield* Effect.promise(() => readCounts(client, otherTenant!.id)))[0],
-          { workflow_runs: "1", events: "3", jobs: "1", journals: "1" },
+          { workflow_runs: "2", events: "4", jobs: "2", journals: "2" },
         )
       })),
 )
