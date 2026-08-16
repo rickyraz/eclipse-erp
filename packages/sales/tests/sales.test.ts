@@ -26,11 +26,13 @@ const capabilities = [
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
-  capabilities.map((capability) => ({
-    userAccountId: principal.userAccountId,
-    tenantId,
-    capability,
-  })),
+  [tenantId, "00000000-0000-4000-8000-000000000002"].flatMap((tenantId) =>
+    capabilities.map((capability) => ({
+      userAccountId: principal.userAccountId,
+      tenantId,
+      capability,
+    }))
+  ),
 )
 
 const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>
@@ -126,7 +128,13 @@ describe("sales contract", () => {
     withSales(Effect.gen(function* () {
       const sales = yield* SalesService
       const command = { principal, tenantId, name: "ACME", email: "same@acme.test" }
-      yield* sales.createCustomer(command)
+      const customer = yield* sales.createCustomer(command)
       assert.instanceOf(yield* Effect.flip(sales.createCustomer(command)), CustomerAlreadyExists)
+      const otherCustomer = yield* sales.createCustomer({
+        ...command,
+        tenantId: "00000000-0000-4000-8000-000000000002",
+      })
+      assert.notStrictEqual(otherCustomer.id, customer.id)
+      assert.strictEqual(otherCustomer.email, customer.email)
     })))
 })
