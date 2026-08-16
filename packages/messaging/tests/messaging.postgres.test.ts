@@ -352,6 +352,84 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "scopes consumer receipts by tenant",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const tenants = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug)
+            values (${crypto.randomUUID()}), (${crypto.randomUUID()})
+            returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const eventId = crypto.randomUUID()
+        const shared = event(tenants[0]!.id, {
+          eventId,
+          idempotencyKey: "shared-consumer-tenant-key",
+        })
+        yield* messaging.append(shared)
+        yield* messaging.append({ ...shared, tenantId: tenants[1]!.id })
+        const consumerId = "accounting.shared-tenant-consumer"
+        const mutation = (tenantId: string) =>
+          database.query(
+            (db) =>
+              db.execute(sql`
+                update messaging.event_outbox
+                set attempts = attempts + 1
+                where tenant_id = ${tenantId} and id = ${eventId}
+              `),
+            "messaging.test.tenant-receipt-mutation",
+          )
+        const first = yield* messaging.consumeOnce({
+          tenantId: tenants[0]!.id,
+          consumerId,
+          eventId,
+        }, mutation(tenants[0]!.id))
+        const other = yield* messaging.consumeOnce({
+          tenantId: tenants[1]!.id,
+          consumerId,
+          eventId,
+        }, mutation(tenants[1]!.id))
+        const firstDuplicate = yield* messaging.consumeOnce({
+          tenantId: tenants[0]!.id,
+          consumerId,
+          eventId,
+        }, mutation(tenants[0]!.id))
+        const otherDuplicate = yield* messaging.consumeOnce({
+          tenantId: tenants[1]!.id,
+          consumerId,
+          eventId,
+        }, mutation(tenants[1]!.id))
+        assert.isFalse(first.duplicate)
+        assert.isFalse(other.duplicate)
+        assert.isTrue(firstDuplicate.duplicate)
+        assert.isTrue(otherDuplicate.duplicate)
+        const rows = yield* Effect.promise(() =>
+          client<{ tenant_id: string; attempts: number; receipts: number }[]>`
+            select e.tenant_id, e.attempts,
+              (select count(*)::integer from messaging.consumer_receipts r
+                where r.tenant_id = e.tenant_id
+                  and r.consumer_id = ${consumerId}
+                  and r.event_id = e.id) as receipts
+            from messaging.event_outbox e
+            where e.id = ${eventId}
+            order by e.tenant_id
+          `
+        )
+        assert.deepStrictEqual(rows.map(({ attempts, receipts }) => ({ attempts, receipts })), [
+          { attempts: 1, receipts: 1 },
+          { attempts: 1, receipts: 1 },
+        ])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "rejects cross-tenant receipts and rolls back their local mutation",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
