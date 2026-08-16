@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 
-import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { makeMessagingTestLayer } from "../../messaging/mod.ts"
 import {
   CustomerAlreadyExists,
@@ -121,6 +121,20 @@ describe("sales contract", () => {
           idempotencyKey: "confirm-b",
         })),
         SalesOrderConfirmationIdempotencyConflict,
+      )
+    })))
+
+  it.effect("denies sales capability in an ungranted tenant", () =>
+    withSales(Effect.gen(function* () {
+      const sales = yield* SalesService
+      assert.instanceOf(
+        yield* Effect.flip(sales.createCustomer({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          name: "Untrusted Tenant Customer",
+          email: "untrusted@example.test",
+        })),
+        AuthorizationDenied,
       )
     })))
 
