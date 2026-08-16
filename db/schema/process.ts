@@ -109,4 +109,11 @@ export const processJobs = processSchema.table("jobs", {
     sql`(${table.status} = 'leased' and ${table.leaseUntil} is not null) or
       (${table.status} <> 'leased' and ${table.leaseUntil} is null)`,
   ),
+  check(
+    "process_jobs_state_check",
+    sql`(${table.status} = 'pending' and ${table.leaseUntil} is null and ${table.completedAt} is null) or
+      (${table.status} = 'leased' and ${table.leaseUntil} is not null and ${table.completedAt} is null) or
+      (${table.status} = 'completed' and ${table.leaseUntil} is null and ${table.completedAt} is not null) or
+      (${table.status} in ('failed', 'manual_recovery') and ${table.leaseUntil} is null and ${table.completedAt} is null)`,
+  ),
 ])
