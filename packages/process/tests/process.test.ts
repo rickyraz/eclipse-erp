@@ -69,6 +69,17 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
       4,
     )
     assert.strictEqual(job.status, "pending")
+    const leasedJob = yield* Schema.decodeUnknownEffect(ProcessJob)({
+      ...job,
+      status: "leased",
+      leaseUntil: "2026-08-09T00:05:00.000Z",
+    })
+    const invalidLeaseState = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        leaseUntil: "2026-08-09T00:05:00.000Z",
+      }),
+    )
     const invalidAttempts = yield* Effect.flip(
       Schema.decodeUnknownEffect(ProcessJob)({
         ...job,
@@ -108,6 +119,8 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         payload: () => undefined,
       }),
     )
+    assert.strictEqual(leasedJob.status, "leased")
+    assert.strictEqual(invalidLeaseState._tag, "SchemaError")
     assert.strictEqual(invalidAttempts._tag, "SchemaError")
     assert.strictEqual(overflowingAttempts._tag, "SchemaError")
     assert.strictEqual(overflowingPriority._tag, "SchemaError")

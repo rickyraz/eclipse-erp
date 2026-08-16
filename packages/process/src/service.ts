@@ -155,7 +155,10 @@ export const ProcessJob = Schema.Struct({
   attempts: NonNegativeInt,
   payload: Schema.Json,
   correlationId: NonEmptyString,
-})
+}).check(Schema.makeFilter(
+  (job) => job.status === "leased" ? job.leaseUntil !== null : job.leaseUntil === null,
+  { expected: "job lease metadata consistent with its durable state" },
+))
 
 export const WorkflowRun = Schema.Struct({
   id: Uuid,

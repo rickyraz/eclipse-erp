@@ -104,4 +104,9 @@ export const processJobs = processSchema.table("jobs", {
     sql`${table.correlationId} ~ '[^[:space:]]'`,
   ),
   check("process_jobs_attempts_check", sql`${table.attempts} >= 0`),
+  check(
+    "process_jobs_lease_state_check",
+    sql`(${table.status} = 'leased' and ${table.leaseUntil} is not null) or
+      (${table.status} <> 'leased' and ${table.leaseUntil} is null)`,
+  ),
 ])

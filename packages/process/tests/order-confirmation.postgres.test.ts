@@ -128,6 +128,15 @@ it.effect.skipIf(databaseUrl === undefined)(
                'empty-job-correlation', '{}'::jsonb, '   ')
           `
         )
+        const invalidJobLease = yield* postgresFailure(() =>
+          client`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, status, lease_until, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.order_confirmation.post_commit', 'invalid-job-lease',
+               'pending', now(), '{}'::jsonb, 'correlation')
+          `
+        )
         const runningRecovery = yield* postgresFailure(() =>
           client`
             insert into process.workflow_runs
@@ -184,6 +193,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.strictEqual(
           (emptyJobCorrelation as { constraint_name?: string }).constraint_name,
           "process_jobs_correlation_id_check",
+        )
+        assert.strictEqual((invalidJobLease as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (invalidJobLease as { constraint_name?: string }).constraint_name,
+          "process_jobs_lease_state_check",
         )
         for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
           assert.strictEqual((failure as { code?: string }).code, "23514")

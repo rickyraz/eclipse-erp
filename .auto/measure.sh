@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=84
+total=85
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -93,6 +93,8 @@ gate bash -c 'grep -Fq "!resultMatches(result)" packages/process/src/service.ts 
 gate bash -c 'test "$(grep -c "eventType: InventoryStockCorrectedEvent.id" packages/inventory/src/service.ts)" -eq 2 && test "$(grep -c "eventType: AccountingRevenuePostedEvent.id" packages/accounting/src/service.ts)" -eq 2 && test "$(grep -c "Schema.decodeUnknownEffect(StockCorrectedEventPayload)" packages/inventory/src/service.ts)" -eq 1 && test "$(grep -c "Schema.decodeUnknownEffect(RevenuePostedEventPayload)" packages/accounting/src/service.ts)" -eq 1 && grep -Fq "const nextId = () => crypto.randomUUID()" packages/inventory/src/service.ts && grep -Fq "const nextId = () => crypto.randomUUID()" packages/accounting/src/service.ts && grep -Fq "./events.ts" packages/inventory/src/catalog.ts && grep -Fq "./events.ts" packages/accounting/src/catalog.ts'
 
 gate bash -c 'test "$(grep -c "eventType: SalesOrderConfirmedEvent.id" packages/sales/src/service.ts)" -eq 2 && test "$(grep -c "Schema.decodeUnknownEffect(SalesOrderConfirmedEventPayload)" packages/sales/src/service.ts)" -eq 2 && grep -Fq "./events.ts" packages/sales/src/catalog.ts'
+
+gate bash -c 'grep -Fq "job lease metadata consistent with its durable state" packages/process/src/service.ts && grep -Fq "process_jobs_lease_state_check" db/schema/process.ts && grep -Fq "process_jobs_lease_state_check" db/migrations/20260816104809_constrain_process_job_lease_state/migration.sql && grep -q "invalidLeaseState" packages/process/tests/process.test.ts && grep -Fq "invalidJobLease" packages/process/tests/order-confirmation.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
