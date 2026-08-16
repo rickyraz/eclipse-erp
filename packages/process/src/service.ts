@@ -442,6 +442,7 @@ const confirmationResultMatches = (
     0n,
   )
   return result.order.status === "confirmed" &&
+    result.order.confirmedAt !== null &&
     reservationIds.size === result.reservations.length &&
     result.reservations.length === result.order.lines.length &&
     result.reservations.every((reservation, index) =>
