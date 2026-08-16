@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=114
+total=115
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -122,7 +122,8 @@ gate bash -c 'grep -Fq "result.order.status === \"cancelled\"" packages/process/
 gate bash -c 'grep -Fq "const expectedById = new Map" packages/process/src/service.ts && grep -Fq "reservation.quantity === source.quantity" packages/process/src/service.ts && grep -Fq "mismatchedReservationDetailsResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "mismatchedFulfilledReservationDetailsResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "result.reversalJournal.status === \"reversed\"" packages/process/src/service.ts && grep -Fq "revenue-reversal:" packages/process/src/service.ts && grep -Fq "mismatchedReversalJournalStateResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "const journalLinesAreInverse" packages/process/src/service.ts && grep -Fq "journalLinesAreInverse(confirmation.result.journal" packages/process/src/service.ts && grep -Fq "mismatchedReversalJournalLinesResult" packages/process/tests/order-lifecycle.postgres.test.ts'
-gate bash -c 'grep -Fq "process.confirmation.job.replay.lookup" packages/process/src/service.ts && grep -Fq "jobPayload.workflowRunId !== row.id" packages/process/src/service.ts && grep -Fq "crossLinkedJobResult" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "process.workflow.job.replay.lookup" packages/process/src/service.ts && grep -Fq "jobPayload.workflowRunId === result.workflowRunId" packages/process/src/service.ts && grep -Fq "crossLinkedJobResult" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "const jobMatches = yield* processJobMatches(result, input, jobType)" packages/process/src/service.ts && grep -Fq "crossLinkedCancellationJobResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "crossLinkedFulfillmentJobResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

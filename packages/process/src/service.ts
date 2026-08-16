@@ -464,6 +464,57 @@ export const makeProcessService = Effect.gen(function* () {
   const messaging = yield* MessagingService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
+  const processJobMatches = (
+    result: {
+      readonly eventId: string
+      readonly jobId: string
+      readonly workflowRunId: string
+    },
+    input: {
+      readonly tenantId: string
+      readonly commandId: string
+      readonly correlationId: string
+      readonly causationId: string | null
+      readonly idempotencyKey: string
+    },
+    jobType: string,
+  ) =>
+    Effect.gen(function* () {
+      const [job] = yield* database.query(
+        (db) =>
+          db.select({
+            tenantId: processJobs.tenantId,
+            jobType: processJobs.jobType,
+            idempotencyKey: processJobs.idempotencyKey,
+            correlationId: processJobs.correlationId,
+            payload: processJobs.payload,
+          }).from(processJobs).where(and(
+            eq(processJobs.id, result.jobId),
+            eq(processJobs.tenantId, input.tenantId),
+          )),
+        "process.workflow.job.replay.lookup",
+      )
+      if (
+        job === undefined || job.tenantId !== input.tenantId || job.jobType !== jobType ||
+        job.idempotencyKey !== input.idempotencyKey || job.correlationId !== input.correlationId
+      ) return false
+      const jobPayload = yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(
+        job.payload,
+      ).pipe(
+        Effect.mapError(() =>
+          new WorkflowResultCorrupt({
+            tenantId: input.tenantId,
+            idempotencyKey: input.idempotencyKey,
+          })
+        ),
+      )
+      return jobPayload.eventId === result.eventId &&
+        jobPayload.workflowRunId === result.workflowRunId &&
+        jobPayload.commandId === input.commandId &&
+        jobPayload.correlationId === input.correlationId &&
+        jobPayload.causationId === input.causationId &&
+        jobPayload.idempotencyKey === input.idempotencyKey
+    })
 
   const resolveExisting = (
     row: WorkflowRunRow,
@@ -512,41 +563,16 @@ export const makeProcessService = Effect.gen(function* () {
           }),
         )
       }
-      const [job] = yield* database.query(
-        (db) =>
-          db.select({
-            tenantId: processJobs.tenantId,
-            jobType: processJobs.jobType,
-            idempotencyKey: processJobs.idempotencyKey,
-            correlationId: processJobs.correlationId,
-            payload: processJobs.payload,
-          }).from(processJobs).where(and(
-            eq(processJobs.id, result.jobId),
-            eq(processJobs.tenantId, input.tenantId),
-          )),
-        "process.confirmation.job.replay.lookup",
+      const jobMatches = yield* processJobMatches(
+        result,
+        input,
+        ProcessPostCommitJobTypes.confirmation,
       )
-      const jobPayload = job === undefined
-        ? undefined
-        : yield* Schema.decodeUnknownEffect(ProcessPostCommitJobPayload)(job.payload).pipe(
-          Effect.mapError(() =>
-            new WorkflowResultCorrupt({
-              tenantId: input.tenantId,
-              idempotencyKey: input.idempotencyKey,
-            })
-          ),
-        )
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||
         result.order.id !== input.orderId || result.order.tenantId !== input.tenantId ||
         !confirmationResultMatches(result, input) || result.journal.tenantId !== input.tenantId ||
-        job === undefined || job.jobType !== ProcessPostCommitJobTypes.confirmation ||
-        job.idempotencyKey !== input.idempotencyKey || job.correlationId !== input.correlationId ||
-        jobPayload === undefined || jobPayload.eventId !== result.eventId ||
-        jobPayload.workflowRunId !== row.id || jobPayload.commandId !== input.commandId ||
-        jobPayload.correlationId !== input.correlationId ||
-        jobPayload.causationId !== input.causationId ||
-        jobPayload.idempotencyKey !== input.idempotencyKey
+        !jobMatches
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
@@ -659,6 +685,8 @@ export const makeProcessService = Effect.gen(function* () {
 
   const resolveLifecycleExisting = <
     A extends {
+      readonly eventId: string
+      readonly jobId: string
       readonly workflowRunId: string
       readonly order: { readonly id: string; readonly tenantId: string }
     },
@@ -667,10 +695,14 @@ export const makeProcessService = Effect.gen(function* () {
     input: Schema.Schema.Type<typeof CancelOrderInput>,
     payload: unknown,
     decodeResult: (value: unknown) => Effect.Effect<A, Schema.SchemaError>,
+    jobType: string,
     resultMatches: (result: A) => boolean,
   ): Effect.Effect<
     A | undefined,
-    WorkflowAlreadyInProgress | WorkflowIdempotencyConflict | WorkflowResultCorrupt
+    | DatabaseFailure
+    | WorkflowAlreadyInProgress
+    | WorkflowIdempotencyConflict
+    | WorkflowResultCorrupt
   > =>
     Effect.gen(function* () {
       if (rows.length === 0) return undefined
@@ -710,9 +742,10 @@ export const makeProcessService = Effect.gen(function* () {
           })
         ),
       )
+      const jobMatches = yield* processJobMatches(result, input, jobType)
       if (
         result.workflowRunId !== row.id || result.order.id !== input.orderId ||
-        result.order.tenantId !== input.tenantId || !resultMatches(result)
+        result.order.tenantId !== input.tenantId || !resultMatches(result) || !jobMatches
       ) {
         return yield* Effect.fail(
           new WorkflowResultCorrupt({
@@ -908,6 +941,7 @@ export const makeProcessService = Effect.gen(function* () {
             decoded,
             payload,
             Schema.decodeUnknownEffect(OrderCancellationResult),
+            ProcessPostCommitJobTypes.cancellation,
             (result) =>
               result.order.status === "cancelled" &&
               lifecycleReservationsMatch(
@@ -1075,6 +1109,7 @@ export const makeProcessService = Effect.gen(function* () {
             decoded,
             payload,
             Schema.decodeUnknownEffect(OrderFulfillmentResult),
+            ProcessPostCommitJobTypes.fulfillment,
             (result) =>
               result.order.status === "confirmed" &&
               lifecycleReservationsMatch(

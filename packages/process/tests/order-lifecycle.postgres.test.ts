@@ -641,6 +641,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.flip(process.cancelOrder(input)),
           WorkflowResultCorrupt,
         )
+        const crossLinkedCancellationJobResult = { ...result, jobId: crypto.randomUUID() }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(crossLinkedCancellationJobResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const detachedJournalResult = {
           ...result,
           reversalJournal: { ...result.reversalJournal, tenantId: crypto.randomUUID() },
@@ -975,6 +987,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           client`
             update process.workflow_runs
             set result = ${JSON.stringify(mismatchedFulfilledReservationDetailsResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          WorkflowResultCorrupt,
+        )
+        const crossLinkedFulfillmentJobResult = { ...result, jobId: crypto.randomUUID() }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(crossLinkedFulfillmentJobResult)}::jsonb
             where id = ${result.workflowRunId}
           `
         )
