@@ -519,7 +519,7 @@ export const makeProcessService = Effect.gen(function* () {
   const processEventMatches = <A extends { readonly eventId: string }>(
     result: A,
     input: {
-      readonly principal: { readonly userAccountId: string }
+      readonly principal?: { readonly userAccountId: string }
       readonly tenantId: string
       readonly commandId: string
       readonly correlationId: string
@@ -549,7 +549,7 @@ export const makeProcessService = Effect.gen(function* () {
         event.correlationId === input.correlationId &&
         event.causationId === input.causationId &&
         event.idempotencyKey === input.idempotencyKey &&
-        event.actorPrincipalId === input.principal.userAccountId &&
+        event.actorPrincipalId === (input.principal?.userAccountId ?? event.actorPrincipalId) &&
         JSON.stringify(canonicalize(event.payload)) ===
           JSON.stringify(canonicalize(expected.payload(result)))
     })
@@ -706,6 +706,33 @@ export const makeProcessService = Effect.gen(function* () {
           idempotencyKey: payload.idempotencyKey,
         })
       ) {
+        return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
+      }
+      const confirmationInput = {
+        tenantId,
+        commandId: payload.commandId,
+        correlationId: payload.correlationId,
+        causationId: payload.causationId,
+        idempotencyKey: payload.idempotencyKey,
+      }
+      const jobMatches = yield* processJobMatches(
+        result,
+        confirmationInput,
+        ProcessPostCommitJobTypes.confirmation,
+      )
+      const eventMatches = yield* processEventMatches(result, confirmationInput, {
+        eventType: ProcessOrderConfirmationCompletedEvent.id,
+        eventVersion: ProcessOrderConfirmationCompletedEvent.version,
+        aggregateType: ProcessOrderConfirmationCompletedEvent.aggregateType,
+        aggregateId: orderId,
+        payload: (confirmed) => ({
+          workflowRunId: confirmed.workflowRunId,
+          orderId: confirmed.order.id,
+          reservationIds: confirmed.reservations.map(({ id }) => id),
+          journalId: confirmed.journal.id,
+        }),
+      })
+      if (!jobMatches || !eventMatches) {
         return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
       }
       return { payload, result }
