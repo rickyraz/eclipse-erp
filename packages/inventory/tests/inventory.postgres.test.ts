@@ -664,6 +664,14 @@ it.effect.skipIf(databaseUrl === undefined)(
               `${a.warehouse_id}:${a.item_id}`.localeCompare(`${b.warehouse_id}:${b.item_id}`)
             ),
           )
+          assert.instanceOf(
+            yield* Effect.flip(inventory.completeTransfer({
+              principal,
+              tenantId: otherTenant.id,
+              transferId: transfer.id,
+            })),
+            StockTransferNotFound,
+          )
 
           yield* inventory.completeTransfer({
             principal,

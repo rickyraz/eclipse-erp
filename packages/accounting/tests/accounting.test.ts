@@ -206,6 +206,21 @@ describe("accounting contract", () => {
       capabilities.filter((capability) => capability !== "accounting.legal_entity.configure"),
     ))
 
+  it.effect("denies accounting capability in an ungranted tenant", () =>
+    withAccounting(Effect.gen(function* () {
+      const accounting = yield* AccountingService
+      assert.instanceOf(
+        yield* Effect.flip(accounting.createAccount({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          code: "UNGRANTED",
+          name: "Untrusted Account",
+          type: "asset",
+        })),
+        AuthorizationDenied,
+      )
+    })))
+
   it.effect("posts a balanced journal", () =>
     withAccounting(Effect.gen(function* () {
       const accounting = yield* AccountingService

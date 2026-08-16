@@ -385,6 +385,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         })
         assert.strictEqual(firstEvent?.tenantId, tenants[0]!.id)
         assert.strictEqual(otherEvent?.tenantId, tenants[1]!.id)
+        const missingEvent = yield* messaging.getEvent({
+          tenantId: tenants[0]!.id,
+          eventId: crypto.randomUUID(),
+        })
+        assert.isUndefined(missingEvent)
         const consumerId = "accounting.shared-tenant-consumer"
         const mutation = (tenantId: string) =>
           database.query(

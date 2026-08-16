@@ -95,6 +95,20 @@ const makeFailOnceMessagingLayer = () => {
 }
 
 describe("inventory contract", () => {
+  it.effect("denies inventory capability in an ungranted tenant", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      assert.instanceOf(
+        yield* Effect.flip(inventory.createWarehouse({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          legalEntityId,
+          name: "Untrusted Warehouse",
+        })),
+        AuthorizationDenied,
+      )
+    })))
+
   it.effect("receives and atomically reserves available stock", () =>
     withInventory(Effect.gen(function* () {
       const inventory = yield* InventoryService

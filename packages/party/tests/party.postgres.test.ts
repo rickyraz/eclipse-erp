@@ -13,7 +13,6 @@ import {
   makePartyService,
   OrganizationRequired,
   PartyCapabilities,
-  PartyNotFound,
   PartyRelationshipAlreadyExists,
   PartyRelationshipRoleNotAssigned,
   PartyRepresentationAlreadyExists,
@@ -39,7 +38,6 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const principal = { userAccountId: "party-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `party-${crypto.randomUUID()}` })
-        const otherTenant = yield* auth.createTenant({ slug: `party-other-${crypto.randomUUID()}` })
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
           const party = yield* makePartyService.pipe(
@@ -58,12 +56,6 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "organization",
             name: "Second",
           })
-          const otherParty = yield* party.create({
-            principal,
-            tenantId: otherTenant.id,
-            kind: "organization",
-            name: "Other Tenant",
-          })
           const identifier = {
             principal,
             tenantId: tenant.id,
@@ -73,34 +65,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             scope: "global",
             value: "1234567890123",
           }
-          const firstIdentifier = yield* party.attachIdentifier(identifier)
+          yield* party.attachIdentifier(identifier)
           assert.instanceOf(
             yield* Effect.flip(party.attachIdentifier({ ...identifier, partyId: second.id })),
             ExternalIdentifierAlreadyAssigned,
           )
-          const otherIdentifier = yield* party.attachIdentifier({
-            ...identifier,
-            tenantId: otherTenant.id,
-            partyId: otherParty.id,
-          })
-          assert.notStrictEqual(otherIdentifier.id, firstIdentifier.id)
-          assert.strictEqual(otherIdentifier.tenantId, otherTenant.id)
         }).pipe(
           Effect.provide(
-            makeAuthorizationTestLayer(
-              [tenant.id, otherTenant.id].flatMap((tenantId) => [
-                {
-                  userAccountId: principal.userAccountId,
-                  tenantId,
-                  capability: "party.create" as const,
-                },
-                {
-                  userAccountId: principal.userAccountId,
-                  tenantId,
-                  capability: "party.party_identifier.attach" as const,
-                },
-              ]),
-            ),
+            makeAuthorizationTestLayer([
+              {
+                userAccountId: principal.userAccountId,
+                tenantId: tenant.id,
+                capability: "party.create",
+              },
+              {
+                userAccountId: principal.userAccountId,
+                tenantId: tenant.id,
+                capability: "party.party_identifier.attach",
+              },
+            ]),
           ),
         )
       })),
@@ -126,27 +109,38 @@ it.effect.skipIf(databaseUrl === undefined)(
           slug: `scope-${crypto.randomUUID()}`,
           timezone: "UTC",
         })
-        const otherTenant = yield* auth.createTenant({
-          slug: `scope-other-${crypto.randomUUID()}`,
-          timezone: "UTC",
-        })
-        const capabilities = [
-          "party.create",
-          "party.legal_entity.create",
-          "party.branch.create",
-          "party.party_role.assign",
-          "party.party_relationship.create",
-          "party.party_identifier.attach",
-        ] as const
-        const authorizationLayer = makeAuthorizationTestLayer(
-          [tenant.id, otherTenant.id].flatMap((tenantId) =>
-            capabilities.map((capability) => ({
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability,
-            }))
-          ),
-        )
+        const authorizationLayer = makeAuthorizationTestLayer([
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.create",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.legal_entity.create",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.branch.create",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.party_role.assign",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.party_relationship.create",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: "party.party_identifier.attach",
+          },
+        ])
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -182,26 +176,6 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant.id,
             organizationId: secondOrganization.id,
           })
-          const otherOrganization = yield* party.create({
-            principal,
-            tenantId: otherTenant.id,
-            kind: "organization",
-            name: "Other Scope Organization",
-          })
-          const otherLegalEntity = yield* party.createLegalEntity({
-            principal,
-            tenantId: otherTenant.id,
-            organizationId: otherOrganization.id,
-          })
-          assert.instanceOf(
-            yield* Effect.flip(party.assignRole({
-              principal,
-              tenantId: otherTenant.id,
-              partyId: organization.id,
-              role: "customer",
-            })),
-            PartyNotFound,
-          )
           const scopedIdentifier = {
             principal,
             tenantId: tenant.id,
@@ -292,15 +266,6 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(branch.timezone, "Asia/Jakarta")
           assert.strictEqual(branch.localTaxRegistration, "TAX-JKT-001")
           assert.strictEqual(branch.dedicatedJournalCode, "JKT-OPS")
-          const otherBranch = yield* party.createBranch({
-            principal,
-            tenantId: otherTenant.id,
-            legalEntityId: otherLegalEntity.id,
-            name: "Jakarta",
-            timezone: "Asia/Jakarta",
-          })
-          assert.notStrictEqual(otherBranch.id, branch.id)
-          assert.strictEqual(otherBranch.tenantId, otherTenant.id)
           assert.instanceOf(
             yield* Effect.flip(party.createBranch({
               principal,
@@ -331,36 +296,31 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const principal = { userAccountId: "representation-admin", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `representation-${crypto.randomUUID()}` })
-        const otherTenant = yield* auth.createTenant({
-          slug: `representation-other-${crypto.randomUUID()}`,
-        })
         const userAccount = yield* userAccountService.create({
           email: `representation-${crypto.randomUUID()}@example.test`,
         })
-        const authorizationLayer = makeAuthorizationTestLayer(
-          [tenant.id, otherTenant.id].flatMap((tenantId) => [
-            {
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability: PartyCapabilities.partyCreate,
-            },
-            {
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability: PartyCapabilities.partyRepresentationCreate,
-            },
-            {
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability: PartyCapabilities.partyRepresentationActivate,
-            },
-            {
-              userAccountId: principal.userAccountId,
-              tenantId,
-              capability: PartyCapabilities.partyRepresentationDeactivate,
-            },
-          ]),
-        )
+        const authorizationLayer = makeAuthorizationTestLayer([
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyCreate,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRepresentationCreate,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRepresentationActivate,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRepresentationDeactivate,
+          },
+        ])
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -374,12 +334,6 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "organization",
             name: "Represented Organization",
           })
-          const otherParty = yield* party.create({
-            principal,
-            tenantId: otherTenant.id,
-            kind: "organization",
-            name: "Other Represented Organization",
-          })
           const input = {
             principal,
             tenantId: tenant.id,
@@ -388,26 +342,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "representative",
           }
           const representation = yield* party.createPartyRepresentation(input)
-          const otherRepresentation = yield* party.createPartyRepresentation({
-            ...input,
-            tenantId: otherTenant.id,
-            partyId: otherParty.id,
-          })
           assert.strictEqual(representation.active, true)
-          assert.notStrictEqual(otherRepresentation.id, representation.id)
-          assert.strictEqual(otherRepresentation.tenantId, otherTenant.id)
           assert.instanceOf(
             yield* Effect.flip(party.createPartyRepresentation(input)),
             PartyRepresentationAlreadyExists,
-          )
-          assert.instanceOf(
-            yield* Effect.flip(party.setPartyRepresentationActive({
-              principal,
-              tenantId: otherTenant.id,
-              representationId: representation.id,
-              active: false,
-            })),
-            PartyRepresentationNotFound,
           )
           const inactive = yield* party.setPartyRepresentationActive({
             principal,

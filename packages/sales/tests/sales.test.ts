@@ -23,6 +23,7 @@ const capabilities = [
   "sales.quotation.create",
   "sales.order.create",
   "sales.order.confirm",
+  "sales.order.cancel",
 ] as const
 
 const authorizationLayer = makeAuthorizationTestLayer(
@@ -133,6 +134,34 @@ describe("sales contract", () => {
           tenantId: "00000000-0000-4000-8000-000000000003",
           name: "Untrusted Tenant Customer",
           email: "untrusted@example.test",
+        })),
+        AuthorizationDenied,
+      )
+    })))
+
+  it.effect("denies sales cancellation in an ungranted tenant", () =>
+    withSales(Effect.gen(function* () {
+      const sales = yield* SalesService
+      assert.instanceOf(
+        yield* Effect.flip(sales.cancelOrder({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          orderId: "00000000-0000-4000-8000-000000000099",
+        })),
+        AuthorizationDenied,
+      )
+    })))
+
+  it.effect("denies sales confirmation in an ungranted tenant", () =>
+    withSales(Effect.gen(function* () {
+      const sales = yield* SalesService
+      assert.instanceOf(
+        yield* Effect.flip(sales.confirmOrder({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          orderId: "00000000-0000-4000-8000-000000000099",
+          ...confirmationMetadata,
+          idempotencyKey: "ungranted-confirmation",
         })),
         AuthorizationDenied,
       )
