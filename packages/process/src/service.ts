@@ -715,7 +715,8 @@ export const makeProcessService = Effect.gen(function* () {
         Effect.mapError(() => new OrderConfirmationCorrupt({ tenantId, orderId })),
       )
       if (
-        row.tenantId !== tenantId || row.aggregateId !== orderId || payload.orderId !== orderId ||
+        row.tenantId !== tenantId || row.aggregateId !== orderId ||
+        row.idempotencyKey !== payload.idempotencyKey || payload.orderId !== orderId ||
         result.workflowRunId !== row.id || result.order.id !== orderId ||
         result.order.tenantId !== tenantId ||
         !confirmationResultMatches(result, {

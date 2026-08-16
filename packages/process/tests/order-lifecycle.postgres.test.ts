@@ -262,6 +262,24 @@ it.effect.skipIf(databaseUrl === undefined)(
           causationId: "causation-cancel-1",
           idempotencyKey: "cancel-1",
         }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set idempotency_key = 'detached-confirmation-key'
+            where id = ${confirmation.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          OrderConfirmationCorrupt,
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set idempotency_key = ${"confirm-cancel-1"}
+            where id = ${confirmation.workflowRunId}
+          `
+        )
         const corruptConfirmationResult = {
           ...confirmation,
           reservations: confirmation.reservations.map((reservation, index) =>
