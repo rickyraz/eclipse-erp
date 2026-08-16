@@ -125,38 +125,27 @@ it.effect.skipIf(databaseUrl === undefined)(
           slug: `scope-${crypto.randomUUID()}`,
           timezone: "UTC",
         })
-        const authorizationLayer = makeAuthorizationTestLayer([
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.create",
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.legal_entity.create",
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.branch.create",
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.party_role.assign",
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.party_relationship.create",
-          },
-          {
-            userAccountId: principal.userAccountId,
-            tenantId: tenant.id,
-            capability: "party.party_identifier.attach",
-          },
-        ])
+        const otherTenant = yield* auth.createTenant({
+          slug: `scope-other-${crypto.randomUUID()}`,
+          timezone: "UTC",
+        })
+        const capabilities = [
+          "party.create",
+          "party.legal_entity.create",
+          "party.branch.create",
+          "party.party_role.assign",
+          "party.party_relationship.create",
+          "party.party_identifier.attach",
+        ] as const
+        const authorizationLayer = makeAuthorizationTestLayer(
+          [tenant.id, otherTenant.id].flatMap((tenantId) =>
+            capabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability,
+            }))
+          ),
+        )
 
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
@@ -191,6 +180,17 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant.id,
             organizationId: secondOrganization.id,
+          })
+          const otherOrganization = yield* party.create({
+            principal,
+            tenantId: otherTenant.id,
+            kind: "organization",
+            name: "Other Scope Organization",
+          })
+          const otherLegalEntity = yield* party.createLegalEntity({
+            principal,
+            tenantId: otherTenant.id,
+            organizationId: otherOrganization.id,
           })
           const scopedIdentifier = {
             principal,
@@ -282,6 +282,15 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(branch.timezone, "Asia/Jakarta")
           assert.strictEqual(branch.localTaxRegistration, "TAX-JKT-001")
           assert.strictEqual(branch.dedicatedJournalCode, "JKT-OPS")
+          const otherBranch = yield* party.createBranch({
+            principal,
+            tenantId: otherTenant.id,
+            legalEntityId: otherLegalEntity.id,
+            name: "Jakarta",
+            timezone: "Asia/Jakarta",
+          })
+          assert.notStrictEqual(otherBranch.id, branch.id)
+          assert.strictEqual(otherBranch.tenantId, otherTenant.id)
           assert.instanceOf(
             yield* Effect.flip(party.createBranch({
               principal,
