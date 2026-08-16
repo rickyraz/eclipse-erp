@@ -24,6 +24,7 @@ const capabilities = [
   SalesCapabilities.customerCreate,
   SalesCapabilities.orderCreate,
   SalesCapabilities.orderConfirm,
+  SalesCapabilities.orderCancel,
 ] as const
 
 it.effect.skipIf(databaseUrl === undefined)(
@@ -109,6 +110,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             SalesOrderNotFound,
           )
           const confirmed = yield* sales.confirmOrder(input)
+          assert.instanceOf(
+            yield* Effect.flip(sales.cancelOrder({
+              principal,
+              tenantId: otherTenant!.id,
+              orderId: order.id,
+            })),
+            SalesOrderNotFound,
+          )
           const otherConfirmed = yield* sales.confirmOrder({
             principal,
             tenantId: otherTenant!.id,
