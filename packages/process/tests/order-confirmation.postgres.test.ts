@@ -677,6 +677,20 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          const duplicateReservationIdResult = {
+            ...result,
+            reservations: result.reservations.map((reservation, index) =>
+              index === 1 ? { ...reservation, id: result.reservations[0]!.id } : reservation
+            ),
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.workflow_runs
+              set result = ${JSON.stringify(duplicateReservationIdResult)}::jsonb
+              where id = ${result.workflowRunId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
           const mismatchedReservationIdempotencyResult = {
             ...result,
             reservations: result.reservations.map((reservation, index) =>
