@@ -403,9 +403,14 @@ const lifecyclePayload = (
   idempotencyKey: input.idempotencyKey,
 })
 
+type ConfirmationIdentity = Pick<
+  Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>,
+  "tenantId" | "orderId" | "warehouseId" | "legalEntityId"
+>
+
 const confirmationResultMatches = (
   result: OrderConfirmationResult,
-  input: Schema.Schema.Type<typeof ConfirmOrderConfirmationInput>,
+  input: ConfirmationIdentity,
 ) => {
   const expectedLines = result.order.lines.map((line) => `${line.itemId}:${line.quantity}`)
     .toSorted()
@@ -560,8 +565,12 @@ export const makeProcessService = Effect.gen(function* () {
         row.tenantId !== tenantId || row.aggregateId !== orderId || payload.orderId !== orderId ||
         result.workflowRunId !== row.id || result.order.id !== orderId ||
         result.order.tenantId !== tenantId ||
-        result.reservations.some((reservation) => reservation.tenantId !== tenantId) ||
-        result.journal.tenantId !== tenantId
+        !confirmationResultMatches(result, {
+          tenantId,
+          orderId,
+          warehouseId: payload.warehouseId,
+          legalEntityId: payload.legalEntityId,
+        })
       ) {
         return yield* Effect.fail(new OrderConfirmationCorrupt({ tenantId, orderId }))
       }

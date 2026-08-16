@@ -24,6 +24,7 @@ import {
   OrderCancellationCompletedEventPayload,
   OrderCancellationPayload,
   OrderCancellationResult,
+  OrderConfirmationCorrupt,
   OrderConfirmationNotFound,
   OrderFulfillmentCompletedEventPayload,
   OrderFulfillmentPayload,
@@ -261,6 +262,30 @@ it.effect.skipIf(databaseUrl === undefined)(
           causationId: "causation-cancel-1",
           idempotencyKey: "cancel-1",
         }
+        const corruptConfirmationResult = {
+          ...confirmation,
+          reservations: confirmation.reservations.map((reservation, index) =>
+            index === 0 ? { ...reservation, status: "fulfilled" as const } : reservation
+          ),
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(corruptConfirmationResult)}::jsonb
+            where id = ${confirmation.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          OrderConfirmationCorrupt,
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(confirmation)}::jsonb
+            where id = ${confirmation.workflowRunId}
+          `
+        )
 
         const result = yield* process.cancelOrder(input)
         const repeated = yield* process.cancelOrder(input)
