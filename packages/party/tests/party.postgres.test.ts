@@ -38,6 +38,7 @@ it.effect.skipIf(databaseUrl === undefined)(
         )
         const principal = { userAccountId: "party-integration", sessionId: "session" }
         const tenant = yield* auth.createTenant({ slug: `party-${crypto.randomUUID()}` })
+        const otherTenant = yield* auth.createTenant({ slug: `party-other-${crypto.randomUUID()}` })
         yield* Effect.gen(function* () {
           const authorization = yield* AuthorizationService
           const party = yield* makePartyService.pipe(
@@ -56,6 +57,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "organization",
             name: "Second",
           })
+          const otherParty = yield* party.create({
+            principal,
+            tenantId: otherTenant.id,
+            kind: "organization",
+            name: "Other Tenant",
+          })
           const identifier = {
             principal,
             tenantId: tenant.id,
@@ -65,25 +72,34 @@ it.effect.skipIf(databaseUrl === undefined)(
             scope: "global",
             value: "1234567890123",
           }
-          yield* party.attachIdentifier(identifier)
+          const firstIdentifier = yield* party.attachIdentifier(identifier)
           assert.instanceOf(
             yield* Effect.flip(party.attachIdentifier({ ...identifier, partyId: second.id })),
             ExternalIdentifierAlreadyAssigned,
           )
+          const otherIdentifier = yield* party.attachIdentifier({
+            ...identifier,
+            tenantId: otherTenant.id,
+            partyId: otherParty.id,
+          })
+          assert.notStrictEqual(otherIdentifier.id, firstIdentifier.id)
+          assert.strictEqual(otherIdentifier.tenantId, otherTenant.id)
         }).pipe(
           Effect.provide(
-            makeAuthorizationTestLayer([
-              {
-                userAccountId: principal.userAccountId,
-                tenantId: tenant.id,
-                capability: "party.create",
-              },
-              {
-                userAccountId: principal.userAccountId,
-                tenantId: tenant.id,
-                capability: "party.party_identifier.attach",
-              },
-            ]),
+            makeAuthorizationTestLayer(
+              [tenant.id, otherTenant.id].flatMap((tenantId) => [
+                {
+                  userAccountId: principal.userAccountId,
+                  tenantId,
+                  capability: "party.create" as const,
+                },
+                {
+                  userAccountId: principal.userAccountId,
+                  tenantId,
+                  capability: "party.party_identifier.attach" as const,
+                },
+              ]),
+            ),
           ),
         )
       })),
