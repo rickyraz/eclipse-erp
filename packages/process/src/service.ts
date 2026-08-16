@@ -452,6 +452,9 @@ const confirmationResultMatches = (
       result.journal.lines.reduce((total, line) => total + moneyToMinor(line.credit), 0n) &&
     result.journal.lines.reduce((total, line) => total + moneyToMinor(line.debit), 0n) ===
       moneyToMinor(result.order.total) &&
+    result.journal.lines.every((line) =>
+      (moneyToMinor(line.debit) > 0n) !== (moneyToMinor(line.credit) > 0n)
+    ) &&
     result.journal.tenantId === input.tenantId &&
     result.journal.status === "posted" &&
     result.journal.reversesEntryId === undefined &&
