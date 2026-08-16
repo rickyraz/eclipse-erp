@@ -199,8 +199,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             client<{ id: string }[]>`
               insert into accounting.accounts (tenant_id, code, name, type)
               values
-                (${otherTenant!.id}, 'OTHER-ATOMIC-RECEIVABLE', 'Receivable', 'asset'),
-                (${otherTenant!.id}, 'OTHER-ATOMIC-REVENUE', 'Revenue', 'revenue')
+                (${otherTenant!.id}, 'ATOMIC-RECEIVABLE', 'Receivable', 'asset'),
+                (${otherTenant!.id}, 'ATOMIC-REVENUE', 'Revenue', 'revenue')
               returning id
             `
           )
@@ -288,6 +288,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             assert.notStrictEqual(otherJournal.id, journal.id)
             assert.strictEqual(otherJournal.tenantId, otherTenant!.id)
             assert.strictEqual(otherJournal.lines[0]?.accountId, otherAccounts[0]!.id)
+            assert.notStrictEqual(otherAccounts[0]!.id, accounts[0]!.id)
             const otherReversal = yield* accounting.reverseRevenueForOrder({
               principal,
               tenantId: otherTenant!.id,
