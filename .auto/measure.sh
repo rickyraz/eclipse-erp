@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=134
+total=135
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -143,6 +143,7 @@ gate bash -c 'grep -Fq "rejects a mixed cancellation and fulfillment race with o
 gate bash -c 'grep -Fq "mismatchedActorPrincipalId" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "event.actorPrincipalId ===" packages/process/src/service.ts && grep -Fq "WorkflowResultCorrupt" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "mismatchedConfirmationJobPayload" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "jobPayload.commandId === input.commandId" packages/process/src/service.ts && grep -Fq "WorkflowResultCorrupt" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "otherTenant = yield* auth.createTenant" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "idempotencyKey: reservationInput.idempotencyKey" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "assert.notStrictEqual(otherReservation.id" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "readBalances(client, otherTenant.id)" packages/inventory/tests/inventory.postgres.test.ts'
+gate bash -c 'grep -Fq "sameKeyDifferentTenant" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.notStrictEqual(confirmed.id, otherConfirmed.id)" packages/sales/tests/sales.postgres.test.ts && grep -Fq "group by tenant_id" packages/sales/tests/sales.postgres.test.ts && grep -Fq "assert.deepStrictEqual(sameKeyEvents.map((row) => row.count), [1, 1])" packages/sales/tests/sales.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

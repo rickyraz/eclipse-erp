@@ -37,12 +37,19 @@ it.effect.skipIf(databaseUrl === undefined)(
             insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
           `
         )
+        const [otherTenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
         const authorizationLayer = makeAuthorizationTestLayer(
-          capabilities.map((capability) => ({
-            userAccountId: principal.userAccountId,
-            tenantId: tenant!.id,
-            capability,
-          })),
+          [tenant!.id, otherTenant!.id].flatMap((tenantId) =>
+            capabilities.map((capability) => ({
+              userAccountId: principal.userAccountId,
+              tenantId,
+              capability,
+            }))
+          ),
         )
 
         yield* Effect.gen(function* () {
@@ -68,6 +75,19 @@ it.effect.skipIf(databaseUrl === undefined)(
             customerId: customer.id,
             lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "100.00" }],
           })
+          const otherCustomer = yield* sales.createCustomer({
+            principal,
+            tenantId: otherTenant!.id,
+            name: "Other Sales Customer",
+            email: "other-sales-postgres@example.test",
+          })
+          const otherOrder = yield* sales.createOrder({
+            principal,
+            tenantId: otherTenant!.id,
+            customerId: otherCustomer.id,
+            lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "100.00" }],
+          })
+          const sameKeyDifferentTenant = "same-key-different-tenant"
           const input = {
             principal,
             tenantId: tenant!.id,
@@ -75,13 +95,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             commandId: "sales-confirm-command",
             correlationId: "sales-confirm-correlation",
             causationId: null,
-            idempotencyKey: "sales-confirm-1",
+            idempotencyKey: sameKeyDifferentTenant,
           }
           const confirmed = yield* sales.confirmOrder(input)
+          const otherConfirmed = yield* sales.confirmOrder({
+            principal,
+            tenantId: otherTenant!.id,
+            orderId: otherOrder.id,
+            commandId: "other-sales-confirm-command",
+            correlationId: "other-sales-confirm-correlation",
+            causationId: null,
+            idempotencyKey: sameKeyDifferentTenant,
+          })
           const repeated = yield* sales.confirmOrder(input)
 
           assert.strictEqual(confirmed.status, "confirmed")
+          assert.strictEqual(otherConfirmed.status, "confirmed")
           assert.strictEqual(confirmed.id, repeated.id)
+          assert.notStrictEqual(confirmed.id, otherConfirmed.id)
+          assert.strictEqual(otherConfirmed.tenantId, otherTenant!.id)
           const rows = yield* Effect.promise(() =>
             client<{ status: string; confirmation_idempotency_key: string }[]>`
               select status, confirmation_idempotency_key
@@ -90,7 +122,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(rows[0]?.status, "confirmed")
-          assert.strictEqual(rows[0]?.confirmation_idempotency_key, "sales-confirm-1")
+          assert.strictEqual(rows[0]?.confirmation_idempotency_key, input.idempotencyKey)
           const events = yield* Effect.promise(() =>
             client<{
               id: string
@@ -110,6 +142,17 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(events.length, 1)
+          const sameKeyEvents = yield* Effect.promise(() =>
+            client<{ tenant_id: string; count: number }[]>`
+              select tenant_id, count(*)::integer as count
+              from messaging.event_outbox
+              where event_type = ${SalesOrderConfirmedEvent.id}
+                and idempotency_key = ${sameKeyDifferentTenant}
+              group by tenant_id
+              order by tenant_id
+            `
+          )
+          assert.deepStrictEqual(sameKeyEvents.map((row) => row.count), [1, 1])
           yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)(
             events[0]?.payload,
           )
