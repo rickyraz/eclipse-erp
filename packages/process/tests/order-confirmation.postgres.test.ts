@@ -640,6 +640,25 @@ it.effect.skipIf(databaseUrl === undefined)(
               where id = ${result.eventId}
             `
           )
+          const mismatchedConfirmationJobPayload = {
+            ...job!.payload,
+            commandId: "mismatched-job-command",
+          }
+          yield* Effect.promise(() =>
+            client`
+              update process.jobs
+              set payload = ${JSON.stringify(mismatchedConfirmationJobPayload)}::jsonb
+              where id = ${result.jobId}
+            `
+          )
+          assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          yield* Effect.promise(() =>
+            client`
+              update process.jobs
+              set payload = ${JSON.stringify(job!.payload)}::jsonb
+              where id = ${result.jobId}
+            `
+          )
           const mismatchedConfirmationEventPayload = {
             workflowRunId: result.workflowRunId,
             orderId: input.orderId,
