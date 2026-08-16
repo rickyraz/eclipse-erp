@@ -594,6 +594,11 @@ export const makeAccountingService = Effect.gen(function* () {
           "accounting.revenue.lookup",
         )
         if (existing[0] !== undefined) {
+          if (existing[0].status !== "posted" || existing[0].postedAt === null) {
+            return yield* Effect.fail(
+              new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+            )
+          }
           const lines = yield* database.query(
             (db) =>
               db.select(journalLineSelection).from(journalLines).where(and(

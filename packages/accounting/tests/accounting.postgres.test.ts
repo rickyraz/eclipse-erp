@@ -8,6 +8,7 @@ import {
   AccountingCapabilities,
   AccountingPeriodNotOpen,
   AccountingRevenuePostedEvent,
+  JournalIdempotencyConflict,
   makeAccountingService,
 } from "../mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
@@ -212,6 +213,22 @@ it.effect.skipIf(databaseUrl === undefined)(
               correlationId: "revenue-correlation-retry",
             })
             assert.strictEqual(replay.id, journal.id)
+            const draftOrderId = crypto.randomUUID()
+            yield* Effect.promise(() =>
+              client`
+                insert into accounting.journal_entries (tenant_id, reference)
+                values (${tenant!.id}, ${`revenue:${legalEntity!.id}:${draftOrderId}`})
+              `
+            )
+            assert.instanceOf(
+              yield* Effect.flip(accounting.postRevenueForOrder({
+                ...input,
+                orderId: draftOrderId,
+                commandId: "revenue-draft-command",
+                correlationId: "revenue-draft-correlation",
+              })),
+              JournalIdempotencyConflict,
+            )
 
             const events = yield* Effect.promise(() =>
               client<{
