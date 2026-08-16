@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=125
+total=126
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -134,6 +134,7 @@ gate bash -c 'grep -Fq "const reservationIds = new Set" packages/process/src/ser
 gate bash -c 'grep -Fq "moneyToMinor(line.debit) > 0n" packages/process/src/service.ts && grep -Fq "invalidJournalLineResult" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "result.reversalJournal.id !== confirmation.result.journal.id" packages/process/src/service.ts && grep -Fq "selfReversalJournalResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 gate bash -c 'grep -Fq "const orderTotal = result.order.lines.reduce" packages/process/src/service.ts && grep -Fq "orderTotal === moneyToMinor(result.order.total)" packages/process/src/service.ts && grep -Fq "mismatchedOrderLinePriceResult" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "const orderFactsMatch" packages/process/src/service.ts && grep -Fq "orderFactsMatch(confirmation.result.order, result.order)" packages/process/src/service.ts && grep -Fq "mismatchedCancelledOrderFactsResult" packages/process/tests/order-lifecycle.postgres.test.ts && grep -Fq "mismatchedFulfilledOrderFactsResult" packages/process/tests/order-lifecycle.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

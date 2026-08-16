@@ -597,6 +597,26 @@ it.effect.skipIf(databaseUrl === undefined)(
           journals: "2",
         })
 
+        const mismatchedCancelledOrderFactsResult = {
+          ...result,
+          order: {
+            ...result.order,
+            lines: result.order.lines.map((line, index) =>
+              index === 0 ? { ...line, unitPrice: "1.00" } : line
+            ),
+          },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(mismatchedCancelledOrderFactsResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.cancelOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const mismatchedCancelledOrderStateResult = {
           ...result,
           order: { ...result.order, status: "confirmed" as const },
@@ -1079,6 +1099,24 @@ it.effect.skipIf(databaseUrl === undefined)(
           jobs: "0",
           reversals: "0",
         })
+        const mismatchedFulfilledOrderFactsResult = {
+          ...result,
+          order: {
+            ...result.order,
+            customerId: crypto.randomUUID(),
+          },
+        }
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set result = ${JSON.stringify(mismatchedFulfilledOrderFactsResult)}::jsonb
+            where id = ${result.workflowRunId}
+          `
+        )
+        assert.instanceOf(
+          yield* Effect.flip(process.fulfillOrder(input)),
+          WorkflowResultCorrupt,
+        )
         const mismatchedFulfilledOrderStateResult = {
           ...result,
           order: { ...result.order, status: "cancelled" as const },

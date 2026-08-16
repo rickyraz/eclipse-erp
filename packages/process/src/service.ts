@@ -466,6 +466,15 @@ const confirmationResultMatches = (
     result.journal.reference === `revenue:${input.legalEntityId}:${input.orderId}`
 }
 
+const orderFactsMatch = (expected: SalesOrder, actual: SalesOrder) =>
+  expected.id === actual.id &&
+  expected.tenantId === actual.tenantId &&
+  expected.customerId === actual.customerId &&
+  expected.quotationId === actual.quotationId &&
+  expected.confirmedAt === actual.confirmedAt &&
+  expected.total === actual.total &&
+  JSON.stringify(canonicalize(expected.lines)) === JSON.stringify(canonicalize(actual.lines))
+
 export const makeProcessService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
@@ -1055,6 +1064,7 @@ export const makeProcessService = Effect.gen(function* () {
               }),
             },
             (result) =>
+              orderFactsMatch(confirmation.result.order, result.order) &&
               result.order.status === "cancelled" &&
               lifecycleReservationsMatch(
                 confirmation.result.reservations,
@@ -1235,6 +1245,7 @@ export const makeProcessService = Effect.gen(function* () {
               }),
             },
             (result) =>
+              orderFactsMatch(confirmation.result.order, result.order) &&
               result.order.status === "confirmed" &&
               lifecycleReservationsMatch(
                 confirmation.result.reservations,
