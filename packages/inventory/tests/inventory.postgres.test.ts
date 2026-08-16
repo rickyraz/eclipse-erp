@@ -139,7 +139,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: otherTenant.id,
             legalEntityId: otherScope.legalEntity.id,
-            name: "Other Adjustment Warehouse",
+            name: "Adjustment Warehouse",
           })
           const otherItem = yield* inventory.createItem({
             principal,
@@ -161,6 +161,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             legalEntityId: scope.legalEntity.id,
             name: "Adjustment Warehouse",
           })
+          assert.notStrictEqual(otherWarehouse.id, warehouse.id)
           const item = yield* inventory.createItem({
             principal,
             tenantId: tenant.id,
