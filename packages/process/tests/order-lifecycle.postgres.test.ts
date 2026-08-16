@@ -1540,6 +1540,18 @@ it.effect.skipIf(databaseUrl === undefined)(
           })),
           OrderConfirmationNotFound,
         )
+        assert.instanceOf(
+          yield* Effect.flip(other.process.fulfillOrder({
+            principal,
+            tenantId: otherTenant!.id,
+            orderId: first.order.id,
+            commandId: "foreign-fulfill-command",
+            correlationId: "foreign-fulfill-correlation",
+            causationId: null,
+            idempotencyKey: "foreign-fulfill-key",
+          })),
+          OrderConfirmationNotFound,
+        )
         const workflowTenantCounts = yield* Effect.promise(() =>
           client<{ tenant_id: string; count: number }[]>`
             select tenant_id, count(*)::integer as count
