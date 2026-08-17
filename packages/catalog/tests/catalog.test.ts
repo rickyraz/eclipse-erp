@@ -132,6 +132,12 @@ describe("catalog compatibility", () => {
       assert.strictEqual(AccountingTypedActionCatalog.length, 1)
       assert.strictEqual(AccountingRevenuePostAction.inputSchema, PostRevenueForOrderInput)
       assert.strictEqual(AccountingRevenuePostAction.outputSchema, JournalEntry)
+      assert.strictEqual(AccountingRevenuePostAction.idempotency, "inherent")
+      assert.isFalse(
+        (AccountingRevenuePostAction.preconditions as readonly string[]).includes(
+          "idempotency_key_stable",
+        ),
+      )
       assert.strictEqual(SalesConfirmOrderAction.inputSchema, ConfirmOrderInput)
       assert.strictEqual(SalesConfirmOrderAction.outputSchema, SalesOrder)
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
