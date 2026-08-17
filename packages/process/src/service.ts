@@ -9,6 +9,7 @@ import { processJobs, workflowRuns } from "../../../db/schema/process.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import {
+  AccountingCapabilities,
   AccountingPeriodNotOpen,
   AccountingService,
   JournalEntry,
@@ -590,6 +591,16 @@ export const makeProcessService = Effect.gen(function* () {
         tenantId: input.tenantId,
         capability: SalesCapabilities.orderConfirm,
       })
+      yield* authorization.authorize({
+        principal: input.principal,
+        tenantId: input.tenantId,
+        capability: InventoryCapabilities.stockReserve,
+      })
+      yield* authorization.authorize({
+        principal: input.principal,
+        tenantId: input.tenantId,
+        capability: AccountingCapabilities.revenuePost,
+      })
       if (!payloadMatches(row.payload, payload)) {
         return yield* Effect.fail(
           new WorkflowIdempotencyConflict({
@@ -1047,6 +1058,16 @@ export const makeProcessService = Effect.gen(function* () {
         principal: decoded.principal,
         tenantId: decoded.tenantId,
         capability: SalesCapabilities.orderCancel,
+      })
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: InventoryCapabilities.stockRelease,
+      })
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: AccountingCapabilities.revenueReverse,
       })
       const payload = lifecyclePayload(decoded)
       const outcome = yield* database.withTransaction(

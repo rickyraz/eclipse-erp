@@ -858,18 +858,36 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
-          yield* authorization.suspendMember({
+          yield* authorization.removeMember({
             userAccountId: principal.userAccountId,
             tenantId: tenant!.id,
           })
-          assert.instanceOf(
-            yield* Effect.flip(process.confirmOrder(input)),
-            AuthorizationDenied,
+          yield* authorization.addMember({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+          })
+          yield* authorization.grant({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+            capability: SalesCapabilities.orderConfirm,
+          })
+          const authorizationFailure = yield* Effect.flip(process.confirmOrder(input))
+          assert.instanceOf(authorizationFailure, AuthorizationDenied)
+          assert.strictEqual(
+            authorizationFailure.capability,
+            InventoryCapabilities.stockReserve,
           )
-          yield* authorization.activateMember({
+          yield* authorization.grant({
             userAccountId: principal.userAccountId,
             tenantId: tenant!.id,
+            capability: InventoryCapabilities.stockReserve,
           })
+          const accountingAuthorizationFailure = yield* Effect.flip(process.confirmOrder(input))
+          assert.instanceOf(accountingAuthorizationFailure, AuthorizationDenied)
+          assert.strictEqual(
+            accountingAuthorizationFailure.capability,
+            AccountingCapabilities.revenuePost,
+          )
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
