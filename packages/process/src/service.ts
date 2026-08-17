@@ -960,7 +960,6 @@ export const makeProcessService = Effect.gen(function* () {
             tenantId: decoded.tenantId,
             legalEntityId: decoded.legalEntityId,
             orderId: order.id,
-            amount: order.total,
             commandId: decoded.commandId,
             correlationId: decoded.correlationId,
             causationId: decoded.causationId,

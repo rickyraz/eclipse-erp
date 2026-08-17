@@ -134,7 +134,7 @@ export const PostRevenueForOrderInput = Schema.Struct({
   ...ScopedInput,
   legalEntityId: Schema.String,
   orderId: Uuid,
-  amount: Money,
+  amount: Schema.optionalKey(Money),
   commandId: NonEmptyString,
   correlationId: NonEmptyString,
   causationId: Schema.optionalKey(Schema.NullOr(NonEmptyString)),

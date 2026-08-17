@@ -352,6 +352,21 @@ describe("accounting contract", () => {
       assert.strictEqual(failure._tag, "SchemaError")
     }))
 
+  it.effect("accepts revenue posting without a caller amount", () =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(PostRevenueForOrderInput)({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-a",
+        orderId: revenueOrderIds.open,
+        commandId: "revenue-derived-command",
+        correlationId: "revenue-derived-correlation",
+        causationId: null,
+      })
+      assert.strictEqual(decoded.orderId, revenueOrderIds.open)
+      assert.isUndefined(decoded.amount)
+    }))
+
   it.effect("rejects malformed revenue reversal identities", () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
