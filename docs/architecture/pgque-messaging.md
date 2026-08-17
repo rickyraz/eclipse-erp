@@ -106,8 +106,10 @@ Consumers must:
 - expose lag and failure metrics;
 - preserve correlation metadata.
 
-Consumer receipts retain event identity, consumer identity, completion state, and timestamps for at
-least the replay horizon. They do not provide exactly-once external delivery; external effects still
+Consumer receipts retain the source event type, version, and idempotency identity alongside
+consumer identity, completion state, and timestamps for at least the replay horizon. A duplicate
+completion must validate that receipt snapshot against the current source event before suppressing
+the local effect. Receipts do not provide exactly-once external delivery; external effects still
 require provider idempotency and accepted/committed/unknown/reconciled operation state.
 
 ## Publication and External Delivery
