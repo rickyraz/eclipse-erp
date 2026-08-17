@@ -14,7 +14,12 @@ import { DatabaseFailure } from "../../packages/kernel/mod.ts"
 import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService } from "../../packages/inventory/mod.ts"
-import { AccountingService } from "../../packages/accounting/mod.ts"
+import {
+  AccountingService,
+  FinancialLedgerNotConfigured,
+  FinancialOperationService,
+  FinancialSalesNotConfigured,
+} from "../../packages/accounting/mod.ts"
 import { ProcessService, WorkflowOutcomeUnknown } from "../../packages/process/mod.ts"
 import {
   ApiConflict,
@@ -31,7 +36,12 @@ const tagOf = (error: unknown) =>
   typeof error === "object" && error !== null && "_tag" in error ? String(error._tag) : "Unknown"
 
 const toApiError = (error: unknown) => {
-  if (error instanceof DatabaseFailure || error instanceof WorkflowOutcomeUnknown) {
+  if (
+    error instanceof DatabaseFailure ||
+    error instanceof WorkflowOutcomeUnknown ||
+    error instanceof FinancialLedgerNotConfigured ||
+    error instanceof FinancialSalesNotConfigured
+  ) {
     return new ApiServiceUnavailable({ code: "service_unavailable" })
   }
   if (error instanceof InvalidSessionToken) {
@@ -481,6 +491,39 @@ export const AccountingHandlers = HttpApiBuilder.group(
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.postJournal({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("createFinancialJournalIntent", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* FinancialOperationService.use((service) =>
+            service.createJournalIntent({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("createFinancialRevenueIntent", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* FinancialOperationService.use((service) =>
+            service.createRevenueIntent({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("createFinancialReversalIntent", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* FinancialOperationService.use((service) =>
+            service.createReversalIntent({
               principal,
               tenantId: headers["x-tenant-id"],
               ...payload,

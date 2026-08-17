@@ -40,6 +40,7 @@ import {
 import {
   Account,
   AccountingConfiguration,
+  FinancialOperation,
   JournalEntry,
   JournalLine,
 } from "../../packages/accounting/mod.ts"
@@ -89,6 +90,7 @@ const CreatedTransfer = StockTransfer.pipe(HttpApiSchema.status(201))
 const CreatedAccountingConfiguration = AccountingConfiguration.pipe(HttpApiSchema.status(201))
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
+const CreatedFinancialOperation = FinancialOperation.pipe(HttpApiSchema.status(201))
 const CreatedTenantMembership = TenantMembership.pipe(HttpApiSchema.status(201))
 const CreatedOrderConfirmation = OrderConfirmationResult.pipe(HttpApiSchema.status(201))
 const CreatedOrderCancellation = OrderCancellationResult.pipe(HttpApiSchema.status(201))
@@ -353,6 +355,52 @@ const Accounting = HttpApiGroup.make("Accounting").add(
     success: CreatedJournal,
     error: errors,
   }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createFinancialJournalIntent", "/accounting/financial-operations", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      legalEntityId: Schema.String,
+      operationId: Schema.String,
+      reference: Schema.String,
+      currency: Schema.String,
+      mappingVersion: Schema.Int,
+      lines: Schema.Array(JournalLine),
+      correlationId: Schema.String,
+    }),
+    success: CreatedFinancialOperation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("createFinancialRevenueIntent", "/accounting/financial-operations/revenue", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({
+      legalEntityId: Schema.String,
+      orderId: Schema.String,
+      commandId: Schema.String,
+      correlationId: Schema.String,
+      currency: Schema.String,
+      mappingVersion: Schema.Int,
+      amount: Schema.optionalKey(Schema.String),
+    }),
+    success: CreatedFinancialOperation,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post(
+    "createFinancialReversalIntent",
+    "/accounting/financial-operations/reversals",
+    {
+      headers: tenantHeaders,
+      payload: Schema.Struct({
+        legalEntityId: Schema.String,
+        sourceJournalId: Schema.String,
+        operationId: Schema.String,
+        reference: Schema.String,
+        currency: Schema.String,
+        mappingVersion: Schema.Int,
+        correlationId: Schema.String,
+      }),
+      success: CreatedFinancialOperation,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
 )
 
 export const EclipseApi = HttpApi.make("EclipseERP")

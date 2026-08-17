@@ -95,7 +95,7 @@ export const processJobs = processSchema.table("jobs", {
   }).onDelete("cascade"),
   check(
     "process_jobs_type_check",
-    sql`${table.jobType} in ('process.order_confirmation.post_commit', 'process.order_cancellation.post_commit', 'process.order_fulfillment.post_commit')`,
+    sql`${table.jobType} in ('process.order_confirmation.post_commit', 'process.order_cancellation.post_commit', 'process.order_fulfillment.post_commit', 'accounting.financial_operation.submit', 'accounting.financial_operation.reconcile')`,
   ),
   check(
     "process_jobs_idempotency_key_check",

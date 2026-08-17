@@ -1,11 +1,44 @@
 export { AccountingCapabilities } from "./src/capabilities.ts"
 export {
+  AccountingFinancialOperationPostAction,
+  AccountingFinancialOperationReconciledEvent,
   AccountingRevenuePostAction,
   AccountingRevenuePostedEvent,
   AccountingTypedActionCatalog,
   AccountingTypedEventCatalog,
   RevenuePostedEventPayload,
 } from "./src/catalog.ts"
+
+export {
+  CreateFinancialJournalIntentInput,
+  CreateFinancialRevenueIntentInput,
+  CreateFinancialReversalIntentInput,
+  FinancialLedgerNotConfigured,
+  FinancialOperation,
+  FinancialOperationCommandInput,
+  FinancialOperationConflict,
+  FinancialOperationJobPayload,
+  FinancialOperationJournalLine,
+  FinancialOperationNotFound,
+  FinancialOperationReconciliationConflict,
+  FinancialOperationService,
+  FinancialOperationServiceLive,
+  FinancialOperationStatus,
+  FinancialReversalSourceNotFound,
+  FinancialReversalSourceNotPosted,
+  FinancialReversalSourceRequired,
+  FinancialSalesNotConfigured,
+  makeFinancialOperationService,
+} from "./src/financial-operations.ts"
+export type {
+  CreateFinancialJournalIntentInput as CreateFinancialJournalIntentInputType,
+  CreateFinancialRevenueIntentInput as CreateFinancialRevenueIntentInputType,
+  CreateFinancialReversalIntentInput as CreateFinancialReversalIntentInputType,
+  FinancialOperation as FinancialOperationType,
+  FinancialOperationCommandInput as FinancialOperationCommandInputType,
+  FinancialOperationJobPayload as FinancialOperationJobPayloadType,
+  FinancialOperationService as FinancialOperationServiceShape,
+} from "./src/financial-operations.ts"
 
 export {
   CreateExecutionAccountInput,
@@ -38,6 +71,7 @@ export {
   ConfigureLegalEntityInput,
   ConfigureRevenuePostingInput,
   CreateAccountInput,
+  FinancialOperationsPending,
   InvalidJournalLine,
   InvalidRevenuePostingProfile,
   JournalEntry,

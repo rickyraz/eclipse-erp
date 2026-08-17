@@ -17,7 +17,14 @@ import {
   RevenueJournalNotFound,
   RevenuePostingProfileNotFound,
 } from "../../accounting/mod.ts"
-import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import {
+  Database,
+  DatabaseFailure,
+  type DurableJob,
+  DurableJobEnqueuer,
+  DurableJobInput,
+  isDatabaseConstraint,
+} from "../../kernel/mod.ts"
 import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import {
   InventoryCapabilities,
@@ -80,6 +87,21 @@ export const ProcessPostCommitJobType = Schema.Literals([
   ProcessPostCommitJobTypes.confirmation,
   ProcessPostCommitJobTypes.cancellation,
   ProcessPostCommitJobTypes.fulfillment,
+])
+export const ProcessFinancialJobTypes = {
+  submit: "accounting.financial_operation.submit",
+  reconcile: "accounting.financial_operation.reconcile",
+} as const
+export const ProcessFinancialJobType = Schema.Literals([
+  ProcessFinancialJobTypes.submit,
+  ProcessFinancialJobTypes.reconcile,
+])
+export const ProcessJobType = Schema.Literals([
+  ProcessPostCommitJobTypes.confirmation,
+  ProcessPostCommitJobTypes.cancellation,
+  ProcessPostCommitJobTypes.fulfillment,
+  ProcessFinancialJobTypes.submit,
+  ProcessFinancialJobTypes.reconcile,
 ])
 
 export const OrderConfirmationPayload = Schema.Struct({
@@ -151,7 +173,7 @@ export const ProcessJobStatus = Schema.Literals([
 export const ProcessJob = Schema.Struct({
   jobId: Uuid,
   tenantId: Uuid,
-  jobType: ProcessPostCommitJobType,
+  jobType: ProcessJobType,
   idempotencyKey: NonEmptyString,
   priority: PostgresInt,
   status: ProcessJobStatus,
@@ -177,7 +199,7 @@ export const ProcessJob = Schema.Struct({
 export const ProcessJobClaimInput = Schema.Struct({
   tenantId: Uuid,
   workerId: NonEmptyString,
-  jobType: Schema.NullOr(ProcessPostCommitJobType).pipe(
+  jobType: Schema.NullOr(ProcessJobType).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed(null)),
   ),
 })
@@ -417,6 +439,78 @@ export interface ProcessService {
 }
 
 export const ProcessService = Context.Service<ProcessService>("EclipseERP/ProcessService")
+
+export const makeProcessJobEnqueuer = Effect.gen(function* () {
+  const database = yield* Database
+  return {
+    enqueue: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(DurableJobInput)(input)
+        const payload = yield* Schema.decodeUnknownEffect(Schema.Json)(decoded.payload)
+        const jobType = yield* Schema.decodeUnknownEffect(ProcessJobType)(decoded.jobType)
+        const existingRows = yield* database.query(
+          (db) =>
+            db.select({
+              id: processJobs.id,
+              tenantId: processJobs.tenantId,
+              jobType: processJobs.jobType,
+              idempotencyKey: processJobs.idempotencyKey,
+              priority: processJobs.priority,
+              payload: processJobs.payload,
+              correlationId: processJobs.correlationId,
+            }).from(processJobs).where(and(
+              eq(processJobs.tenantId, decoded.tenantId),
+              eq(processJobs.jobType, jobType),
+              eq(processJobs.idempotencyKey, decoded.idempotencyKey),
+            )).for("update"),
+          "process.job.enqueue.lookup",
+        )
+        const existing = existingRows[0]
+        if (existing !== undefined) {
+          const existingPayload = yield* Schema.decodeUnknownEffect(Schema.Json)(existing.payload)
+          return {
+            jobId: existing.id,
+            tenantId: existing.tenantId,
+            jobType: existing.jobType,
+            idempotencyKey: existing.idempotencyKey,
+            priority: existing.priority,
+            payload: existingPayload,
+            correlationId: existing.correlationId,
+          } satisfies DurableJob
+        }
+        const [row] = yield* database.query(
+          (db) =>
+            db.insert(processJobs).values({
+              tenantId: decoded.tenantId,
+              jobType,
+              idempotencyKey: decoded.idempotencyKey,
+              priority: decoded.priority,
+              payload,
+              correlationId: decoded.correlationId,
+            }).returning({
+              id: processJobs.id,
+              tenantId: processJobs.tenantId,
+              jobType: processJobs.jobType,
+              idempotencyKey: processJobs.idempotencyKey,
+              priority: processJobs.priority,
+              payload: processJobs.payload,
+              correlationId: processJobs.correlationId,
+            }),
+          "process.job.enqueue",
+        )
+        const rowPayload = yield* Schema.decodeUnknownEffect(Schema.Json)(row!.payload)
+        return {
+          jobId: row!.id,
+          tenantId: row!.tenantId,
+          jobType: row!.jobType,
+          idempotencyKey: row!.idempotencyKey,
+          priority: row!.priority,
+          payload: rowPayload,
+          correlationId: row!.correlationId,
+        } satisfies DurableJob
+      }),
+  } satisfies DurableJobEnqueuer
+})
 
 const processJobSelection = {
   id: processJobs.id,

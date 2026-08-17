@@ -12,8 +12,10 @@ import { AuthService, makeAuthService } from "../../packages/auth/mod.ts"
 import { AuthorizationService, makeAuthorizationService } from "../../packages/authorization/mod.ts"
 import { makeUserAccountService, UserAccountService } from "../../packages/identity/mod.ts"
 import {
+  DurableJobEnqueuer,
   type PostgresClient,
   PostgresDatabaseLive,
+  TigerBeetleConfigurationFailure,
   validatePostgresVersion,
   WebCryptoLive,
 } from "../../packages/kernel/mod.ts"
@@ -21,12 +23,24 @@ import { makeMessagingService, MessagingService } from "../../packages/messaging
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
 import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
-import { AccountingService, makeAccountingService } from "../../packages/accounting/mod.ts"
-import { makeProcessService, ProcessService } from "../../packages/process/mod.ts"
+import {
+  AccountingService,
+  FinancialLedgerPort,
+  FinancialOperationServiceLive,
+  makeAccountingService,
+} from "../../packages/accounting/mod.ts"
+import {
+  makeProcessJobEnqueuer,
+  makeProcessService,
+  ProcessService,
+} from "../../packages/process/mod.ts"
 import { EclipseApi } from "./api.ts"
 import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 
-const serviceLayers = (client: Sql) => {
+export const serviceLayers = (
+  client: Sql,
+  financialLedger?: Layer.Layer<FinancialLedgerPort, TigerBeetleConfigurationFailure, never>,
+) => {
   const database = PostgresDatabaseLive(client)
 
   const userAccount = Layer.effect(UserAccountService, makeUserAccountService).pipe(
@@ -63,6 +77,17 @@ const serviceLayers = (client: Sql) => {
     Layer.provide(Layer.mergeAll(businessRequirements, messaging, sales)),
   )
 
+  const jobEnqueuer = Layer.effect(DurableJobEnqueuer, makeProcessJobEnqueuer).pipe(
+    Layer.provide(database),
+  )
+
+  const financialOperationRequirements = financialLedger === undefined
+    ? Layer.mergeAll(businessRequirements, messaging, sales, jobEnqueuer)
+    : Layer.mergeAll(businessRequirements, messaging, sales, jobEnqueuer, financialLedger)
+  const financialOperations = FinancialOperationServiceLive.pipe(
+    Layer.provide(financialOperationRequirements),
+  )
+
   const process = Layer.effect(ProcessService, makeProcessService).pipe(
     Layer.provide(Layer.mergeAll(businessRequirements, sales, inventory, accounting, messaging)),
   )
@@ -75,6 +100,8 @@ const serviceLayers = (client: Sql) => {
     sales,
     inventory,
     accounting,
+    financialOperations,
+    jobEnqueuer,
     messaging,
     process,
   )

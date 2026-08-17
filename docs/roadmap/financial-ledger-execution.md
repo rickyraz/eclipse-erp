@@ -83,18 +83,24 @@ when the trusted adapter phase has an approved compatibility and operational tar
 
 ### Current implementation slice
 
-The repository now contains the first non-activated slice:
+The repository now contains a bounded, non-activated execution slice:
 
-- `packages/accounting` owns the provider-neutral `FinancialLedgerPort`, schemas, stable outcome
-  variants, and deterministic in-memory test layer;
+- `packages/accounting` owns the provider-neutral `FinancialLedgerPort`, durable journal/revenue/
+  reversal intents, PostgreSQL receipt and journal projections, mapping rows, reconciliation state,
+  and the public finalize/reconcile commands;
 - `packages/kernel` owns the pinned `tigerbeetle-node` client lifecycle, deterministic account and
   transfer mapping, provider-status translation, linked transfer compilation, and scoped cleanup;
-- contract and adapter tests cover replay, conflicting replay, lost responses, rejection, mapping
-  version changes, balance lookup, linked transfers, and no-fallback behavior.
+- `apps/worker` leases only Accounting financial jobs through the public Accounting contract, while
+  Process owns `process.jobs` lease/fencing state;
+- migrations enforce operation identity, period ownership, state transitions, source-journal binding,
+  and the non-overlapping process job types;
+- contract, PostgreSQL, worker, response-loss, receipt-failure, reversal, and optional local-cluster
+  integration tests cover replay, rejection, reconciliation, period fencing, and projection behavior.
 
-This slice does not route the existing PostgreSQL Accounting service through TigerBeetle. It is an
-integration and contract proof only; activation still requires the durable intent/projection,
-worker, reconciliation, operational, and cutover gates below.
+The existing PostgreSQL `postJournal` and revenue commands remain transitional for compatibility;
+the new financial-operation endpoints and worker path are not a production cutover. Activation still
+requires the operational, historical replay/opening-balance, bounded rehearsal, and cutover gates
+below.
 
 ## Execution Sequence
 
@@ -135,10 +141,10 @@ Define before writing an adapter:
 Exit gate:
 
 ```text
-[ ] contract tests can run without TigerBeetle
-[ ] no provider type or provider failure appears in a public domain contract
-[ ] the contract does not claim cross-store ACID
-[ ] current P2 Accounting actions have an explicit migration status
+[x] contract tests can run without TigerBeetle
+[x] no provider type or provider failure appears in a public domain contract
+[x] the contract does not claim cross-store ACID
+[x] current P2 Accounting actions have an explicit migration status
 ```
 
 ### Phase 2 — Durable intent and projection model
@@ -159,10 +165,10 @@ projection is represented by provenance and a cutover boundary.
 Exit gate:
 
 ```text
-[ ] retry state survives process restart
-[ ] duplicate intent cannot create two logical operations
-[ ] PostgreSQL failure before/after submission has a recorded recovery path
-[ ] projection can be rebuilt from the recorded source mapping
+[x] retry state survives process restart
+[x] duplicate intent cannot create two logical operations
+[x] PostgreSQL failure after submission has a recorded retry/recovery path
+[ ] PostgreSQL failure before submission and projection rebuild still require dedicated proof
 ```
 
 ### Phase 3 — Test adapter and failure proof
@@ -188,10 +194,10 @@ Use repository testing rules: `@effect/vitest`, `it.effect` for Effects, no `Eff
 Exit gate:
 
 ```text
-[ ] contract and failure tests pass without a live engine
-[ ] every retryable path has one deterministic identity
-[ ] no test relies on process exit for cleanup
-[ ] failure matrix matches the canonical architecture
+[x] contract and response-loss tests pass without a live engine
+[x] every retryable path has one deterministic identity
+[x] no test relies on process exit for cleanup
+[ ] full PostgreSQL-before/after-engine fault matrix is still required
 ```
 
 ### Phase 4 — Trusted TigerBeetle adapter
@@ -211,11 +217,11 @@ Only after the contract and test adapter gates pass:
 Exit gate:
 
 ```text
-[ ] provider compatibility and client behavior are pinned and reviewed
-[ ] adapter contract tests pass against the isolated engine
-[ ] timeout/retry/duplicate semantics are proven
-[ ] linked posting and reversal mappings are proven
-[ ] no domain package imports TigerBeetle
+[x] provider compatibility and client behavior are pinned and reviewed
+[x] adapter contract tests pass against the isolated engine
+[x] timeout/retry/duplicate semantics are proven
+[x] linked posting and reversal mappings are proven
+[x] no domain package imports TigerBeetle
 ```
 
 ### Phase 5 — Projection and reconciliation
@@ -237,9 +243,9 @@ Exit gate:
 
 ```text
 [ ] projection is rebuildable from TigerBeetle facts plus PostgreSQL metadata
-[ ] reconciliation is idempotent and fail-closed on mismatch
+[x] reconciliation is idempotent and fail-closed on mismatch
 [ ] reports reproduce the expected balance and transfer history
-[ ] no PostgreSQL balance is used as a competing financial authority
+[x] no PostgreSQL balance is used as a competing financial authority
 ```
 
 ### Phase 6 — Isolated replay and cutover rehearsal

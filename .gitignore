@@ -1,4 +1,5 @@
 node_modules/
+.tigerbeetle/
 .env
 .env.*
 !.env.example

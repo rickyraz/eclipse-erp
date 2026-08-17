@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, eq, gte, inArray, lte } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema"
 import {
   accountingPeriods,
   accounts,
+  financialOperations,
   journalEntries,
   journalLines,
   legalEntityAccountingConfigurations,
@@ -218,6 +219,12 @@ export class AccountingPeriodNotOpen
     tenantId: Schema.String,
     legalEntityId: Schema.String,
   }) {}
+export class FinancialOperationsPending
+  extends Schema.TaggedErrorClass<FinancialOperationsPending>()("FinancialOperationsPending", {
+    tenantId: Schema.String,
+    legalEntityId: Schema.String,
+    periodId: Schema.String,
+  }) {}
 export class RevenuePostingProfileNotFound
   extends Schema.TaggedErrorClass<RevenuePostingProfileNotFound>()(
     "RevenuePostingProfileNotFound",
@@ -259,7 +266,10 @@ export interface AccountingService {
   ) => Effect.Effect<AccountingPeriod, AccountingPeriodOverlap | CommonFailure>
   readonly closePeriod: (
     input: unknown,
-  ) => Effect.Effect<AccountingPeriod, AccountingPeriodNotFound | CommonFailure>
+  ) => Effect.Effect<
+    AccountingPeriod,
+    FinancialOperationsPending | AccountingPeriodNotFound | CommonFailure
+  >
   readonly postRevenueForOrder: (
     input: unknown,
   ) => Effect.Effect<
@@ -553,22 +563,54 @@ export const makeAccountingService = Effect.gen(function* () {
               eq(accountingPeriods.id, decoded.periodId),
             )).for("update")
             const existing = rows[0]
-            if (existing === undefined || existing.status === "closed") return existing
-            return (await tx.update(accountingPeriods).set({
-              status: "closed",
-              updatedAt: now(),
-            }).where(eq(accountingPeriods.id, existing.id)).returning({
-              id: accountingPeriods.id,
-              tenantId: accountingPeriods.tenantId,
-              legalEntityId: accountingPeriods.legalEntityId,
-              startsOn: accountingPeriods.startsOn,
-              endsOn: accountingPeriods.endsOn,
-              status: accountingPeriods.status,
-            }))[0]!
+            if (existing === undefined || existing.status === "closed") {
+              return { period: existing, pending: false as const }
+            }
+            const pending = await tx.select({ id: financialOperations.id }).from(
+              financialOperations,
+            )
+              .where(and(
+                eq(financialOperations.tenantId, decoded.tenantId),
+                eq(financialOperations.legalEntityId, decoded.legalEntityId),
+                eq(financialOperations.periodId, decoded.periodId),
+                inArray(financialOperations.status, [
+                  "intent",
+                  "submitted",
+                  "accepted",
+                  "unknown",
+                  "manual_recovery",
+                ]),
+              )).for("update")
+            if (pending[0] !== undefined) {
+              return { period: existing, pending: true as const }
+            }
+            return {
+              pending: false as const,
+              period: (await tx.update(accountingPeriods).set({
+                status: "closed",
+                updatedAt: now(),
+              }).where(eq(accountingPeriods.id, existing.id)).returning({
+                id: accountingPeriods.id,
+                tenantId: accountingPeriods.tenantId,
+                legalEntityId: accountingPeriods.legalEntityId,
+                startsOn: accountingPeriods.startsOn,
+                endsOn: accountingPeriods.endsOn,
+                status: accountingPeriods.status,
+              }))[0]!,
+            }
           },
           "accounting.period.close",
         )
-        if (period === undefined) {
+        if (period.pending) {
+          return yield* Effect.fail(
+            new FinancialOperationsPending({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              periodId: decoded.periodId,
+            }),
+          )
+        }
+        if (period.period === undefined) {
           return yield* Effect.fail(
             new AccountingPeriodNotFound({
               tenantId: decoded.tenantId,
@@ -577,7 +619,7 @@ export const makeAccountingService = Effect.gen(function* () {
             }),
           )
         }
-        return period
+        return period.period
       }),
     postRevenueForOrder: (input) =>
       Effect.gen(function* () {

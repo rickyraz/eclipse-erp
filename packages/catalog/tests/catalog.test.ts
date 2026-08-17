@@ -3,10 +3,13 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import {
+  AccountingFinancialOperationPostAction,
   AccountingRevenuePostAction,
   AccountingRevenuePostedEvent,
   AccountingTypedActionCatalog,
   AccountingTypedEventCatalog,
+  CreateFinancialJournalIntentInput,
+  FinancialOperation,
   JournalEntry,
   PostRevenueForOrderInput,
   RevenuePostedEventPayload,
@@ -129,7 +132,12 @@ describe("catalog compatibility", () => {
 
       assert.strictEqual(InventoryAdjustStockAction.inputSchema, AdjustStockInput)
       assert.strictEqual(InventoryAdjustStockAction.outputSchema, StockCorrection)
-      assert.strictEqual(AccountingTypedActionCatalog.length, 1)
+      assert.strictEqual(AccountingTypedActionCatalog.length, 2)
+      assert.strictEqual(
+        AccountingFinancialOperationPostAction.inputSchema,
+        CreateFinancialJournalIntentInput,
+      )
+      assert.strictEqual(AccountingFinancialOperationPostAction.outputSchema, FinancialOperation)
       assert.strictEqual(AccountingRevenuePostAction.inputSchema, PostRevenueForOrderInput)
       assert.strictEqual(AccountingRevenuePostAction.outputSchema, JournalEntry)
       assert.strictEqual(AccountingRevenuePostAction.idempotency, "inherent")
