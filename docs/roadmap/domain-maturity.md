@@ -2,27 +2,31 @@
 
 > **Status:** Canonical roadmap subdocument
 >
-> **Owns:** readiness sequencing for EclipseERP packages that may publish
-> process-facing commands and events.
+> **Owns:** readiness sequencing for EclipseERP packages that may publish process-facing commands
+> and events.
 >
-> **Detailed domain rules belong to:** each package’s public contract, schema,
-> tests, and canonical subsystem architecture.
+> **Detailed domain rules belong to:** each package’s public contract, schema, tests, and canonical
+> subsystem architecture.
 
 > **Related documents**
 >
 > - Roadmap index: [`./README.md`](./README.md)
 > - ERP primitive decisions: [`./erp-primitives.md`](./erp-primitives.md)
-> - Architecture enforcement: [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
+> - Architecture enforcement:
+>   [`../architecture/architecture-enforcement.md`](../architecture/architecture-enforcement.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
-> - Process Studio architecture: [`../architecture/process-studio.md`](../architecture/process-studio.md)
-> - External integration surface: [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
-> - Plugin architecture: [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
+> - Process Studio architecture:
+>   [`../architecture/process-studio.md`](../architecture/process-studio.md)
+> - External integration surface:
+>   [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
+> - Plugin architecture:
+>   [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
 
 ## Readiness Rule
 
-A package is a Process Studio capability provider only when a requested action
-has a stable public contract and executable invariant proof. A package directory
-or table is not evidence of domain maturity.
+A package is a Process Studio capability provider only when a requested action has a stable public
+contract and executable invariant proof. A package directory or table is not evidence of domain
+maturity.
 
 Each provider must expose, as applicable:
 
@@ -40,30 +44,30 @@ contract and database tests
 
 ## Current Package Posture
 
-| Package | Current role | Readiness | Roadmap action |
-|---|---|---:|---|
-| `kernel` | database, transaction, migration, infrastructure failures | `FOUNDATION` | stabilize transaction context, capability-level failures, probes, and recovery tests |
-| `catalog` | contract-only action/event declaration protocol | `FOUNDATION` | remain a dependency leaf; future Process Studio owns aggregation and release state |
-| `messaging` | event envelope, transactional outbox, completed consumer receipts | `FOUNDATION` | add PgQue adapter only after its activation gates; never own domain event meaning |
-| `auth` | authentication principals and sessions | `FOUNDATION` | preserve separation from authorization and expose only public identity contracts |
-| `authorization` | scoped capability decisions | `FOUNDATION` | add capabilities only with protected business actions and denial tests |
-| `identity` | identity domain | `PARTIAL` | clarify identity lifecycle and external identity boundaries |
-| `party` | party and party relationships | `PARTIAL` | mature customer/supplier/employee roles and relationship contracts |
-| `inventory` | items, warehouses, balances, movements, reservations, transfers | `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope |
-| `accounting` | accounts, periods, revenue posting, and reversal | `PARTIAL`; `accounting.revenue.posted` v1 is a PUBLIC event contributor | Keep revenue posting out of the action catalog until amount provenance is owner-verifiable; generic journals, AP/AR, payment, tax, and settlement remain out of scope |
-| `sales` | customers, quotations, sales orders | `PARTIAL`; `sales.order.confirm` v1 is a Level 3 slice | Sales owns draft/confirmed/cancelled order state and publishes confirmation; Process coordinates fulfillment through Inventory; invoicing, returns, and credit policy remain undecided |
-| `procurement` | registered schema owner, package scaffold | `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts |
-| `billing` | package scaffold | `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership |
-| `integrations` | external adapter and connector boundary | `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner |
-| `process` | bounded order-lifecycle application coordinator | `PARTIAL` | keep orchestration behind public domain contracts; do not treat it as Process Studio or a new domain owner |
-| `workflow` | no implemented Process Studio runtime package | `PLANNED` | create only after Process Studio primitive and runtime gates are approved |
+| Package         | Current role                                                      |                                                                                          Readiness | Roadmap action                                                                                                                                                                         |
+| --------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kernel`        | database, transaction, migration, infrastructure failures         |                                                                                       `FOUNDATION` | stabilize transaction context, capability-level failures, probes, and recovery tests                                                                                                   |
+| `catalog`       | contract-only action/event declaration protocol                   |                                                                                       `FOUNDATION` | remain a dependency leaf; future Process Studio owns aggregation and release state                                                                                                     |
+| `messaging`     | event envelope, transactional outbox, completed consumer receipts |                                                                                       `FOUNDATION` | add PgQue adapter only after its activation gates; never own domain event meaning                                                                                                      |
+| `auth`          | authentication principals and sessions                            |                                                                                       `FOUNDATION` | preserve separation from authorization and expose only public identity contracts                                                                                                       |
+| `authorization` | scoped capability decisions                                       |                                                                                       `FOUNDATION` | add capabilities only with protected business actions and denial tests                                                                                                                 |
+| `identity`      | identity domain                                                   |                                                                                          `PARTIAL` | clarify identity lifecycle and external identity boundaries                                                                                                                            |
+| `party`         | party and party relationships                                     |                                                                                          `PARTIAL` | mature customer/supplier/employee roles and relationship contracts                                                                                                                     |
+| `inventory`     | items, warehouses, balances, movements, reservations, transfers   |                                          `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope                                               |
+| `accounting`    | accounts, periods, revenue posting, and reversal                  | `PARTIAL`; `accounting.revenue.post` and `accounting.revenue.posted` v1 are bounded Level 3 slices | Keep generic journals, AP/AR, payment, tax, and settlement out of scope                                                                                                                |
+| `sales`         | customers, quotations, sales orders                               |                                             `PARTIAL`; `sales.order.confirm` v1 is a Level 3 slice | Sales owns draft/confirmed/cancelled order state and publishes confirmation; Process coordinates fulfillment through Inventory; invoicing, returns, and credit policy remain undecided |
+| `procurement`   | registered schema owner, package scaffold                         |                                                                                        `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts                                                                                                   |
+| `billing`       | package scaffold                                                  |                                                                                        `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership                                                                                                  |
+| `integrations`  | external adapter and connector boundary                           |                                                                                    `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner       |
+| `process`       | bounded order-lifecycle application coordinator                   |                                                                                          `PARTIAL` | keep orchestration behind public domain contracts; do not treat it as Process Studio or a new domain owner                                                                             |
+| `workflow`      | no implemented Process Studio runtime package                     |                                                                                          `PLANNED` | create only after Process Studio primitive and runtime gates are approved                                                                                                              |
 
 ## Maturity Levels
 
 ### Level 0 — Scaffold
 
-A package exists or owns a schema, but it must not be registered as a Process
-Studio action provider.
+A package exists or owns a schema, but it must not be registered as a Process Studio action
+provider.
 
 Required next step:
 
@@ -107,15 +111,14 @@ The package additionally publishes:
 - compensation metadata;
 - catalog compatibility tests against public contracts.
 
-Only Level 3 capabilities may appear as production Process Studio actions/events. A package may remain
-`PARTIAL` while one narrow capability satisfies Level 3; maturity is not inherited by sibling
+Only Level 3 capabilities may appear as production Process Studio actions/events. A package may
+remain `PARTIAL` while one narrow capability satisfies Level 3; maturity is not inherited by sibling
 commands.
 
-A plugin follows the same maturity levels, with additional requirements from
-its trust level: owned schema and migration isolation for trusted extensions,
-contributor-contract compatibility for catalog entries, and no core-invariant
-access for declarative or sandboxed extensions. Plugin installation alone never
-makes a capability Process Studio-ready.
+A plugin follows the same maturity levels, with additional requirements from its trust level: owned
+schema and migration isolation for trusted extensions, contributor-contract compatibility for
+catalog entries, and no core-invariant access for declarative or sandboxed extensions. Plugin
+installation alone never makes a capability Process Studio-ready.
 
 ## Delivery Sequence
 
@@ -149,15 +152,14 @@ billing
 
 Goals:
 
-- purchase-to-pay path has supplier, purchase, receipt, return, invoice, and
-  settlement ownership;
-- order-to-cash path has customer, order, fulfillment, invoice, payment, and
-  credit-policy ownership;
+- purchase-to-pay path has supplier, purchase, receipt, return, invoice, and settlement ownership;
+- order-to-cash path has customer, order, fulfillment, invoice, payment, and credit-policy
+  ownership;
 - inventory movement and accounting correction semantics are explicit;
 - period and close controls exist before workflow actions depend on them.
 
-Do not implement every subfeature in one phase. Each command must pass the
-primitive readiness test and have a narrow public contract.
+Do not implement every subfeature in one phase. Each command must pass the primitive readiness test
+and have a narrow public contract.
 
 ### D2 — Publish Catalog Providers
 
@@ -196,13 +198,12 @@ field service
 HR/payroll
 ```
 
-They remain `OPTIONAL` until a concrete product capability requires them. A
-package is created only when it owns an invariant that cannot remain in an
-existing domain.
+They remain `OPTIONAL` until a concrete product capability requires them. A package is created only
+when it owns an invariant that cannot remain in an existing domain.
 
 ## Current Level 3 Evidence
 
-The bounded internal catalog currently has two Level 3 action slices and an additional Accounting
+The bounded internal catalog currently has three Level 3 action slices and an additional Accounting
 event contributor:
 
 ```text
@@ -218,12 +219,12 @@ sales.order.confirm v1
 
 accounting.revenue.posted v1
   -> PUBLIC event from the owner-controlled revenue transaction
-  -> accounting.revenue.post action remains unreleased until amount provenance is owner-verifiable
+  -> accounting.revenue.post v1 is PUBLIC and uses the confirmed Sales order total as the server-derived amount
 ```
 
-This satisfies the two-domain Level 3 action-provider gate for bounded catalog work. It does not make
-all Inventory, Sales, or Accounting commands process-safe, activate PgQue, implement external
-connectors, or authorize the broad workflow runtime.
+This satisfies the bounded Level 3 action-provider gate for Sales, Inventory, and Accounting for
+bounded catalog work. It does not make all Inventory, Sales, or Accounting commands process-safe,
+activate PgQue, implement external connectors, or authorize the broad workflow runtime.
 
 ## Domain Gate Before Workflow Runtime
 
@@ -242,6 +243,5 @@ Do not start a broad workflow runtime until:
 
 ## Deliberate Non-Goals
 
-This roadmap does not promise that every SAP or Odoo functional area becomes a
-package. It prioritizes coherent domain ownership and end-to-end ERP correctness
-over menu completeness.
+This roadmap does not promise that every SAP or Odoo functional area becomes a package. It
+prioritizes coherent domain ownership and end-to-end ERP correctness over menu completeness.

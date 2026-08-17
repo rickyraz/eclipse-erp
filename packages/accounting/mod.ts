@@ -1,5 +1,6 @@
 export { AccountingCapabilities } from "./src/capabilities.ts"
 export {
+  AccountingRevenuePostAction,
   AccountingRevenuePostedEvent,
   AccountingTypedActionCatalog,
   AccountingTypedEventCatalog,

@@ -3,9 +3,12 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import {
+  AccountingRevenuePostAction,
   AccountingRevenuePostedEvent,
   AccountingTypedActionCatalog,
   AccountingTypedEventCatalog,
+  JournalEntry,
+  PostRevenueForOrderInput,
   RevenuePostedEventPayload,
 } from "../../accounting/mod.ts"
 import { getCapabilityDefinition, isKnownCapability } from "../../authorization/mod.ts"
@@ -126,7 +129,9 @@ describe("catalog compatibility", () => {
 
       assert.strictEqual(InventoryAdjustStockAction.inputSchema, AdjustStockInput)
       assert.strictEqual(InventoryAdjustStockAction.outputSchema, StockCorrection)
-      assert.strictEqual(AccountingTypedActionCatalog.length, 0)
+      assert.strictEqual(AccountingTypedActionCatalog.length, 1)
+      assert.strictEqual(AccountingRevenuePostAction.inputSchema, PostRevenueForOrderInput)
+      assert.strictEqual(AccountingRevenuePostAction.outputSchema, JournalEntry)
       assert.strictEqual(SalesConfirmOrderAction.inputSchema, ConfirmOrderInput)
       assert.strictEqual(SalesConfirmOrderAction.outputSchema, SalesOrder)
       assert.strictEqual(InventoryStockCorrectedEvent.payloadSchema, StockCorrectedEventPayload)
