@@ -592,86 +592,89 @@ export const makeAccountingService = Effect.gen(function* () {
         const correlationId = decoded.correlationId.trim()
         const causationId = decoded.causationId?.trim() ?? null
         const loadExisting = () =>
-          Effect.gen(function* () {
-            const amount = yield* sales.getConfirmedOrderTotal({
-              principal: decoded.principal,
-              tenantId: decoded.tenantId,
-              orderId: decoded.orderId,
-            })
-            const entries = yield* database.query(
-              (db) =>
-                db.select(journalEntrySelection).from(journalEntries).where(and(
-                  eq(journalEntries.tenantId, decoded.tenantId),
-                  eq(journalEntries.reference, reference),
-                )),
-              "accounting.revenue.lookup",
-            )
-            const entry = entries[0]
-            if (entry === undefined) return undefined
-            if (entry.status !== "posted" || entry.postedAt === null) {
-              return yield* Effect.fail(
-                new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+          database.withTransaction(
+            Effect.gen(function* () {
+              const amount = yield* sales.getConfirmedOrderTotal({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                orderId: decoded.orderId,
+              })
+              const entries = yield* database.query(
+                (db) =>
+                  db.select(journalEntrySelection).from(journalEntries).where(and(
+                    eq(journalEntries.tenantId, decoded.tenantId),
+                    eq(journalEntries.reference, reference),
+                  )),
+                "accounting.revenue.lookup",
               )
-            }
-            const profiles = yield* database.query(
-              (db) =>
-                db.select({
-                  receivableAccountId: revenuePostingProfiles.receivableAccountId,
-                  revenueAccountId: revenuePostingProfiles.revenueAccountId,
-                }).from(revenuePostingProfiles).where(and(
-                  eq(revenuePostingProfiles.tenantId, decoded.tenantId),
-                  eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
-                )),
-              "accounting.revenue.profile.lookup",
-            )
-            const profile = profiles[0]
-            const lines = yield* database.query(
-              (db) =>
-                db.select(journalLineSelection).from(journalLines).where(and(
-                  eq(journalLines.tenantId, decoded.tenantId),
-                  eq(journalLines.entryId, entry.id),
-                )),
-              "accounting.revenue.lines.lookup",
-            )
-            const expectedLines = profile === undefined ? [] : [
-              {
-                accountId: profile.receivableAccountId,
-                debit: amount,
-                credit: "0",
-              },
-              {
-                accountId: profile.revenueAccountId,
-                debit: "0",
-                credit: amount,
-              },
-            ]
-            const actualLines = lines.map((line) => ({
-              accountId: line.accountId,
-              debit: String(line.debit ?? "0"),
-              credit: String(line.credit ?? "0"),
-            }))
-            if (
-              profile === undefined || actualLines.length !== expectedLines.length ||
-              JSON.stringify(normalizeLines(actualLines)) !==
-                JSON.stringify(normalizeLines(expectedLines))
-            ) {
-              return yield* Effect.fail(
-                new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+              const entry = entries[0]
+              if (entry === undefined) return undefined
+              if (entry.status !== "posted" || entry.postedAt === null) {
+                return yield* Effect.fail(
+                  new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+                )
+              }
+              const profiles = yield* database.query(
+                (db) =>
+                  db.select({
+                    receivableAccountId: revenuePostingProfiles.receivableAccountId,
+                    revenueAccountId: revenuePostingProfiles.revenueAccountId,
+                  }).from(revenuePostingProfiles).where(and(
+                    eq(revenuePostingProfiles.tenantId, decoded.tenantId),
+                    eq(revenuePostingProfiles.legalEntityId, decoded.legalEntityId),
+                  )),
+                "accounting.revenue.profile.lookup",
               )
-            }
-            return {
-              id: entry.id,
-              tenantId: entry.tenantId,
-              reference,
-              status: "posted" as const,
-              postedAt: entry.postedAt.toISOString(),
-              lines: lines.map((line) => ({
+              const profile = profiles[0]
+              const lines = yield* database.query(
+                (db) =>
+                  db.select(journalLineSelection).from(journalLines).where(and(
+                    eq(journalLines.tenantId, decoded.tenantId),
+                    eq(journalLines.entryId, entry.id),
+                  )),
+                "accounting.revenue.lines.lookup",
+              )
+              const expectedLines = profile === undefined ? [] : [
+                {
+                  accountId: profile.receivableAccountId,
+                  debit: amount,
+                  credit: "0",
+                },
+                {
+                  accountId: profile.revenueAccountId,
+                  debit: "0",
+                  credit: amount,
+                },
+              ]
+              const actualLines = lines.map((line) => ({
                 accountId: line.accountId,
                 debit: String(line.debit ?? "0"),
                 credit: String(line.credit ?? "0"),
-              })),
-            }
-          })
+              }))
+              if (
+                profile === undefined || actualLines.length !== expectedLines.length ||
+                JSON.stringify(normalizeLines(actualLines)) !==
+                  JSON.stringify(normalizeLines(expectedLines))
+              ) {
+                return yield* Effect.fail(
+                  new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
+                )
+              }
+              return {
+                id: entry.id,
+                tenantId: entry.tenantId,
+                reference,
+                status: "posted" as const,
+                postedAt: entry.postedAt.toISOString(),
+                lines: lines.map((line) => ({
+                  accountId: line.accountId,
+                  debit: String(line.debit ?? "0"),
+                  credit: String(line.credit ?? "0"),
+                })),
+              }
+            }),
+            "accounting.revenue.replay",
+          )
         const existing = yield* loadExisting()
         if (existing !== undefined) return existing
         const journal = yield* database.withTransaction(
