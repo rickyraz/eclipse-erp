@@ -593,6 +593,11 @@ export const makeAccountingService = Effect.gen(function* () {
         const causationId = decoded.causationId?.trim() ?? null
         const loadExisting = () =>
           Effect.gen(function* () {
+            const amount = yield* sales.getConfirmedOrderTotal({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+            })
             const entries = yield* database.query(
               (db) =>
                 db.select(journalEntrySelection).from(journalEntries).where(and(
@@ -631,13 +636,13 @@ export const makeAccountingService = Effect.gen(function* () {
             const expectedLines = profile === undefined ? [] : [
               {
                 accountId: profile.receivableAccountId,
-                debit: decoded.amount,
+                debit: amount,
                 credit: "0",
               },
               {
                 accountId: profile.revenueAccountId,
                 debit: "0",
-                credit: decoded.amount,
+                credit: amount,
               },
             ]
             const actualLines = lines.map((line) => ({

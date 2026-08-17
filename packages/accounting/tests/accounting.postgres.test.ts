@@ -574,6 +574,15 @@ it.effect.skipIf(databaseUrl === undefined)(
               ]).size,
               4,
             )
+            const replayedWithTamperedAmount = yield* accounting.postRevenueForOrder({
+              ...input,
+              amount: "99.99",
+              commandId: "tampered-replay-command",
+              correlationId: "tampered-replay-correlation",
+            })
+            assert.strictEqual(replayedWithTamperedAmount.id, journal.id)
+            assert.strictEqual(replayedWithTamperedAmount.lines[0]?.debit, "10.00")
+            assert.strictEqual(replayedWithTamperedAmount.lines[1]?.credit, "10.00")
             const tamperedJournal = yield* accounting.postRevenueForOrder({
               ...input,
               orderId: crypto.randomUUID(),
