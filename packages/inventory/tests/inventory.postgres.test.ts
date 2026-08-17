@@ -14,6 +14,7 @@ import {
   makeInventoryService,
   StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
+  StockReservationLegalEntityMismatch,
   StockReservationNotFound,
   StockTransferDifferentLegalEntity,
   StockTransferItemNotFound,
@@ -181,6 +182,28 @@ it.effect.skipIf(databaseUrl === undefined)(
             itemId: item.id,
             quantity: "10",
           })
+          const sameTenantOtherScope = yield* Effect.provideService(
+            createLegalEntityScope(tenant.id, "Other Adjustment"),
+            PartyService,
+            party,
+          )
+          const otherWarehouseSameTenant = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: sameTenantOtherScope.legalEntity.id,
+            name: "Other Adjustment Warehouse",
+          })
+          assert.instanceOf(
+            yield* Effect.flip(inventory.reserveStock({
+              principal,
+              tenantId: tenant.id,
+              warehouseId: otherWarehouseSameTenant.id,
+              legalEntityId: scope.legalEntity.id,
+              itemId: item.id,
+              quantity: "1",
+            })),
+            StockReservationLegalEntityMismatch,
+          )
           const reservationInput = {
             principal,
             tenantId: tenant.id,
