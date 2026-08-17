@@ -164,7 +164,7 @@ describe("sales contract", () => {
     withSales(Effect.gen(function* () {
       const sales = yield* SalesService
       assert.instanceOf(
-        yield* Effect.flip(sales.cancelOrder({
+        yield* Effect.flip(sales.cancelConfirmedOrder({
           principal,
           tenantId: "00000000-0000-4000-8000-000000000003",
           orderId: "00000000-0000-4000-8000-000000000099",

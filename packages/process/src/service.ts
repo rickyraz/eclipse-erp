@@ -1150,7 +1150,7 @@ export const makeProcessService = Effect.gen(function* () {
             ),
           )
 
-          const order = yield* sales.cancelOrder({
+          const order = yield* sales.cancelConfirmedOrder({
             principal: decoded.principal,
             tenantId: decoded.tenantId,
             orderId: decoded.orderId,

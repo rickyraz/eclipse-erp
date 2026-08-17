@@ -111,7 +111,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const confirmed = yield* sales.confirmOrder(input)
           assert.instanceOf(
-            yield* Effect.flip(sales.cancelOrder({
+            yield* Effect.flip(sales.cancelConfirmedOrder({
               principal,
               tenantId: otherTenant!.id,
               orderId: order.id,

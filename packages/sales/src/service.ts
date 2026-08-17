@@ -86,7 +86,7 @@ export const ConfirmOrderInput = Schema.Struct({
   idempotencyKey: NonEmptyString,
 })
 
-export const CancelOrderInput = Schema.Struct({
+export const CancelConfirmedOrderInput = Schema.Struct({
   ...ScopedInput,
   orderId: Schema.String,
 })
@@ -156,7 +156,7 @@ export interface SalesService {
     | SalesOrderNotFound
     | CommonFailure
   >
-  readonly cancelOrder: (
+  readonly cancelConfirmedOrder: (
     input: unknown,
   ) => Effect.Effect<SalesOrder, SalesOrderInvalidState | SalesOrderNotFound | CommonFailure>
   readonly getConfirmedOrderTotal: (
@@ -488,9 +488,9 @@ export const makeSalesService = Effect.gen(function* () {
         }
         return order.total
       }),
-    cancelOrder: (input) =>
+    cancelConfirmedOrder: (input) =>
       Effect.gen(function* () {
-        const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
+        const decoded = yield* Schema.decodeUnknownEffect(CancelConfirmedOrderInput)(input)
         yield* authorization.authorize({
           principal: decoded.principal,
           tenantId: decoded.tenantId,
@@ -736,9 +736,9 @@ export const makeSalesTestLayer = () =>
             }
             return order.total
           }),
-        cancelOrder: (input) =>
+        cancelConfirmedOrder: (input) =>
           Effect.gen(function* () {
-            const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
+            const decoded = yield* Schema.decodeUnknownEffect(CancelConfirmedOrderInput)(input)
             yield* authorization.authorize({
               principal: decoded.principal,
               tenantId: decoded.tenantId,

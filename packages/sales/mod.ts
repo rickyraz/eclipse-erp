@@ -8,7 +8,7 @@ export {
 } from "./src/catalog.ts"
 
 export {
-  CancelOrderInput,
+  CancelConfirmedOrderInput,
   ConfirmOrderInput,
   CreateCustomerInput,
   CreateOrderInput,
