@@ -200,6 +200,26 @@ export const makeMessagingService = Effect.gen(function* () {
       "messaging.receipt.get",
     ).pipe(Effect.map((rows) => rows[0] === undefined ? undefined : toReceipt(rows[0])))
 
+  const findEventIdentity = (input: ConsumeOnceInput) =>
+    database.query(
+      (db) =>
+        db.select({
+          eventType: eventOutbox.eventType,
+          eventVersion: eventOutbox.eventVersion,
+          idempotencyKey: eventOutbox.idempotencyKey,
+        }).from(eventOutbox).where(and(
+          eq(eventOutbox.tenantId, input.tenantId),
+          eq(eventOutbox.id, input.eventId),
+        )),
+      "messaging.receipt.source.lookup",
+    ).pipe(Effect.map((rows) => rows[0]))
+
+  const receiptIdentityFailure = () =>
+    new DatabaseFailure({
+      operation: "messaging.receipt.complete",
+      cause: new Error("consumer receipt event identity does not match source"),
+    })
+
   const service: MessagingService = {
     append: (input) =>
       Effect.gen(function* () {
@@ -271,19 +291,8 @@ export const makeMessagingService = Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ConsumeOnceInput)(input)
         const result = yield* database.withTransaction(
           Effect.gen(function* () {
-            const source = yield* database.query(
-              (db) =>
-                db.select({
-                  eventType: eventOutbox.eventType,
-                  eventVersion: eventOutbox.eventVersion,
-                  idempotencyKey: eventOutbox.idempotencyKey,
-                }).from(eventOutbox).where(and(
-                  eq(eventOutbox.tenantId, decoded.tenantId),
-                  eq(eventOutbox.id, decoded.eventId),
-                )),
-              "messaging.receipt.source.lookup",
-            )
-            if (source[0] === undefined) {
+            const source = yield* findEventIdentity(decoded)
+            if (source === undefined) {
               return yield* Effect.fail(
                 new DatabaseFailure({
                   operation: "messaging.receipt.complete",
@@ -293,13 +302,8 @@ export const makeMessagingService = Effect.gen(function* () {
             }
             const existing = yield* findReceipt(decoded)
             if (existing !== undefined) {
-              if (!receiptMatchesEvent(existing, source[0])) {
-                return yield* Effect.fail(
-                  new DatabaseFailure({
-                    operation: "messaging.receipt.complete",
-                    cause: new Error("consumer receipt event identity does not match source"),
-                  }),
-                )
+              if (!receiptMatchesEvent(existing, source)) {
+                return yield* Effect.fail(receiptIdentityFailure())
               }
               return { duplicate: true as const, receipt: existing }
             }
@@ -309,7 +313,7 @@ export const makeMessagingService = Effect.gen(function* () {
               (db) =>
                 db.insert(consumerReceipts).values({
                   ...decoded,
-                  ...source[0],
+                  ...source,
                 }).returning(selectReceipt),
               "messaging.receipt.complete",
             )
@@ -321,7 +325,13 @@ export const makeMessagingService = Effect.gen(function* () {
         if (Result.isSuccess(result)) return result.success
         if (isDatabaseConstraint(result.failure, "consumer_receipts_pkey")) {
           const receipt = yield* findReceipt(decoded)
-          if (receipt !== undefined) return { duplicate: true as const, receipt }
+          if (receipt !== undefined) {
+            const source = yield* findEventIdentity(decoded)
+            if (source !== undefined && receiptMatchesEvent(receipt, source)) {
+              return { duplicate: true as const, receipt }
+            }
+            if (source !== undefined) return yield* Effect.fail(receiptIdentityFailure())
+          }
         }
         return yield* Effect.fail(result.failure)
       }),

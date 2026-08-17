@@ -850,6 +850,11 @@ it.effect.skipIf(databaseUrl === undefined)(
         ], { concurrency: "unbounded" })
         assert.strictEqual(results.filter((result) => !result.duplicate).length, 1)
         assert.strictEqual(results.filter((result) => result.duplicate).length, 1)
+        const duplicate = results.find((result) => result.duplicate)
+        assert.ok(duplicate?.duplicate)
+        assert.strictEqual(duplicate.receipt.eventType, source.eventType)
+        assert.strictEqual(duplicate.receipt.eventVersion, source.eventVersion)
+        assert.strictEqual(duplicate.receipt.idempotencyKey, source.idempotencyKey)
 
         const rows = yield* Effect.promise(() =>
           client<{ attempts: number; receipts: number }[]>`
