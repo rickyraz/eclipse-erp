@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=192
+total=193
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -198,6 +198,7 @@ gate bash -c 'grep -Fq "const findEventIdentity" packages/messaging/src/service.
 gate bash -c 'grep -Fq "source event type, version, and idempotency identity" docs/architecture/pgque-messaging.md && grep -Fq "receipt snapshot" docs/architecture/pgque-messaging.md'
 gate bash -c 'grep -Fq "exposes confirmed cancellation only as a coordinator participant" packages/sales/tests/sales.test.ts && grep -Fq "assert.isFalse(\"cancelOrder\" in sales)" packages/sales/tests/sales.test.ts && grep -Fq "cancelConfirmedOrder" packages/sales/src/service.ts'
 gate bash -c 'grep -Fq "first.receipt.eventType" packages/messaging/tests/messaging.test.ts && grep -Fq "first.receipt.eventVersion" packages/messaging/tests/messaging.test.ts && grep -Fq "first.receipt.idempotencyKey" packages/messaging/tests/messaging.test.ts'
+gate bash -c 'grep -Fq "[x] all catalog actions have stable failures and authorization" docs/roadmap/domain-maturity.md && grep -Fq "[x] events have typed schemas and correlation fields" docs/roadmap/domain-maturity.md && grep -Fq "[x] catalog version compatibility is tested" docs/roadmap/domain-maturity.md'
 gate bash -c 'grep -Fq "\"sales.order.read\"" packages/authorization/src/capabilities.ts && grep -Fq "definition(\"sales.order.read\", \"sales\", \"order\", \"read\")" packages/authorization/src/capabilities.ts && grep -Fq "SalesCapabilities.orderRead" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "crossLinkedResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorization.removeMember" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorizationFailure.capability" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "InventoryCapabilities.stockReserve" packages/process/src/service.ts'
 gate bash -c 'grep -Fq "accountingAuthorizationFailure" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/src/service.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/tests/order-confirmation.postgres.test.ts'

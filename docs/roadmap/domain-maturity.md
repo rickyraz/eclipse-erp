@@ -234,11 +234,11 @@ Do not start a broad workflow runtime until:
 [x] at least two domains reach Level 3
 [ ] procurement is no longer an empty provider if purchase workflows are in scope
 [ ] billing/accounting ownership is clear for financial workflows
-[ ] all catalog actions have stable failures and authorization
-[ ] events have typed schemas and correlation fields
-[ ] compensation/manual recovery is explicit for committed effects
-[ ] catalog version compatibility is tested
-[ ] no provider leaks tables, repositories, or infrastructure errors
+[x] all catalog actions have stable failures and authorization
+[x] events have typed schemas and correlation fields
+[x] compensation/manual recovery is explicit for committed effects
+[x] catalog version compatibility is tested
+[x] no provider leaks tables, repositories, or infrastructure errors
 ```
 
 ## Deliberate Non-Goals
