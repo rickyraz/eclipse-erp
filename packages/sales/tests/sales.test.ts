@@ -8,6 +8,8 @@ import {
   CustomerAlreadyExists,
   makeSalesTestLayer,
   SalesOrderConfirmationIdempotencyConflict,
+  SalesOrderInvalidState,
+  SalesOrderNotFound,
   SalesService,
 } from "../mod.ts"
 
@@ -71,6 +73,10 @@ describe("sales contract", () => {
       assert.strictEqual(customer.email, "sales@acme.test")
       assert.strictEqual(quotation.status, "draft")
       assert.strictEqual(order.quotationId, quotation.id)
+      assert.instanceOf(
+        yield* Effect.flip(sales.getConfirmedOrderTotal({ tenantId, orderId: order.id })),
+        SalesOrderInvalidState,
+      )
 
       const confirmed = yield* sales.confirmOrder({
         principal,
@@ -92,6 +98,13 @@ describe("sales contract", () => {
       assert.strictEqual(
         yield* sales.getConfirmedOrderTotal({ tenantId, orderId: confirmed.id }),
         "1250.00",
+      )
+      assert.instanceOf(
+        yield* Effect.flip(sales.getConfirmedOrderTotal({
+          tenantId: "00000000-0000-4000-8000-000000000002",
+          orderId: confirmed.id,
+        })),
+        SalesOrderNotFound,
       )
     })))
 
