@@ -73,6 +73,8 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
       ...job,
       status: "leased",
       leaseUntil: "2026-08-09T00:05:00.000Z",
+      leaseOwner: "worker-1",
+      leaseToken: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
     })
     const invalidLeaseState = yield* Effect.flip(
       Schema.decodeUnknownEffect(ProcessJob)({
@@ -80,6 +82,15 @@ it.effect("defines versioned post-commit event and leased job contracts", () =>
         leaseUntil: "2026-08-09T00:05:00.000Z",
       }),
     )
+    const invalidLeaseOwner = yield* Effect.flip(
+      Schema.decodeUnknownEffect(ProcessJob)({
+        ...job,
+        status: "leased",
+        leaseUntil: "2026-08-09T00:05:00.000Z",
+        leaseToken: "018f3f77-0c5a-7cc0-8b62-6a163d214127",
+      }),
+    )
+    assert.strictEqual(invalidLeaseOwner._tag, "SchemaError")
     const invalidAttempts = yield* Effect.flip(
       Schema.decodeUnknownEffect(ProcessJob)({
         ...job,

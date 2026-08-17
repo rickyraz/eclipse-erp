@@ -73,6 +73,8 @@ export const processJobs = processSchema.table("jobs", {
   status: processJobStatus("status").notNull().default("pending"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }).defaultNow().notNull(),
   leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  leaseOwner: text("lease_owner"),
+  leaseToken: uuid("lease_token"),
   attempts: integer("attempts").notNull().default(0),
   payload: jsonb("payload").notNull(),
   lastError: text("last_error"),
@@ -106,8 +108,11 @@ export const processJobs = processSchema.table("jobs", {
   check("process_jobs_attempts_check", sql`${table.attempts} >= 0`),
   check(
     "process_jobs_lease_state_check",
-    sql`(${table.status} = 'leased' and ${table.leaseUntil} is not null) or
-      (${table.status} <> 'leased' and ${table.leaseUntil} is null)`,
+    sql`(${table.status} = 'leased' and ${table.leaseUntil} is not null and
+        ${table.leaseOwner} is not null and ${table.leaseOwner} ~ '[^[:space:]]' and
+        ${table.leaseToken} is not null) or
+      (${table.status} <> 'leased' and ${table.leaseUntil} is null and
+        ${table.leaseOwner} is null and ${table.leaseToken} is null)`,
   ),
   check(
     "process_jobs_state_check",

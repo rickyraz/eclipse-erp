@@ -392,3 +392,91 @@ it.effect.skipIf(databaseUrl === undefined)(
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "protects confirmed order snapshots and terminal totals in PostgreSQL",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const [customer] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into sales.customers (tenant_id, name, email)
+            values (${tenant!.id}, 'Snapshot Customer', ${crypto.randomUUID()} || '@example.test')
+            returning id
+          `
+        )
+        const [order] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into sales.orders (tenant_id, customer_id, total)
+            values (${tenant!.id}, ${customer!.id}, 10.00)
+            returning id
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            insert into sales.order_lines (tenant_id, order_id, item_id, quantity, unit_price)
+            values (${tenant!.id}, ${order!.id}, ${crypto.randomUUID()}, 1, 10.00)
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            update sales.orders
+            set status = 'confirmed', confirmation_idempotency_key = 'snapshot-confirmation',
+              confirmed_at = now()
+            where id = ${order!.id}
+          `
+        )
+
+        for (
+          const mutation of [
+            () =>
+              client`update sales.order_lines set unit_price = 11.00 where order_id = ${order!.id}`,
+            () =>
+              client`insert into sales.order_lines
+            (tenant_id, order_id, item_id, quantity, unit_price)
+            values (${tenant!.id}, ${order!.id}, ${crypto.randomUUID()}, 1, 10.00)`,
+            () => client`delete from sales.order_lines where order_id = ${order!.id}`,
+            () => client`update sales.orders set total = 11.00 where id = ${order!.id}`,
+          ]
+        ) {
+          const failure = yield* postgresFailure(mutation)
+          assert.strictEqual((failure as { code?: string }).code, "23514")
+        }
+
+        const [badOrder] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into sales.orders (tenant_id, customer_id, total)
+            values (${tenant!.id}, ${customer!.id}, 11.00)
+            returning id
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            insert into sales.order_lines (tenant_id, order_id, item_id, quantity, unit_price)
+            values (${tenant!.id}, ${badOrder!.id}, ${crypto.randomUUID()}, 1, 10.00)
+          `
+        )
+        const inconsistent = yield* postgresFailure(() =>
+          client.begin(async (transaction) => {
+            await transaction`
+              update sales.orders
+              set status = 'confirmed', confirmation_idempotency_key = 'bad-total-confirmation',
+                confirmed_at = now()
+              where id = ${badOrder!.id}
+            `
+            await transaction`set constraints all immediate`
+          })
+        )
+        assert.strictEqual((inconsistent as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (inconsistent as { constraint_name?: string }).constraint_name,
+          "sales_terminal_order_total_consistent",
+        )
+      })),
+)

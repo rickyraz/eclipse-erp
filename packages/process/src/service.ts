@@ -1,4 +1,4 @@
-import { and, eq, or } from "drizzle-orm"
+import { and, asc, desc, eq, gt, lte, or } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -70,6 +70,7 @@ const cancellationWorkflowType = ProcessWorkflowTypes.cancellation
 const fulfillmentWorkflowType = ProcessWorkflowTypes.fulfillment
 
 export const ProcessLifecycleJobPriority = 100
+export const ProcessJobMaxAttempts = 3
 export const ProcessPostCommitJobTypes = {
   confirmation: "process.order_confirmation.post_commit",
   cancellation: "process.order_cancellation.post_commit",
@@ -156,13 +157,47 @@ export const ProcessJob = Schema.Struct({
   status: ProcessJobStatus,
   scheduledAt: InstantString,
   leaseUntil: Schema.NullOr(InstantString),
+  leaseOwner: Schema.NullOr(NonEmptyString).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  leaseToken: Schema.NullOr(Uuid).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   attempts: NonNegativeInt,
   payload: Schema.Json,
   correlationId: NonEmptyString,
 }).check(Schema.makeFilter(
-  (job) => job.status === "leased" ? job.leaseUntil !== null : job.leaseUntil === null,
+  (job) =>
+    job.status === "leased"
+      ? job.leaseUntil !== null && job.leaseOwner !== null && job.leaseToken !== null
+      : job.leaseUntil === null && job.leaseOwner === null && job.leaseToken === null,
   { expected: "job lease metadata consistent with its durable state" },
 ))
+
+export const ProcessJobClaimInput = Schema.Struct({
+  tenantId: Uuid,
+  workerId: NonEmptyString,
+  jobType: Schema.NullOr(ProcessPostCommitJobType).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+})
+export const ProcessJobRenewInput = Schema.Struct({
+  tenantId: Uuid,
+  workerId: NonEmptyString,
+  jobId: Uuid,
+  leaseToken: Uuid,
+})
+export const ProcessJobCompleteInput = ProcessJobRenewInput
+export const ProcessJobFailInput = Schema.Struct({
+  tenantId: Uuid,
+  workerId: NonEmptyString,
+  jobId: Uuid,
+  leaseToken: Uuid,
+  error: NonEmptyString,
+  retryAt: Schema.NullOr(InstantString).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+})
 
 export const WorkflowRun = Schema.Struct({
   id: Uuid,
@@ -207,6 +242,7 @@ export const OrderFulfillmentResult = Schema.Struct({
   jobId: Uuid,
 })
 
+export type ProcessJob = Schema.Schema.Type<typeof ProcessJob>
 export type WorkflowRun = Schema.Schema.Type<typeof WorkflowRun>
 export type OrderConfirmationResult = Schema.Schema.Type<typeof OrderConfirmationResult>
 export type OrderCancellationResult = Schema.Schema.Type<typeof OrderCancellationResult>
@@ -260,6 +296,21 @@ export class WorkflowAlreadyCompleted
   extends Schema.TaggedErrorClass<WorkflowAlreadyCompleted>()("WorkflowAlreadyCompleted", {
     tenantId: Uuid,
     idempotencyKey: NonEmptyString,
+  }) {}
+export class ProcessJobLeaseLost
+  extends Schema.TaggedErrorClass<ProcessJobLeaseLost>()("ProcessJobLeaseLost", {
+    tenantId: Uuid,
+    jobId: Uuid,
+  }) {}
+export class ProcessJobNotFound
+  extends Schema.TaggedErrorClass<ProcessJobNotFound>()("ProcessJobNotFound", {
+    tenantId: Uuid,
+    jobId: Uuid,
+  }) {}
+export class ProcessJobCorrupt
+  extends Schema.TaggedErrorClass<ProcessJobCorrupt>()("ProcessJobCorrupt", {
+    tenantId: Uuid,
+    jobId: Uuid,
   }) {}
 
 class WorkflowRunAlreadyExists extends Error {}
@@ -330,9 +381,88 @@ export interface ProcessService {
     | WorkflowAlreadyCompleted
     | WorkflowRunNotFound
   >
+  readonly claimJob: (
+    input: unknown,
+  ) => Effect.Effect<ProcessJob | null, DatabaseFailure | Schema.SchemaError | ProcessJobCorrupt>
+  readonly renewJob: (
+    input: unknown,
+  ) => Effect.Effect<
+    ProcessJob,
+    | DatabaseFailure
+    | Schema.SchemaError
+    | ProcessJobCorrupt
+    | ProcessJobNotFound
+    | ProcessJobLeaseLost
+  >
+  readonly completeJob: (
+    input: unknown,
+  ) => Effect.Effect<
+    ProcessJob,
+    | DatabaseFailure
+    | Schema.SchemaError
+    | ProcessJobCorrupt
+    | ProcessJobNotFound
+    | ProcessJobLeaseLost
+  >
+  readonly failJob: (
+    input: unknown,
+  ) => Effect.Effect<
+    ProcessJob,
+    | DatabaseFailure
+    | Schema.SchemaError
+    | ProcessJobCorrupt
+    | ProcessJobNotFound
+    | ProcessJobLeaseLost
+  >
 }
 
 export const ProcessService = Context.Service<ProcessService>("EclipseERP/ProcessService")
+
+const processJobSelection = {
+  id: processJobs.id,
+  tenantId: processJobs.tenantId,
+  jobType: processJobs.jobType,
+  idempotencyKey: processJobs.idempotencyKey,
+  priority: processJobs.priority,
+  status: processJobs.status,
+  scheduledAt: processJobs.scheduledAt,
+  leaseUntil: processJobs.leaseUntil,
+  leaseOwner: processJobs.leaseOwner,
+  leaseToken: processJobs.leaseToken,
+  attempts: processJobs.attempts,
+  payload: processJobs.payload,
+  correlationId: processJobs.correlationId,
+}
+
+const toProcessJob = (row: {
+  readonly id: string
+  readonly tenantId: string
+  readonly jobType: string
+  readonly idempotencyKey: string
+  readonly priority: number
+  readonly status: ProcessJob["status"]
+  readonly scheduledAt: Date
+  readonly leaseUntil: Date | null
+  readonly leaseOwner: string | null
+  readonly leaseToken: string | null
+  readonly attempts: number
+  readonly payload: unknown
+  readonly correlationId: string
+}) => ({
+  jobId: row.id,
+  tenantId: row.tenantId,
+  jobType: row.jobType as ProcessJob["jobType"],
+  idempotencyKey: row.idempotencyKey,
+  priority: row.priority,
+  status: row.status,
+  scheduledAt: row.scheduledAt.toISOString(),
+  leaseUntil: row.leaseUntil?.toISOString() ?? null,
+  leaseOwner: row.leaseOwner,
+  leaseToken: row.leaseToken,
+  attempts: row.attempts,
+  payload: row.payload,
+  correlationId: row.correlationId,
+})
 
 const workflowRunSelection = {
   id: workflowRuns.id,
@@ -1481,6 +1611,208 @@ export const makeProcessService = Effect.gen(function* () {
       return result.run
     })
 
+  const decodeJob = (row: unknown, tenantId: string, jobId: string) =>
+    Schema.decodeUnknownEffect(ProcessJob)(row).pipe(
+      Effect.mapError(() => new ProcessJobCorrupt({ tenantId, jobId })),
+    )
+
+  const leaseDurationMs = 5 * 60_000
+
+  const claimJob = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ProcessJobClaimInput)(input)
+      const claimed = yield* database.transaction(async (tx) => {
+        const nowDate = now()
+        const rows = await tx.select(processJobSelection).from(processJobs).where(and(
+          eq(processJobs.tenantId, decoded.tenantId),
+          lte(processJobs.scheduledAt, nowDate),
+          or(
+            eq(processJobs.status, "pending"),
+            and(eq(processJobs.status, "leased"), lte(processJobs.leaseUntil, nowDate)),
+          ),
+          decoded.jobType === null || decoded.jobType === undefined
+            ? undefined
+            : eq(processJobs.jobType, decoded.jobType),
+        )).orderBy(desc(processJobs.priority), asc(processJobs.scheduledAt), asc(processJobs.id))
+          .limit(1).for("update", { skipLocked: true })
+        const row = rows[0]
+        if (row === undefined) return null
+        const leaseToken = crypto.randomUUID()
+        const [updated] = await tx.update(processJobs).set({
+          status: "leased",
+          leaseUntil: new Date(nowDate.getTime() + leaseDurationMs),
+          leaseOwner: decoded.workerId,
+          leaseToken,
+          attempts: row.attempts + 1,
+          updatedAt: nowDate,
+        }).where(eq(processJobs.id, row.id)).returning(processJobSelection)
+        return updated ?? null
+      }, "process.job.claim")
+      return claimed === null
+        ? null
+        : yield* decodeJob(toProcessJob(claimed), decoded.tenantId, claimed.id)
+    })
+
+  const renewJob = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ProcessJobRenewInput)(input)
+      const result = yield* database.transaction(async (tx) => {
+        const [current] = await tx.select({
+          id: processJobs.id,
+          status: processJobs.status,
+          leaseUntil: processJobs.leaseUntil,
+          leaseOwner: processJobs.leaseOwner,
+          leaseToken: processJobs.leaseToken,
+        }).from(processJobs).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+        )).for("update")
+        if (current === undefined) return { _tag: "not-found" as const }
+        const nowDate = now()
+        if (
+          current.status !== "leased" || current.leaseUntil === null ||
+          current.leaseUntil <= nowDate || current.leaseOwner !== decoded.workerId ||
+          current.leaseToken !== decoded.leaseToken
+        ) return { _tag: "lease-lost" as const }
+        const [updated] = await tx.update(processJobs).set({
+          leaseUntil: new Date(nowDate.getTime() + leaseDurationMs),
+          updatedAt: nowDate,
+        }).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+          eq(processJobs.status, "leased"),
+          gt(processJobs.leaseUntil, nowDate),
+          eq(processJobs.leaseOwner, decoded.workerId),
+          eq(processJobs.leaseToken, decoded.leaseToken),
+        )).returning(processJobSelection)
+        return updated === undefined
+          ? { _tag: "lease-lost" as const }
+          : { _tag: "updated" as const, row: updated }
+      }, "process.job.renew")
+      if (result._tag === "not-found") {
+        return yield* Effect.fail(
+          new ProcessJobNotFound({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      if (result._tag === "lease-lost") {
+        return yield* Effect.fail(
+          new ProcessJobLeaseLost({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      return yield* decodeJob(toProcessJob(result.row), decoded.tenantId, decoded.jobId)
+    })
+
+  const completeJob = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ProcessJobCompleteInput)(input)
+      const result = yield* database.transaction(async (tx) => {
+        const [current] = await tx.select({
+          id: processJobs.id,
+          status: processJobs.status,
+          leaseUntil: processJobs.leaseUntil,
+          leaseOwner: processJobs.leaseOwner,
+          leaseToken: processJobs.leaseToken,
+        }).from(processJobs).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+        )).for("update")
+        if (current === undefined) return { _tag: "not-found" as const }
+        const completedAt = now()
+        if (
+          current.status !== "leased" || current.leaseUntil === null ||
+          current.leaseUntil <= completedAt || current.leaseOwner !== decoded.workerId ||
+          current.leaseToken !== decoded.leaseToken
+        ) return { _tag: "lease-lost" as const }
+        const [completed] = await tx.update(processJobs).set({
+          status: "completed",
+          leaseUntil: null,
+          leaseOwner: null,
+          leaseToken: null,
+          completedAt,
+          updatedAt: completedAt,
+        }).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+          eq(processJobs.status, "leased"),
+          gt(processJobs.leaseUntil, completedAt),
+          eq(processJobs.leaseOwner, decoded.workerId),
+          eq(processJobs.leaseToken, decoded.leaseToken),
+        )).returning(processJobSelection)
+        return completed === undefined
+          ? { _tag: "lease-lost" as const }
+          : { _tag: "completed" as const, row: completed }
+      }, "process.job.complete")
+      if (result._tag === "not-found") {
+        return yield* Effect.fail(
+          new ProcessJobNotFound({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      if (result._tag === "lease-lost") {
+        return yield* Effect.fail(
+          new ProcessJobLeaseLost({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      return yield* decodeJob(toProcessJob(result.row), decoded.tenantId, decoded.jobId)
+    })
+
+  const failJob = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ProcessJobFailInput)(input)
+      const result = yield* database.transaction(async (tx) => {
+        const [current] = await tx.select({
+          id: processJobs.id,
+          status: processJobs.status,
+          leaseUntil: processJobs.leaseUntil,
+          leaseOwner: processJobs.leaseOwner,
+          leaseToken: processJobs.leaseToken,
+          attempts: processJobs.attempts,
+        }).from(processJobs).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+        )).for("update")
+        if (current === undefined) return { _tag: "not-found" as const }
+        const nowDate = now()
+        if (
+          current.status !== "leased" || current.leaseUntil === null ||
+          current.leaseUntil <= nowDate || current.leaseOwner !== decoded.workerId ||
+          current.leaseToken !== decoded.leaseToken
+        ) return { _tag: "lease-lost" as const }
+        const exhausted = current.attempts >= ProcessJobMaxAttempts
+        const retry = !exhausted && decoded.retryAt !== null
+        const [failed] = await tx.update(processJobs).set({
+          status: exhausted ? "manual_recovery" : retry ? "pending" : "failed",
+          leaseUntil: null,
+          leaseOwner: null,
+          leaseToken: null,
+          scheduledAt: retry ? new Date(decoded.retryAt!) : undefined,
+          lastError: decoded.error,
+          completedAt: null,
+          updatedAt: nowDate,
+        }).where(and(
+          eq(processJobs.id, decoded.jobId),
+          eq(processJobs.tenantId, decoded.tenantId),
+          eq(processJobs.status, "leased"),
+          gt(processJobs.leaseUntil, nowDate),
+          eq(processJobs.leaseOwner, decoded.workerId),
+          eq(processJobs.leaseToken, decoded.leaseToken),
+        )).returning(processJobSelection)
+        return failed === undefined
+          ? { _tag: "lease-lost" as const }
+          : { _tag: "failed" as const, row: failed }
+      }, "process.job.fail")
+      if (result._tag === "not-found") {
+        return yield* Effect.fail(
+          new ProcessJobNotFound({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      if (result._tag === "lease-lost") {
+        return yield* Effect.fail(
+          new ProcessJobLeaseLost({ tenantId: decoded.tenantId, jobId: decoded.jobId }),
+        )
+      }
+      return yield* decodeJob(toProcessJob(result.row), decoded.tenantId, decoded.jobId)
+    })
+
   return {
     confirmOrder: execute,
     cancelOrder,
@@ -1496,5 +1828,9 @@ export const makeProcessService = Effect.gen(function* () {
         return yield* execute(decoded)
       }),
     markManualRecovery,
+    claimJob,
+    renewJob,
+    completeJob,
+    failJob,
   } satisfies ProcessService
 })

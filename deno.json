@@ -14,6 +14,7 @@
     "migrate": "deno run --allow-read --allow-env --allow-net apps/migrate/mod.ts",
     "migrate:p0-backfill": "deno run --allow-read --allow-env --allow-net apps/migrate/p0-backfill.ts",
     "db:generate": "deno run -A npm:drizzle-kit@1.0.0-rc.4 generate --config=drizzle.config.ts",
+    "db:migrate": "deno run -A npm:drizzle-kit@1.0.0-rc.4 migrate --config=drizzle.config.ts",
     "db:check": "deno run -A npm:drizzle-kit@1.0.0-rc.4 check --config=drizzle.config.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.provider=v8",

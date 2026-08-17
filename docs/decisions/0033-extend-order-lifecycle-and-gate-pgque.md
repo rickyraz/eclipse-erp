@@ -31,8 +31,10 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 
 ### Order and inventory lifecycle
 
-- Sales owns immutable order-line snapshots: item identifier, positive quantity, and unit price.
-  Order total is derived from those lines; callers do not supply an independent total.
+- Sales owns immutable order-line snapshots after confirmation: item identifier, positive quantity,
+  and unit price. Order total is derived from those lines; callers do not supply an independent
+  total. PostgreSQL protects confirmed/cancelled headers and lines and defers a total-versus-lines
+  check to transaction commit.
 - Order confirmation reserves the requested stock. Confirmation is the revenue-recognition point for
   this bounded workflow. The selected warehouse must belong to the selected legal entity; Inventory
   validates that relationship inside the reservation transaction.
@@ -58,8 +60,10 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 > `messaging.event_outbox`; the Process job decision below remains active.
 
 - `process.event_outbox` remains the transactionally persisted source for committed events.
-- `process.jobs` remains the leased work primitive. Workers use lease tokens, bounded retries, and
-  explicit manual-recovery states.
+- `process.jobs` remains the leased work primitive. Workers claim with a lease owner and fencing
+  token, and renew, complete, or fail only while both match the current lease. Stale workers are
+  rejected; retries are bounded at three attempts before manual recovery. Execution remains
+  at-least-once and business effects must be idempotent.
 - PgQue is the selected fan-out destination, but activation is gated until the repository contains a
   reviewed, locally pinned installer artifact, supported PostgreSQL 19 operational procedure, ticker
   ownership, grants, upgrade path, and integration adapter tests.
@@ -101,9 +105,9 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 
 ## Validation
 
-- PostgreSQL tests prove order-line total derivation, reservation release/fulfillment, journal
-  reversal, open-period enforcement, atomic cancellation rollback, duplicate retries, and competing
-  leases.
+- PostgreSQL tests prove order-line total derivation and terminal snapshot protection, reservation
+  release/fulfillment, journal reversal, open-period enforcement, atomic cancellation rollback,
+  duplicate retries, stale-worker fencing, retry exhaustion, and competing leases.
 - Boundary checks prove Process uses only public Sales, Inventory, and Accounting contracts.
 - PgQue activation additionally requires installer checksum review, PostgreSQL 19 rehearsal, ticker
   health checks, upgrade rehearsal, and integration adapter delivery/retry tests.
