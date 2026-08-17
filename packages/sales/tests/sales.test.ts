@@ -48,6 +48,13 @@ const withSales = <A, E>(program: Effect.Effect<A, E, SalesService>) =>
   )
 
 describe("sales contract", () => {
+  it.effect("exposes confirmed cancellation only as a coordinator participant", () =>
+    withSales(Effect.gen(function* () {
+      const sales = yield* SalesService
+      assert.isFalse("cancelOrder" in sales)
+      assert.isTrue("cancelConfirmedOrder" in sales)
+    })))
+
   it.effect("creates customer, quotation, and order", () =>
     withSales(Effect.gen(function* () {
       const sales = yield* SalesService
