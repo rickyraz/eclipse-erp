@@ -155,6 +155,9 @@ it.effect("suppresses a duplicate event consumer effect with one consumer receip
     assert.strictEqual(first.duplicate, false)
     assert.strictEqual(duplicate.duplicate, true)
     assert.strictEqual(executions, 1)
+    assert.strictEqual(first.receipt.eventType, event().eventType)
+    assert.strictEqual(first.receipt.eventVersion, event().eventVersion)
+    assert.strictEqual(first.receipt.idempotencyKey, event().idempotencyKey)
   }).pipe(Effect.provide(makeMessagingTestLayer())))
 
 it.effect("suppresses concurrent duplicate consumer effects in the test layer", () =>
