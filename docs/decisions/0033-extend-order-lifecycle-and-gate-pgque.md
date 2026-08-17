@@ -34,7 +34,8 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 - Sales owns immutable order-line snapshots: item identifier, positive quantity, and unit price.
   Order total is derived from those lines; callers do not supply an independent total.
 - Order confirmation reserves the requested stock. Confirmation is the revenue-recognition point for
-  this bounded workflow.
+  this bounded workflow. The selected warehouse must belong to the selected legal entity; Inventory
+  validates that relationship inside the reservation transaction.
 - A confirmed order may be cancelled only while its reservation is active. Cancellation atomically:
   cancels the Sales order, releases the Inventory reservation, creates an Accounting reversal, and
   appends an outbox event plus a post-commit job.
