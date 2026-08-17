@@ -51,7 +51,12 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 - Revenue journals are derived server-side from the confirmed order total and the configured
   receivable/revenue accounts. Process and HTTP callers do not provide journal lines for this flow.
 - Posting requires an enabled legal-entity accounting configuration and an open accounting period.
-- Cancellation creates a new, linked reversing journal. Posted journals are never deleted or edited.
+- Manual journals use the explicit `accounting.journal.post` capability; they are not a revenue-posting escape hatch.
+- A journal can reach `posted` or `reversed` only with at least two balanced lines. A deferred PostgreSQL
+  constraint trigger enforces `SUM(debit) = SUM(credit)` at transaction commit.
+- Cancellation creates a new, linked reversing journal. Posted journals and their lines are protected
+  by PostgreSQL triggers against updates, deletes, inserts into posted entries, and line reparenting.
+  Official reversals use a new journal entry.
 
 ### Durable delivery
 

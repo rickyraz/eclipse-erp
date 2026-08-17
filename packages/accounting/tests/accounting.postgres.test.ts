@@ -879,6 +879,62 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual((immutable as { code?: string }).code, "55000")
+          assert.strictEqual(
+            (immutable as { constraint_name?: string }).constraint_name,
+            "accounting_posted_journal_lines_immutable",
+          )
+
+          const [draft] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.journal_entries (tenant_id, reference)
+              values (${tenant!.id}, 'DRAFT-LINE') returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.journal_lines
+                (tenant_id, entry_id, account_id, debit, credit)
+              values (${tenant!.id}, ${draft!.id}, ${accounts[0]!.id}, 1, 0)
+            `
+          )
+          const reparented = yield* postgresFailure(() =>
+            client`
+              update accounting.journal_lines
+              set entry_id = ${posted!.id}
+              where entry_id = ${draft!.id}
+            `
+          )
+          assert.strictEqual((reparented as { code?: string }).code, "55000")
+          assert.strictEqual(
+            (reparented as { constraint_name?: string }).constraint_name,
+            "accounting_posted_journal_lines_immutable",
+          )
+
+          const inserted = yield* postgresFailure(() =>
+            client`
+              insert into accounting.journal_lines
+                (tenant_id, entry_id, account_id, debit, credit)
+              values (${tenant!.id}, ${posted!.id}, ${accounts[0]!.id}, 1, 0)
+            `
+          )
+          assert.strictEqual((inserted as { code?: string }).code, "55000")
+          assert.strictEqual(
+            (inserted as { constraint_name?: string }).constraint_name,
+            "accounting_posted_journal_lines_immutable",
+          )
+
+          const entryMutation = yield* postgresFailure(() =>
+            client`
+              update accounting.journal_entries
+              set reference = 'POSTED-CHANGED'
+              where id = ${posted!.id}
+            `
+          )
+          assert.strictEqual((entryMutation as { code?: string }).code, "55000")
+          assert.strictEqual(
+            (entryMutation as { constraint_name?: string }).constraint_name,
+            "accounting_posted_journal_immutable",
+          )
         }),
     ),
 )
