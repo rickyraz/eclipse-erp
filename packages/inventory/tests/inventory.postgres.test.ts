@@ -701,6 +701,57 @@ it.effect.skipIf(databaseUrl === undefined)(
               `${a.warehouse_id}:${a.item_id}`.localeCompare(`${b.warehouse_id}:${b.item_id}`)
             ),
           )
+          const movements = yield* Effect.promise(() =>
+            client<{
+              warehouse_id: string
+              item_id: string
+              kind: string
+              quantity: string
+              reference_id: string
+            }[]>`
+              select warehouse_id, item_id, kind, quantity::text, reference_id
+              from inventory.movements
+              where tenant_id = ${tenant.id} and reference_id = ${transfer.id}
+              order by warehouse_id, item_id, kind
+            `
+          )
+          assert.deepStrictEqual(
+            movements,
+            [
+              {
+                warehouse_id: destination.id,
+                item_id: cable.id,
+                kind: "receipt",
+                quantity: "3",
+                reference_id: transfer.id,
+              },
+              {
+                warehouse_id: destination.id,
+                item_id: widget.id,
+                kind: "receipt",
+                quantity: "4",
+                reference_id: transfer.id,
+              },
+              {
+                warehouse_id: source.id,
+                item_id: cable.id,
+                kind: "issue",
+                quantity: "-3",
+                reference_id: transfer.id,
+              },
+              {
+                warehouse_id: source.id,
+                item_id: widget.id,
+                kind: "issue",
+                quantity: "-4",
+                reference_id: transfer.id,
+              },
+            ].toSorted((a, b) =>
+              `${a.warehouse_id}:${a.item_id}:${a.kind}`.localeCompare(
+                `${b.warehouse_id}:${b.item_id}:${b.kind}`,
+              )
+            ),
+          )
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
