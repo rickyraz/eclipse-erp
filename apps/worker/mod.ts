@@ -14,16 +14,30 @@ import { FinancialWorkerInput, runFinancialOperationOnce } from "./runner.ts"
 
 export { FinancialWorkerInput, FinancialWorkerRun, runFinancialOperationOnce } from "./runner.ts"
 
+const requiredEnv = (name: string) => {
+  const value = Deno.env.get(name)?.trim()
+  if (value === undefined || value.length === 0) throw new Error(`${name} is required`)
+  return value
+}
+
+const strictDecimalEnv = (name: string) => {
+  const value = requiredEnv(name)
+  if (!/^\d+$/.test(value)) throw new Error(`${name} must be a decimal integer`)
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${name} is out of range`)
+  return parsed
+}
+
 const tigerBeetleConfig = Effect.try({
   try: () => ({
-    clusterId: BigInt(Deno.env.get("TIGERBEETLE_CLUSTER_ID") ?? "0"),
-    replicaAddresses: (Deno.env.get("TIGERBEETLE_REPLICA_ADDRESSES") ?? "127.0.0.1:3000")
+    clusterId: BigInt(requiredEnv("TIGERBEETLE_CLUSTER_ID")),
+    replicaAddresses: requiredEnv("TIGERBEETLE_REPLICA_ADDRESSES")
       .split(",")
       .map((address) => address.trim())
       .filter((address) => address.length > 0),
-    ledger: Number.parseInt(Deno.env.get("TIGERBEETLE_LEDGER") ?? "1", 10),
-    code: Number.parseInt(Deno.env.get("TIGERBEETLE_CODE") ?? "1", 10),
-    currency: (Deno.env.get("TIGERBEETLE_CURRENCY") ?? "USD").toUpperCase(),
+    ledger: strictDecimalEnv("TIGERBEETLE_LEDGER"),
+    code: strictDecimalEnv("TIGERBEETLE_CODE"),
+    currency: requiredEnv("TIGERBEETLE_CURRENCY").toUpperCase(),
   }),
   catch: () => new TigerBeetleConfigurationFailure({ reason: "invalid_configuration" }),
 })
@@ -52,6 +66,10 @@ if (import.meta.main) {
     console.error("DATABASE_URL and WORKER_TENANT_ID are required")
     Deno.exit(1)
   }
-  const workerId = Deno.env.get("WORKER_ID") ?? `accounting-worker-${crypto.randomUUID()}`
+  const workerId = Deno.env.get("WORKER_ID")?.trim()
+  if (workerId === undefined || workerId.length === 0) {
+    console.error("WORKER_ID is required")
+    Deno.exit(1)
+  }
   startWorker(url, { tenantId, workerId }).pipe(DenoRuntime.runMain)
 }

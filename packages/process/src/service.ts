@@ -12,6 +12,7 @@ import {
   AccountingCapabilities,
   AccountingPeriodNotOpen,
   AccountingService,
+  FinancialEngineActivated,
   JournalEntry,
   JournalIdempotencyConflict,
   RevenueJournalNotFound,
@@ -339,6 +340,7 @@ class WorkflowRunAlreadyExists extends Error {}
 
 type OrderConfirmationFailure =
   | AccountingPeriodNotOpen
+  | FinancialEngineActivated
   | AuthorizationDenied
   | DatabaseFailure
   | EventIdempotencyConflict
@@ -361,6 +363,7 @@ type OrderConfirmationFailure =
 
 type OrderLifecycleFailure =
   | AccountingPeriodNotOpen
+  | FinancialEngineActivated
   | AuthorizationDenied
   | DatabaseFailure
   | EventIdempotencyConflict

@@ -27,6 +27,7 @@ const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
+const FinancialEngine = Schema.Literals(["postgresql", "tigerbeetle"])
 const Precision = Schema.Literal(2)
 const FiscalYearStartMonth = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 12 }))
 const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/))
@@ -38,6 +39,7 @@ export const AccountingConfiguration = Schema.Struct({
   precision: Precision,
   fiscalYearStartMonth: FiscalYearStartMonth,
   postingEnabled: Schema.Boolean,
+  financialEngine: FinancialEngine,
 })
 
 export const Account = Schema.Struct({
@@ -96,6 +98,9 @@ export const ConfigureLegalEntityInput = Schema.Struct({
   precision: Precision,
   fiscalYearStartMonth: FiscalYearStartMonth,
   postingEnabled: Schema.Boolean,
+  financialEngine: Schema.optionalKey(
+    FinancialEngine.pipe(Schema.withDecodingDefaultKey(Effect.succeed("postgresql" as const))),
+  ),
 })
 
 export const CreateAccountInput = Schema.Struct({
@@ -155,6 +160,21 @@ export class AccountingConfigurationAlreadyExists
       legalEntityId: Schema.String,
     },
   ) {}
+export class FinancialEngineActivated
+  extends Schema.TaggedErrorClass<FinancialEngineActivated>()("FinancialEngineActivated", {
+    tenantId: Schema.String,
+    legalEntityId: Schema.String,
+  }) {}
+export class FinancialEngineCutoverBlocked
+  extends Schema.TaggedErrorClass<FinancialEngineCutoverBlocked>()(
+    "FinancialEngineCutoverBlocked",
+    {
+      tenantId: Schema.String,
+      legalEntityId: Schema.String,
+      reason: Schema.Literal("activation_gates_pending"),
+    },
+  ) {}
+
 export class AccountingLegalEntityNotFound
   extends Schema.TaggedErrorClass<AccountingLegalEntityNotFound>()(
     "AccountingLegalEntityNotFound",
@@ -247,7 +267,10 @@ export interface AccountingService {
     input: unknown,
   ) => Effect.Effect<
     AccountingConfiguration,
-    AccountingConfigurationAlreadyExists | AccountingLegalEntityNotFound | CommonFailure
+    | AccountingConfigurationAlreadyExists
+    | AccountingLegalEntityNotFound
+    | FinancialEngineCutoverBlocked
+    | CommonFailure
   >
   readonly createAccount: (
     input: unknown,
@@ -276,6 +299,7 @@ export interface AccountingService {
     JournalEntry,
     | AccountingPeriodNotOpen
     | EventIdempotencyConflict
+    | FinancialEngineActivated
     | JournalIdempotencyConflict
     | RevenuePostingProfileNotFound
     | SalesOrderInvalidState
@@ -287,6 +311,7 @@ export interface AccountingService {
   ) => Effect.Effect<
     JournalEntry,
     | AccountingPeriodNotOpen
+    | FinancialEngineActivated
     | JournalIdempotencyConflict
     | RevenueJournalNotFound
     | RevenuePostingProfileNotFound
@@ -297,6 +322,7 @@ export interface AccountingService {
   ) => Effect.Effect<
     JournalEntry,
     | AccountNotFound
+    | FinancialEngineActivated
     | JournalIdempotencyConflict
     | JournalReferenceAlreadyExists
     | InvalidJournalLine
@@ -362,6 +388,41 @@ export const makeAccountingService = Effect.gen(function* () {
   const sales = yield* SalesService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
+  const ensureLegacyEngine = (tenantId: string, legalEntityId: string) =>
+    Effect.gen(function* () {
+      const [configuration] = yield* database.query(
+        (db) =>
+          db.select({ financialEngine: legalEntityAccountingConfigurations.financialEngine })
+            .from(legalEntityAccountingConfigurations).where(and(
+              eq(legalEntityAccountingConfigurations.tenantId, tenantId),
+              eq(legalEntityAccountingConfigurations.legalEntityId, legalEntityId),
+            )),
+        "accounting.legacy_engine.lookup",
+      )
+      if (configuration?.financialEngine === "tigerbeetle") {
+        return yield* Effect.fail(new FinancialEngineActivated({ tenantId, legalEntityId }))
+      }
+    })
+  const ensureLegacyTenantEngine = (tenantId: string) =>
+    Effect.gen(function* () {
+      const [configuration] = yield* database.query(
+        (db) =>
+          db.select({ legalEntityId: legalEntityAccountingConfigurations.legalEntityId })
+            .from(legalEntityAccountingConfigurations).where(and(
+              eq(legalEntityAccountingConfigurations.tenantId, tenantId),
+              eq(legalEntityAccountingConfigurations.financialEngine, "tigerbeetle"),
+            )),
+        "accounting.legacy_tenant_engine.lookup",
+      )
+      if (configuration !== undefined) {
+        return yield* Effect.fail(
+          new FinancialEngineActivated({
+            tenantId,
+            legalEntityId: configuration.legalEntityId,
+          }),
+        )
+      }
+    })
   return {
     configureLegalEntity: (input) =>
       Effect.gen(function* () {
@@ -371,6 +432,15 @@ export const makeAccountingService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: AccountingCapabilities.legalEntityConfigure,
         })
+        if (decoded.financialEngine === "tigerbeetle") {
+          return yield* Effect.fail(
+            new FinancialEngineCutoverBlocked({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "activation_gates_pending",
+            }),
+          )
+        }
         const baseCurrency = decoded.baseCurrency.toUpperCase()
         const rows = yield* database.query(
           (db) =>
@@ -381,6 +451,7 @@ export const makeAccountingService = Effect.gen(function* () {
               precision: decoded.precision,
               fiscalYearStartMonth: decoded.fiscalYearStartMonth,
               postingEnabled: decoded.postingEnabled,
+              financialEngine: decoded.financialEngine ?? "postgresql",
             }).returning({
               tenantId: legalEntityAccountingConfigurations.tenantId,
               legalEntityId: legalEntityAccountingConfigurations.legalEntityId,
@@ -388,6 +459,7 @@ export const makeAccountingService = Effect.gen(function* () {
               precision: legalEntityAccountingConfigurations.precision,
               fiscalYearStartMonth: legalEntityAccountingConfigurations.fiscalYearStartMonth,
               postingEnabled: legalEntityAccountingConfigurations.postingEnabled,
+              financialEngine: legalEntityAccountingConfigurations.financialEngine,
             }),
           "accounting.legal_entity.configure",
         ).pipe(
@@ -629,6 +701,7 @@ export const makeAccountingService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: AccountingCapabilities.revenuePost,
         })
+        yield* ensureLegacyEngine(decoded.tenantId, decoded.legalEntityId)
         const reference = revenueReference(decoded.legalEntityId, decoded.orderId)
         const commandId = decoded.commandId.trim()
         const correlationId = decoded.correlationId.trim()
@@ -853,6 +926,7 @@ export const makeAccountingService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: AccountingCapabilities.revenueReverse,
         })
+        yield* ensureLegacyEngine(decoded.tenantId, decoded.legalEntityId)
         const sourceReference = revenueReference(decoded.legalEntityId, decoded.orderId)
         const reference = reversalReference(decoded.legalEntityId, decoded.orderId)
         const journal = yield* database.transaction(
@@ -1060,6 +1134,7 @@ export const makeAccountingService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: AccountingCapabilities.journalPost,
         })
+        yield* ensureLegacyTenantEngine(decoded.tenantId)
         const lineError = validateLines(decoded.lines)
         if (lineError !== undefined) return yield* Effect.fail(lineError)
         const reference = decoded.reference.trim()
@@ -1261,6 +1336,15 @@ export const makeAccountingTestLayer = () =>
               tenantId: decoded.tenantId,
               capability: AccountingCapabilities.legalEntityConfigure,
             })
+            if (decoded.financialEngine === "tigerbeetle") {
+              return yield* Effect.fail(
+                new FinancialEngineCutoverBlocked({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "activation_gates_pending",
+                }),
+              )
+            }
             const key = `${decoded.tenantId}:${decoded.legalEntityId}`
             if (configurations.has(key)) {
               return yield* Effect.fail(
@@ -1277,6 +1361,7 @@ export const makeAccountingTestLayer = () =>
               precision: decoded.precision,
               fiscalYearStartMonth: decoded.fiscalYearStartMonth,
               postingEnabled: decoded.postingEnabled,
+              financialEngine: decoded.financialEngine ?? "postgresql",
             }
             configurations.set(key, configuration)
             return configuration

@@ -33,6 +33,10 @@ export const accountingPeriodStatus = accountingSchema.enum(
   "accounting_period_status",
   ["open", "closed"],
 )
+export const financialEngine = accountingSchema.enum(
+  "financial_engine",
+  ["postgresql", "tigerbeetle"],
+)
 export const financialOperationType = accountingSchema.enum(
   "financial_operation_type",
   ["journal_post", "journal_reverse", "revenue_post"],
@@ -55,6 +59,7 @@ export const legalEntityAccountingConfigurations = accountingSchema.table(
     precision: smallint("decimal_precision").notNull(),
     fiscalYearStartMonth: smallint("fiscal_year_start_month").notNull(),
     postingEnabled: boolean("posting_enabled").notNull().default(true),
+    financialEngine: financialEngine("financial_engine").notNull().default("postgresql"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -234,6 +239,8 @@ export const financialOperations = accountingSchema.table("financial_operations"
   reference: text("reference").notNull(),
   currency: text("currency").notNull(),
   mappingVersion: integer("mapping_version").notNull(),
+  engine: financialEngine("engine").notNull().default("tigerbeetle"),
+  engineVerified: boolean("engine_verified").notNull().default(false),
   requestFingerprint: text("request_fingerprint").notNull(),
   actorPrincipalId: text("actor_principal_id").notNull(),
   actorSessionId: text("actor_session_id").notNull(),
@@ -244,6 +251,7 @@ export const financialOperations = accountingSchema.table("financial_operations"
   engineAcceptedAt: text("engine_accepted_at"),
   rejectionReason: text("rejection_reason"),
   recoveryReason: text("recovery_reason"),
+  observedEngine: financialEngine("observed_engine"),
   lastError: text("last_error"),
   reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
   createdAt: createdAt(),

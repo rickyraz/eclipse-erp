@@ -28,6 +28,13 @@ are implemented as an unactivated integration slice; they do not change the curr
 command path. They are not a reason to add a live PostgreSQL/TigerBeetle mirror, and no new command
 may silently assume that both stores are authoritative.
 
+A Legal Entity selects its route explicitly with `financial_engine`, which defaults to PostgreSQL
+until the cutover gates are approved. Durable financial operations default their requested engine to
+TigerBeetle, but historical rows are marked `engine_verified = false` during migration rather than
+being treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations
+are fenced into manual recovery. Once any Legal Entity for a tenant is routed to TigerBeetle, the
+legacy tenant-scoped PostgreSQL journal path is rejected rather than allowing two authorities.
+
 ## Authority Matrix
 
 | Fact or responsibility | Authority | Notes |
@@ -50,11 +57,13 @@ financial movement by itself.
 The first cutover must declare a non-overlapping authority boundary. The default migration posture
 is an immutable PostgreSQL historical archive before the cutover boundary and TigerBeetle authority
 for operations after it, with verified opening balances and source provenance in reports. A
-post-cutover reversal may target only a post-cutover operation in the first profile. A correction
-that crosses the boundary is rejected into an explicit not-ready/manual-recovery path until a later
-correction decision defines its period, archive reference, opening-balance effect, and reconciliation
-proof. Full historical transfer import is an optional migration improvement, not a prerequisite for
-the first profile; it requires its own ordering and replay proof.
+post-cutover reversal may target only a post-cutover operation in the first profile. The
+implementation additionally requires the source operation to be verified TigerBeetle-owned,
+reconciled, in the same Legal Entity and currency, and locked together with its immutable source
+lines. A correction that crosses the boundary is rejected into an explicit not-ready/manual-recovery
+path until a later correction decision defines its period, archive reference, opening-balance effect,
+and reconciliation proof. Full historical transfer import is an optional migration improvement, not
+a prerequisite for the first profile; it requires its own ordering and replay proof.
 
 ## Semantic Boundary
 

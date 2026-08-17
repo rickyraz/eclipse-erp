@@ -5,6 +5,7 @@ import * as Layer from "effect/Layer"
 import {
   AccountingCapabilities,
   FinancialOperationsPending,
+  FinancialReversalAlreadyExists,
   makeAccountingService,
   makeFinancialLedgerTestLayer,
   makeFinancialOperationService,
@@ -23,6 +24,8 @@ import { makeProcessJobEnqueuer } from "../../process/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
+const postgresFailure = (effect: () => Promise<unknown>) =>
+  Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
 
 it.effect.skipIf(databaseUrl === undefined)(
   "persists a financial intent, submits it once, and projects the receipt",
@@ -56,8 +59,8 @@ it.effect.skipIf(databaseUrl === undefined)(
             client`
               insert into accounting.legal_entity_accounting_configurations
                 (tenant_id, legal_entity_id, base_currency, decimal_precision,
-                 fiscal_year_start_month, posting_enabled)
-              values (${tenant!.id}, ${legalEntity!.id}, 'USD', 2, 1, true)
+                 fiscal_year_start_month, posting_enabled, financial_engine)
+              values (${tenant!.id}, ${legalEntity!.id}, 'USD', 2, 1, true, 'tigerbeetle')
             `
           )
           yield* Effect.promise(() =>
@@ -125,6 +128,19 @@ it.effect.skipIf(databaseUrl === undefined)(
               ledger,
             ),
           )
+
+          const revenueMismatch = yield* Effect.flip(service.createRevenueIntent({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            orderId: crypto.randomUUID(),
+            commandId: `revenue-mismatch-${crypto.randomUUID()}`,
+            correlationId: `revenue-mismatch-correlation-${crypto.randomUUID()}`,
+            currency: "USD",
+            mappingVersion: 1,
+            amount: "6.50",
+          }))
+          assert.strictEqual(revenueMismatch._tag, "FinancialRevenueAmountMismatch")
 
           const revenue = yield* service.createRevenueIntent({
             principal,
@@ -205,6 +221,22 @@ it.effect.skipIf(databaseUrl === undefined)(
             ],
             correlationId: `correlation-${crypto.randomUUID()}`,
           }
+          const concurrentInput = {
+            ...input,
+            operationId: `concurrent-${crypto.randomUUID()}`,
+            reference: `concurrent-${crypto.randomUUID()}`,
+          }
+          const concurrentIntents = yield* Effect.all([
+            service.createJournalIntent(concurrentInput),
+            service.createJournalIntent(concurrentInput),
+          ], { concurrency: "unbounded" })
+          assert.strictEqual(concurrentIntents[0]!.id, concurrentIntents[1]!.id)
+          const concurrentPosted = yield* service.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: concurrentInput.operationId,
+          })
+          assert.strictEqual(concurrentPosted.status, "reconciled")
+
           const intent = yield* service.createJournalIntent(input)
           assert.strictEqual(intent.status, "intent")
 
@@ -222,6 +254,64 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: input.operationId,
           })
           assert.strictEqual(posted.status, "reconciled")
+          const projectedTransfers = yield* Effect.promise(() =>
+            client<{ position: number; engine_transfer_id: string | null; status: string }[]>`
+              select position, engine_transfer_id, status
+              from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id}
+                and operation_id = ${posted.id}
+              order by position
+            `
+          )
+          assert.strictEqual(projectedTransfers.length, 1)
+          assert.isNotNull(projectedTransfers[0]!.engine_transfer_id)
+          assert.strictEqual(projectedTransfers[0]!.status, "accepted")
+
+          const immutableOperation = yield* postgresFailure(() =>
+            client`
+              update accounting.financial_operations
+              set mapping_version = 2
+              where tenant_id = ${tenant!.id} and id = ${posted.id}
+            `
+          )
+          assert.strictEqual(
+            (immutableOperation as { constraint_name?: string }).constraint_name,
+            "financial_operations_immutable_fields_check",
+          )
+          const immutableTransfer = yield* postgresFailure(() =>
+            client`
+              update accounting.financial_operation_transfers
+              set engine_transfer_id = 'different'
+              where tenant_id = ${tenant!.id} and operation_id = ${posted.id}
+            `
+          )
+          assert.strictEqual(
+            (immutableTransfer as { constraint_name?: string }).constraint_name,
+            "financial_operation_transfers_immutable_fields_check",
+          )
+
+          const corruptOperationId = `corrupt-${crypto.randomUUID()}`
+          const corruptService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              makeFinancialLedgerTestLayer({ corruptTransferIdsFor: corruptOperationId }),
+            ),
+          )
+          yield* corruptService.createJournalIntent({
+            ...input,
+            operationId: corruptOperationId,
+            reference: `corrupt-${crypto.randomUUID()}`,
+          })
+          const corruptResult = yield* corruptService.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: corruptOperationId,
+          })
+          assert.strictEqual(corruptResult.status, "manual_recovery")
 
           let failReceipt = true
           const failingMessaging = {
@@ -259,12 +349,27 @@ it.effect.skipIf(databaseUrl === undefined)(
           }))
           assert.instanceOf(receiptFailure, DatabaseFailure)
           const [failedOperation] = yield* Effect.promise(() =>
-            client<{ status: string }[]>`
-              select status from accounting.financial_operations
-              where tenant_id = ${tenant!.id} and operation_id = ${failedInput.operationId}
+            client<{
+              status: string
+              journal_status: string
+              transfer_status: string
+            }[]>`
+              select operation.status, journal.status as journal_status,
+                transfer.status as transfer_status
+              from accounting.financial_operations operation
+              join accounting.journal_entries journal
+                on journal.tenant_id = operation.tenant_id and journal.id = operation.journal_id
+              join accounting.financial_operation_transfers transfer
+                on transfer.tenant_id = operation.tenant_id and transfer.operation_id = operation.id
+              where operation.tenant_id = ${tenant!.id} and operation.operation_id =
+                ${failedInput.operationId}
             `
           )
-          assert.strictEqual(failedOperation!.status, "submitted")
+          assert.deepStrictEqual(failedOperation, {
+            status: "accepted",
+            journal_status: "draft",
+            transfer_status: "unresolved",
+          })
           const accounting = yield* Effect.provide(
             makeAccountingService,
             Layer.mergeAll(
@@ -312,6 +417,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: lostInput.operationId,
           })
           assert.strictEqual(reconciled.status, "reconciled")
+          const reconciledAgain = yield* lostService.reconcileFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: lostInput.operationId,
+          })
+          assert.strictEqual(reconciledAgain.status, "reconciled")
 
           const replay = yield* service.createJournalIntent(input)
           assert.strictEqual(replay.id, intent.id)
@@ -357,6 +467,18 @@ it.effect.skipIf(databaseUrl === undefined)(
             status: "reversed",
             reverses_entry_id: posted.journalId,
           })
+          const duplicateReversal = yield* Effect.flip(service.createReversalIntent({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            sourceJournalId: posted.journalId,
+            operationId: `duplicate-reversal-${crypto.randomUUID()}`,
+            reference: `duplicate-reversal-${crypto.randomUUID()}`,
+            currency: "USD",
+            mappingVersion: 1,
+            correlationId: `duplicate-reversal-correlation-${crypto.randomUUID()}`,
+          }))
+          assert.instanceOf(duplicateReversal, FinancialReversalAlreadyExists)
         }),
     ),
 )

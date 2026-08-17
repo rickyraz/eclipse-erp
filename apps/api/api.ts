@@ -335,6 +335,7 @@ const Accounting = HttpApiGroup.make("Accounting").add(
       precision: Schema.Literal(2),
       fiscalYearStartMonth: Schema.Int,
       postingEnabled: Schema.Boolean,
+      financialEngine: Schema.optionalKey(Schema.Literals(["postgresql", "tigerbeetle"])),
     }),
     success: CreatedAccountingConfiguration,
     error: errors,

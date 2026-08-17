@@ -51,6 +51,7 @@ type FakeState = {
   readonly createdTransfers: Transfer[]
   nextTimestamp: bigint
   failNextTransferResponse: boolean
+  failNextAccountLookup: boolean
   destroyed: boolean
 }
 
@@ -67,6 +68,8 @@ const sameTransfer = (left: Transfer, right: Transfer) =>
   left.credit_account_id === right.credit_account_id &&
   left.amount === right.amount &&
   left.pending_id === right.pending_id &&
+  left.user_data_128 === right.user_data_128 &&
+  left.user_data_64 === right.user_data_64 &&
   left.user_data_32 === right.user_data_32 &&
   left.timeout === right.timeout &&
   left.ledger === right.ledger &&
@@ -155,11 +158,16 @@ const makeFakeClient = (state: FakeState): Client => ({
     }
     return promise(results)
   },
-  lookupAccounts: (ids) =>
-    promise(ids.flatMap((id) => {
+  lookupAccounts: (ids) => {
+    if (state.failNextAccountLookup) {
+      state.failNextAccountLookup = false
+      return Promise.reject(new Error("account lookup unavailable"))
+    }
+    return promise(ids.flatMap((id) => {
       const account = state.accounts.get(id)
       return account === undefined ? [] : [account]
-    })),
+    }))
+  },
   lookupTransfers: (ids) =>
     promise(ids.flatMap((id) => {
       const transfer = state.transfers.get(id)
@@ -180,6 +188,7 @@ const makeState = (): FakeState => ({
   createdTransfers: [],
   nextTimestamp: 1n,
   failNextTransferResponse: false,
+  failNextAccountLookup: false,
   destroyed: false,
 })
 
@@ -211,6 +220,21 @@ describe("TigerBeetle financial adapter", () => {
       assert.strictEqual(balance._tag, "available")
       if (balance._tag !== "available") return
       assert.strictEqual(balance.debitsPostedMinor, "12500")
+
+      state.failNextAccountLookup = true
+      const unavailable = yield* ledger.getBalance({ ...accountInput("cash") })
+      assert.deepStrictEqual(unavailable, {
+        _tag: "unknown",
+        accountId: "cash",
+        reason: "unavailable",
+      })
+
+      const cash = [...state.accounts.values()].find((account) => account.user_data_32 === 1)!
+      state.accounts.set(cash.id, { ...cash, user_data_64: 1n })
+      assert.strictEqual(
+        (yield* ledger.createExecutionAccount(accountInput("cash")))._tag,
+        "manual_recovery",
+      )
     }))
   })
 
@@ -263,13 +287,55 @@ describe("TigerBeetle financial adapter", () => {
       yield* ledger.createExecutionAccount(accountInput("revenue"))
 
       const unknown = yield* ledger.postJournal(journalInput("lost-operation"))
-      const resolved = yield* ledger.postJournal(journalInput("lost-operation"))
+      const resolved = yield* ledger.reconcileJournal(journalInput("lost-operation"))
       assert.deepStrictEqual(unknown, {
         _tag: "unknown",
         operationId: "lost-operation",
         reason: "response_lost",
       })
       assert.strictEqual(resolved._tag, "accepted")
+      if (resolved._tag === "accepted") assert.strictEqual(resolved.transferIds.length, 1)
+      const notFound = yield* ledger.reconcileJournal(journalInput("not-submitted"))
+      assert.deepStrictEqual(notFound, {
+        _tag: "unknown",
+        operationId: "not-submitted",
+        reason: "not_found",
+      })
+    }))
+  })
+
+  it.effect("fails closed on reconciliation metadata and partial results", () => {
+    const state = makeState()
+    return Effect.scoped(Effect.gen(function* () {
+      const ledger = yield* makeTigerBeetleFinancialLedger(config, () => makeFakeClient(state))
+      for (const accountId of ["cash", "cash-2", "revenue", "revenue-2"]) {
+        yield* ledger.createExecutionAccount(accountInput(accountId))
+      }
+      const input = {
+        ...journalInput("reconcile-mismatch"),
+        lines: [
+          { accountId: "cash", debitMinor: "10000", creditMinor: "0" },
+          { accountId: "cash-2", debitMinor: "2500", creditMinor: "0" },
+          { accountId: "revenue", debitMinor: "0", creditMinor: "10000" },
+          { accountId: "revenue-2", debitMinor: "0", creditMinor: "2500" },
+        ],
+      }
+      const posted = yield* ledger.postJournal(input)
+      assert.strictEqual(posted._tag, "accepted")
+      const [firstId] = [...state.transfers.keys()]
+      const first = state.transfers.get(firstId!)!
+      state.transfers.set(firstId!, { ...first, user_data_64: 1n })
+      assert.deepStrictEqual(yield* ledger.reconcileJournal(input), {
+        _tag: "manual_recovery",
+        operationId: "reconcile-mismatch",
+        reason: "mapping_mismatch",
+      })
+      state.transfers.delete(firstId!)
+      assert.deepStrictEqual(yield* ledger.reconcileJournal(input), {
+        _tag: "manual_recovery",
+        operationId: "reconcile-mismatch",
+        reason: "mapping_mismatch",
+      })
     }))
   })
 

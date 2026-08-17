@@ -78,6 +78,26 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(configuration!.fiscal_year_start_month, 1)
           assert.strictEqual(configuration!.posting_enabled, true)
 
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set financial_engine = 'tigerbeetle'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          const engineDowngrade = yield* postgresFailure(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set financial_engine = 'postgresql'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          assert.strictEqual((engineDowngrade as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (engineDowngrade as { constraint_name?: string }).constraint_name,
+            "legal_entity_accounting_engine_downgrade_check",
+          )
+
           const unsupportedPrecision = yield* postgresFailure(() =>
             client`
               update accounting.legal_entity_accounting_configurations

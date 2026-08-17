@@ -5,7 +5,7 @@ import * as Schema from "effect/Schema"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const PositiveInteger = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 0x7fffffff }))
-const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
+const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9]\d*)$/))
 
 export const FinancialAccountConstraint = Schema.Literals([
@@ -59,6 +59,7 @@ export const FinancialManualRecoveryReason = Schema.Literals([
   "mapping_mismatch",
   "conflicting_replay",
   "reconciliation_required",
+  "engine_routing_changed",
 ])
 
 export const ExecutionAccountOutcome = Schema.Union([
@@ -92,6 +93,7 @@ export const FinancialExecutionOutcome = Schema.Union([
     mappingVersion: PositiveInteger,
     acceptedAt: NonEmptyString,
     transferCount: PositiveInteger,
+    transferIds: Schema.Array(NonEmptyString).check(Schema.isMinLength(1)),
   }),
   Schema.Struct({
     _tag: Schema.Literal("rejected"),
@@ -101,7 +103,7 @@ export const FinancialExecutionOutcome = Schema.Union([
   Schema.Struct({
     _tag: Schema.Literal("unknown"),
     operationId: NonEmptyString,
-    reason: Schema.Literals(["unavailable", "response_lost"]),
+    reason: Schema.Literals(["unavailable", "response_lost", "not_found"]),
   }),
   Schema.Struct({
     _tag: Schema.Literal("manual_recovery"),
@@ -151,6 +153,12 @@ export interface FinancialLedgerPort {
   readonly postJournal: (
     input: unknown,
   ) => Effect.Effect<FinancialExecutionOutcome, Schema.SchemaError>
+  readonly reconcileJournal: (
+    input: unknown,
+  ) => Effect.Effect<FinancialExecutionOutcome, Schema.SchemaError>
+  readonly expectedTransferIds: (
+    input: unknown,
+  ) => Effect.Effect<readonly string[], Schema.SchemaError>
   readonly getBalance: (
     input: unknown,
   ) => Effect.Effect<FinancialBalanceOutcome, Schema.SchemaError>
@@ -162,6 +170,7 @@ export const FinancialLedgerPort = Context.Service<FinancialLedgerPort>(
 
 type TestAdapterOptions = Readonly<{
   readonly loseResponseFor?: string
+  readonly corruptTransferIdsFor?: string
 }>
 
 const accountKey = (input: CreateExecutionAccountInput | GetFinancialBalanceInput) =>
@@ -169,6 +178,32 @@ const accountKey = (input: CreateExecutionAccountInput | GetFinancialBalanceInpu
 
 const operationKey = (input: PostFinancialJournalInput) =>
   `${input.tenantId}:${input.legalEntityId}:${input.operationId}`
+
+const expectedTestTransferIds = (input: PostFinancialJournalInput) => {
+  const debits = input.lines.filter((line) => BigInt(line.debitMinor) > 0n).map((line) =>
+    BigInt(line.debitMinor)
+  )
+  const credits = input.lines.filter((line) => BigInt(line.creditMinor) > 0n).map((line) =>
+    BigInt(line.creditMinor)
+  )
+  let debitIndex = 0
+  let creditIndex = 0
+  let transferCount = 0
+  while (debitIndex < debits.length && creditIndex < credits.length) {
+    const amount = debits[debitIndex]! < credits[creditIndex]!
+      ? debits[debitIndex]!
+      : credits[creditIndex]!
+    debits[debitIndex] = debits[debitIndex]! - amount
+    credits[creditIndex] = credits[creditIndex]! - amount
+    if (debits[debitIndex] === 0n) debitIndex += 1
+    if (credits[creditIndex] === 0n) creditIndex += 1
+    transferCount += 1
+  }
+  return Array.from(
+    { length: transferCount },
+    (_, index) => `transfer:${operationKey(input)}:${index}`,
+  )
+}
 
 const normalizeLines = (lines: readonly FinancialJournalLine[]) =>
   lines.map((line) => `${line.accountId}:${line.debitMinor}:${line.creditMinor}`).toSorted()
@@ -203,6 +238,10 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
     FinancialLedgerPort,
     Effect.sync(() => {
       const accounts = new Map<string, CreateExecutionAccountInput>()
+      const balances = new Map<string, {
+        debitsPostedMinor: bigint
+        creditsPostedMinor: bigint
+      }>()
       const operations = new Map<
         string,
         { fingerprint: string; outcome: FinancialExecutionOutcome }
@@ -223,12 +262,18 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
               }
             }
             accounts.set(key, decoded)
+            balances.set(key, { debitsPostedMinor: 0n, creditsPostedMinor: 0n })
             return {
               _tag: "accepted" as const,
               accountId: decoded.accountId,
               mappingVersion: decoded.mappingVersion,
               acceptedAt: "0",
             }
+          }),
+        expectedTransferIds: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(PostFinancialJournalInput)(input)
+            return expectedTestTransferIds(decoded)
           }),
         postJournal: (input) =>
           Effect.gen(function* () {
@@ -271,12 +316,30 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
               }
               return existing.outcome
             }
+            for (const line of decoded.lines) {
+              const balanceKey = accountKey({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.legalEntityId,
+                accountId: line.accountId,
+                currency: decoded.currency,
+                mappingVersion: decoded.mappingVersion,
+              })
+              const balance = balances.get(balanceKey)
+              if (balance === undefined) continue
+              balance.debitsPostedMinor += BigInt(line.debitMinor)
+              balance.creditsPostedMinor += BigInt(line.creditMinor)
+            }
+            const transferIds = expectedTestTransferIds(decoded)
+            const returnedTransferIds = options.corruptTransferIdsFor === decoded.operationId
+              ? transferIds.map((id, index) => index === 0 ? `${id}:corrupt` : id)
+              : transferIds
             const outcome: FinancialExecutionOutcome = {
               _tag: "accepted",
               operationId: decoded.operationId,
               mappingVersion: decoded.mappingVersion,
               acceptedAt: "0",
-              transferCount: decoded.lines.length - 1,
+              transferCount: returnedTransferIds.length,
+              transferIds: returnedTransferIds,
             }
             operations.set(key, { fingerprint, outcome })
             if (options.loseResponseFor === decoded.operationId && !lost.has(key)) {
@@ -289,21 +352,46 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
             }
             return outcome
           }),
+        reconcileJournal: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(PostFinancialJournalInput)(input)
+            const existing = operations.get(operationKey(decoded))
+            if (existing === undefined) {
+              return {
+                _tag: "unknown" as const,
+                operationId: decoded.operationId,
+                reason: "not_found" as const,
+              }
+            }
+            const fingerprint = JSON.stringify({
+              journalId: decoded.journalId,
+              reference: decoded.reference,
+              currency: decoded.currency.toUpperCase(),
+              mappingVersion: decoded.mappingVersion,
+              lines: normalizeLines(decoded.lines),
+            })
+            return existing.fingerprint === fingerprint ? existing.outcome : {
+              _tag: "manual_recovery" as const,
+              operationId: decoded.operationId,
+              reason: "conflicting_replay" as const,
+            }
+          }),
         getBalance: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(GetFinancialBalanceInput)(input)
             const exists = [...accounts.values()].some((account) =>
               accountKey(account) === accountKey(decoded)
             )
-            return exists
+            const balance = balances.get(accountKey(decoded))
+            return exists && balance !== undefined
               ? {
                 _tag: "available" as const,
                 accountId: decoded.accountId,
                 mappingVersion: decoded.mappingVersion,
                 debitsPendingMinor: "0",
-                debitsPostedMinor: "0",
+                debitsPostedMinor: balance.debitsPostedMinor.toString(),
                 creditsPendingMinor: "0",
-                creditsPostedMinor: "0",
+                creditsPostedMinor: balance.creditsPostedMinor.toString(),
               }
               : { _tag: "not_found" as const, accountId: decoded.accountId }
           }),

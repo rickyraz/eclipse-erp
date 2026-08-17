@@ -16,6 +16,7 @@ import {
   AccountingPeriodNotOpen,
   AccountingService,
   AccountNotFound,
+  FinancialEngineCutoverBlocked,
   JournalEntry,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
@@ -167,6 +168,17 @@ describe("accounting contract", () => {
       assert.strictEqual(configuration.precision, 2)
       assert.strictEqual(configuration.fiscalYearStartMonth, 1)
       assert.strictEqual(configuration.postingEnabled, true)
+      const cutoverBlocked = yield* Effect.flip(accounting.configureLegalEntity({
+        principal,
+        tenantId,
+        legalEntityId: "legal-entity-tb",
+        baseCurrency: "USD",
+        precision: 2,
+        fiscalYearStartMonth: 1,
+        postingEnabled: true,
+        financialEngine: "tigerbeetle",
+      }))
+      assert.instanceOf(cutoverBlocked, FinancialEngineCutoverBlocked)
 
       assert.strictEqual(
         (yield* Effect.flip(accounting.configureLegalEntity({

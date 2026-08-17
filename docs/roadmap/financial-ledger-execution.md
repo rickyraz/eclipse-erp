@@ -228,7 +228,8 @@ Exit gate:
 
 Connect accepted engine outcomes to PostgreSQL control-plane records:
 
-- mark the operation accepted only after TigerBeetle acceptance is known;
+- mark the operation accepted only after TigerBeetle acceptance is known, then finalize the journal,
+  transfer projections, and outbox in a separate retryable PostgreSQL transaction;
 - invoke the Accounting public finalize/reconcile command, which updates journal/reporting projections
   with engine provenance and calls the public Messaging contract in the same PostgreSQL transaction;
 - publish accepted events from durable PostgreSQL intent;
@@ -295,7 +296,9 @@ Activate one explicit profile scope, such as a Legal Entity or tenant cohort. Du
 - Accounting authorization and period policy remain in PostgreSQL/domain services;
 - accepted-but-unreconciled work is observable and fenced where required;
 - retries use the same operation identity;
-- the old PostgreSQL path remains disabled for the selected invariant, not chosen per request.
+- the old PostgreSQL path remains disabled for the selected tenant once a Legal Entity is cut over,
+  not chosen per request;
+- historical operations without an explicit engine verification marker are fenced rather than inferred.
 
 Keep the existing PostgreSQL profile for scopes that have not passed cutover. This is a transition
 boundary, not permission to route one logical invariant to two engines.

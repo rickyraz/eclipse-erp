@@ -16,7 +16,7 @@ type TigerBeetleRuntime = Pick<
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const PositiveInteger = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 0x7fffffff }))
-const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
+const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9]\d*)$/))
 const FinancialAccountConstraint = Schema.Literals([
   "none",
@@ -94,6 +94,7 @@ type FinancialExecutionOutcome =
     readonly mappingVersion: number
     readonly acceptedAt: string
     readonly transferCount: number
+    readonly transferIds: readonly string[]
   }
   | {
     readonly _tag: "rejected"
@@ -103,7 +104,7 @@ type FinancialExecutionOutcome =
   | {
     readonly _tag: "unknown"
     readonly operationId: string
-    readonly reason: "unavailable" | "response_lost"
+    readonly reason: "unavailable" | "response_lost" | "not_found"
   }
   | {
     readonly _tag: "manual_recovery"
@@ -156,6 +157,12 @@ export interface TigerBeetleFinancialLedger {
   readonly postJournal: (
     input: unknown,
   ) => Effect.Effect<FinancialExecutionOutcome, Schema.SchemaError>
+  readonly reconcileJournal: (
+    input: unknown,
+  ) => Effect.Effect<FinancialExecutionOutcome, Schema.SchemaError>
+  readonly expectedTransferIds: (
+    input: unknown,
+  ) => Effect.Effect<readonly string[], Schema.SchemaError>
   readonly getBalance: (
     input: unknown,
   ) => Effect.Effect<FinancialBalanceOutcome, Schema.SchemaError>
@@ -173,7 +180,7 @@ const isValidConfig = (config: TigerBeetleFinancialLedgerConfig) =>
   config.clusterId >= 0n && config.clusterId <= U128_MAX && config.replicaAddresses.length > 0 &&
   Number.isInteger(config.ledger) && config.ledger > 0 && config.ledger <= 0xffff_ffff &&
   Number.isInteger(config.code) && config.code > 0 && config.code <= 0xffff_ffff &&
-  /^[A-Za-z]{3}$/.test(config.currency)
+  /^[A-Z]{3}$/.test(config.currency)
 
 const digestId = (parts: readonly string[]) =>
   Effect.promise(async () => {
@@ -272,6 +279,7 @@ const rejectionReason = (
     case runtime.CreateTransferStatus.overflows_credits:
     case runtime.CreateTransferStatus.exceeds_credits:
     case runtime.CreateTransferStatus.exceeds_debits:
+    case runtime.CreateTransferStatus.id_already_failed:
       return "constraint_violation" as const
     default:
       return "invalid_amount" as const
@@ -294,7 +302,6 @@ const isConflictingReplay = (
     runtime.CreateTransferStatus.exists_with_different_user_data_32,
     runtime.CreateTransferStatus.exists_with_different_ledger,
     runtime.CreateTransferStatus.exists_with_different_code,
-    runtime.CreateTransferStatus.id_already_failed,
   ].includes(status)
 
 const journalValidation = (
@@ -308,6 +315,9 @@ const journalValidation = (
   for (const line of input.lines) {
     const lineDebit = BigInt(line.debitMinor)
     const lineCredit = BigInt(line.creditMinor)
+    if (lineDebit > U128_MAX || lineCredit > U128_MAX) {
+      return { _tag: "rejected", operationId: input.operationId, reason: "invalid_amount" }
+    }
     if ((lineDebit > 0n) === (lineCredit > 0n)) {
       return { _tag: "rejected", operationId: input.operationId, reason: "invalid_amount" }
     }
@@ -392,13 +402,46 @@ const makeAdapter = (
         catch: (cause) => cause,
       }).pipe(Effect.catch(() => Effect.succeed(null)))
       const result = results?.[0]
-      return result === undefined
-        ? {
+      if (result === undefined) {
+        return {
           _tag: "unknown" as const,
           accountId: decoded.accountId,
           reason: "response_lost" as const,
         }
-        : accountOutcome(decoded, result, runtime)
+      }
+      if (result.status === runtime.CreateAccountStatus.exists) {
+        const existingAccounts = yield* Effect.tryPromise({
+          try: () => client.lookupAccounts([id]),
+          catch: (cause) => cause,
+        }).pipe(Effect.catch(() => Effect.succeed(null)))
+        const existing = existingAccounts?.find((candidate) => candidate.id === id)
+        const expectedFlags = account.flags
+        if (
+          existing === undefined ||
+          existing.ledger !== account.ledger ||
+          existing.code !== account.code ||
+          existing.user_data_128 !== account.user_data_128 ||
+          existing.user_data_64 !== account.user_data_64 ||
+          existing.user_data_32 !== account.user_data_32 ||
+          existing.reserved !== account.reserved ||
+          existing.flags !== expectedFlags
+        ) {
+          return {
+            _tag: "manual_recovery" as const,
+            accountId: decoded.accountId,
+            reason: "mapping_mismatch" as const,
+          }
+        }
+      }
+      return accountOutcome(decoded, result, runtime)
+    }),
+  expectedTransferIds: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(PostFinancialJournalInput)(input)
+      const pairs = pairLines(decoded.lines)
+      return yield* Effect.all(pairs.map((_, index) => transferId(decoded, index))).pipe(
+        Effect.map((ids) => ids.map((id) => id.toString())),
+      )
     }),
   postJournal: (input) =>
     Effect.gen(function* () {
@@ -495,6 +538,115 @@ const makeAdapter = (
         mappingVersion: decoded.mappingVersion,
         acceptedAt: acceptedTimestamp(maxTimestamp(results)),
         transferCount: transfers.length,
+        transferIds: transfers.map((transfer) => transfer.id.toString()),
+      }
+    }),
+  reconcileJournal: (input) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(PostFinancialJournalInput)(input)
+      if (decoded.currency.toUpperCase() !== config.currency.toUpperCase()) {
+        return {
+          _tag: "manual_recovery" as const,
+          operationId: decoded.operationId,
+          reason: "mapping_mismatch" as const,
+        }
+      }
+      const validation = journalValidation(decoded)
+      if (validation !== undefined) return validation
+      const pairs = pairLines(decoded.lines)
+      if (
+        pairs.length === 0 || pairs.some((pair) => pair.debitAccountId === pair.creditAccountId)
+      ) {
+        return {
+          _tag: "rejected" as const,
+          operationId: decoded.operationId,
+          reason: "constraint_violation" as const,
+        }
+      }
+      const expected = yield* Effect.all(
+        pairs.map((pair, index) =>
+          Effect.all([
+            accountId({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              accountId: pair.debitAccountId,
+              currency: decoded.currency,
+              mappingVersion: decoded.mappingVersion,
+            }),
+            accountId({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              accountId: pair.creditAccountId,
+              currency: decoded.currency,
+              mappingVersion: decoded.mappingVersion,
+            }),
+            transferId(decoded, index),
+          ]).pipe(Effect.map(([debitId, creditId, id]) => ({
+            debitId,
+            creditId,
+            id,
+            amount: pair.amount,
+          })))
+        ),
+      )
+      const transfers = yield* Effect.tryPromise({
+        try: () => client.lookupTransfers(expected.map((transfer) => transfer.id)),
+        catch: (cause) => cause,
+      }).pipe(Effect.catch(() => Effect.succeed(null)))
+      if (transfers === null) {
+        return {
+          _tag: "unknown" as const,
+          operationId: decoded.operationId,
+          reason: "unavailable" as const,
+        }
+      }
+      if (transfers.length === 0) {
+        return {
+          _tag: "unknown" as const,
+          operationId: decoded.operationId,
+          reason: "not_found" as const,
+        }
+      }
+      if (transfers.length !== expected.length) {
+        return {
+          _tag: "manual_recovery" as const,
+          operationId: decoded.operationId,
+          reason: "mapping_mismatch" as const,
+        }
+      }
+      const byId = new Map(transfers.map((transfer) => [transfer.id.toString(), transfer]))
+      const mismatch = expected.some((expectedTransfer, index) => {
+        const actual = byId.get(expectedTransfer.id.toString())
+        if (actual === undefined) return true
+        const expectedFlags = index < expected.length - 1
+          ? runtime.TransferFlags.linked
+          : runtime.TransferFlags.none
+        return actual.debit_account_id !== expectedTransfer.debitId ||
+          actual.credit_account_id !== expectedTransfer.creditId ||
+          actual.amount !== expectedTransfer.amount ||
+          actual.pending_id !== 0n ||
+          actual.user_data_128 !== 0n ||
+          actual.user_data_64 !== 0n ||
+          actual.timeout !== 0 ||
+          actual.ledger !== config.ledger ||
+          actual.code !== config.code ||
+          actual.user_data_32 !== decoded.mappingVersion ||
+          actual.flags !== expectedFlags
+      })
+      if (mismatch) {
+        return {
+          _tag: "manual_recovery" as const,
+          operationId: decoded.operationId,
+          reason: "mapping_mismatch" as const,
+        }
+      }
+      return {
+        _tag: "accepted" as const,
+        operationId: decoded.operationId,
+        mappingVersion: decoded.mappingVersion,
+        acceptedAt: acceptedTimestamp(maxTimestamp(transfers)),
+        transferCount: expected.length,
+        transferIds: expected.map((transfer) => transfer.id.toString()),
       }
     }),
   getBalance: (input) =>
@@ -512,7 +664,14 @@ const makeAdapter = (
         try: () => client.lookupAccounts([id]),
         catch: (cause) => cause,
       }).pipe(Effect.catch(() => Effect.succeed(null)))
-      const account = accounts?.find((candidate) => candidate.id === id)
+      if (accounts === null) {
+        return {
+          _tag: "unknown" as const,
+          accountId: decoded.accountId,
+          reason: "unavailable" as const,
+        }
+      }
+      const account = accounts.find((candidate) => candidate.id === id)
       if (account === undefined) {
         return { _tag: "not_found" as const, accountId: decoded.accountId }
       }
