@@ -67,12 +67,11 @@ If any item is material `UNKNOWN`, remain in the primitive/domain roadmap. Exter
 integration details are governed by
 [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md).
 
-Current evidence closes the bounded internal primitive and two-domain action-provider prerequisites:
-`inventory.stock.adjust` v1 and `sales.order.confirm` v1 are PUBLIC Level 3 action slices with
-owner-published events; Accounting also publishes the PUBLIC `accounting.revenue.posted` v1 owner
-event. The direct Accounting revenue action remains unreleased until its amount is derived or verified
-from a Sales-owned fact. This permits bounded 0.8 catalog work, but PgQue, external connectors,
-Process IR, event waits, and the broad workflow runtime remain gated.
+Current evidence closes the bounded internal primitive and action-provider prerequisites:
+`inventory.stock.adjust` v1, `sales.order.confirm` v1, and `accounting.revenue.post` v1 are PUBLIC
+Level 3 action slices with owner-published events. Accounting derives the revenue amount from a
+d 0.8 caSales-owned confirmed-order fact. This permits boundetalog work, but PgQue, external
+connectors, Process IR, event waits, and the broad workflow runtime remain gated.
 
 ## 0.8 — Capability Metadata
 
