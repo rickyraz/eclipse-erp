@@ -657,6 +657,44 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "rejects a missing source before running the consumer effect",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, makePostgresDatabase(client)),
+        )
+        const input = {
+          tenantId: tenant!.id,
+          consumerId: "accounting.missing-source",
+          eventId: crypto.randomUUID(),
+        }
+        let executions = 0
+        const failure = yield* Effect.flip(
+          messaging.consumeOnce(input, Effect.sync(() => ++executions)),
+        )
+        assert.instanceOf(failure, DatabaseFailure)
+        assert.strictEqual(executions, 0)
+        const rows = yield* Effect.promise(() =>
+          client<{ receipts: number }[]>`
+            select count(*)::integer as receipts
+            from messaging.consumer_receipts
+            where tenant_id = ${tenant!.id}
+              and consumer_id = ${input.consumerId}
+              and event_id = ${input.eventId}
+          `
+        )
+        assert.deepStrictEqual(rows, [{ receipts: 0 }])
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "lets distinct consumers independently complete the same event",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>

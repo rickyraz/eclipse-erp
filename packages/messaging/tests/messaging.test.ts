@@ -233,5 +233,5 @@ it.effect("requires a tenant-matching source event and rolls back the consumer e
     yield* messaging.append(event({ tenantId: foreignTenantId }))
     const retried = yield* consume
     assert.strictEqual(retried.duplicate, false)
-    assert.strictEqual(executions, 2)
+    assert.strictEqual(executions, 1)
   }).pipe(Effect.provide(makeMessagingTestLayer())))

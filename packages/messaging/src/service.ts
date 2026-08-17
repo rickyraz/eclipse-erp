@@ -259,6 +259,22 @@ export const makeMessagingService = Effect.gen(function* () {
           Effect.gen(function* () {
             const existing = yield* findReceipt(decoded)
             if (existing !== undefined) return { duplicate: true as const, receipt: existing }
+            const source = yield* database.query(
+              (db) =>
+                db.select({ eventId: eventOutbox.id }).from(eventOutbox).where(and(
+                  eq(eventOutbox.tenantId, decoded.tenantId),
+                  eq(eventOutbox.id, decoded.eventId),
+                )),
+              "messaging.receipt.source.lookup",
+            )
+            if (source[0] === undefined) {
+              return yield* Effect.fail(
+                new DatabaseFailure({
+                  operation: "messaging.receipt.complete",
+                  cause: new Error("source event does not exist for tenant"),
+                }),
+              )
+            }
 
             const value = yield* effect
             const rows = yield* database.query(
@@ -331,6 +347,14 @@ export const makeMessagingTestLayer = () => {
           const key = receiptKey(decoded)
           const existing = receipts.get(key)
           if (existing !== undefined) return { duplicate: true as const, receipt: existing }
+          if (!eventsById.has(eventKey(decoded.tenantId, decoded.eventId))) {
+            return yield* Effect.fail(
+              new DatabaseFailure({
+                operation: "messaging.receipt.complete",
+                cause: new Error("source event does not exist for tenant"),
+              }),
+            )
+          }
 
           const eventSnapshot = new Map(eventsById)
           const dedupeSnapshot = new Map(eventIdsByDedupe)
@@ -350,16 +374,6 @@ export const makeMessagingTestLayer = () => {
             rollback()
             return yield* Effect.fail(result.failure)
           }
-          if (!eventsById.has(eventKey(decoded.tenantId, decoded.eventId))) {
-            rollback()
-            return yield* Effect.fail(
-              new DatabaseFailure({
-                operation: "messaging.receipt.complete",
-                cause: new Error("source event does not exist for tenant"),
-              }),
-            )
-          }
-
           const receipt: ConsumerReceipt = {
             ...decoded,
             completedAt: new Date(clock++).toISOString(),
