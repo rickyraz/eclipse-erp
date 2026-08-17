@@ -585,6 +585,11 @@ export const makeProcessService = Effect.gen(function* () {
     payload: unknown,
   ): Effect.Effect<OrderConfirmationResult, OrderConfirmationFailure> =>
     Effect.gen(function* () {
+      yield* authorization.authorize({
+        principal: input.principal,
+        tenantId: input.tenantId,
+        capability: SalesCapabilities.orderConfirm,
+      })
       if (!payloadMatches(row.payload, payload)) {
         return yield* Effect.fail(
           new WorkflowIdempotencyConflict({
@@ -642,11 +647,6 @@ export const makeProcessService = Effect.gen(function* () {
           reservationIds: confirmed.reservations.map(({ id }) => id),
           journalId: confirmed.journal.id,
         }),
-      })
-      yield* authorization.authorize({
-        principal: input.principal,
-        tenantId: input.tenantId,
-        capability: SalesCapabilities.orderConfirm,
       })
       if (
         row.tenantId !== input.tenantId || row.aggregateId !== input.orderId ||

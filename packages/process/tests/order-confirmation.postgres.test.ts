@@ -858,6 +858,18 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.instanceOf(yield* Effect.flip(process.confirmOrder(input)), WorkflowResultCorrupt)
+          yield* authorization.suspendMember({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+          })
+          assert.instanceOf(
+            yield* Effect.flip(process.confirmOrder(input)),
+            AuthorizationDenied,
+          )
+          yield* authorization.activateMember({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+          })
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
