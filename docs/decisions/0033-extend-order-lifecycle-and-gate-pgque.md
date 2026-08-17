@@ -45,6 +45,26 @@ configuration. PgQue must not become a runtime dependency merely because event-o
   `on_hand` and `reserved`. A fulfilled order cannot use the cancellation workflow; returns and
   credit processing require a later dedicated decision.
 
+### State transition ownership
+
+There is no cross-domain universal status enum or transition table. Each owner enforces its bounded
+state machine in its service contract and PostgreSQL boundary:
+
+```text
+Process workflow_runs: running -> succeeded | manual_recovery
+Process jobs: pending -> leased -> completed | failed | manual_recovery
+Sales orders: draft -> confirmed -> cancelled
+Inventory reservations: active -> released | fulfilled
+Inventory transfers: draft -> confirmed -> completed
+Accounting periods: open -> closed
+Accounting journals: draft -> posted | reversed
+```
+
+Terminal states cannot transition back. The new owner migrations add database triggers for initial
+state and status transitions; they do not make `fulfilled` a Sales order status or imply a returns
+workflow. Returns, credits, and any future cross-domain lifecycle remain separate capabilities and
+require their owning decision.
+
 ### Accounting policy
 
 - Accounting owns legal-entity revenue-posting profiles and fiscal periods.
@@ -110,9 +130,10 @@ configuration. PgQue must not become a runtime dependency merely because event-o
 
 ## Validation
 
-- PostgreSQL tests prove order-line total derivation and terminal snapshot protection, reservation
-  release/fulfillment, journal reversal, open-period enforcement, atomic cancellation rollback,
-  duplicate retries, stale-worker fencing, retry exhaustion, and competing leases.
+- PostgreSQL tests prove owner-specific transition guards, order-line total derivation and terminal
+  snapshot protection, reservation release/fulfillment, journal reversal, open-period enforcement,
+  atomic cancellation rollback, duplicate retries, stale-worker fencing, retry exhaustion, and
+  competing leases.
 - Boundary checks prove Process uses only public Sales, Inventory, and Accounting contracts.
 - PgQue activation additionally requires installer checksum review, PostgreSQL 19 rehearsal, ticker
   health checks, upgrade rehearsal, and integration adapter delivery/retry tests.

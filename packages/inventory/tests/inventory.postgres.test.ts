@@ -34,6 +34,8 @@ import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
+const postgresFailure = (effect: () => Promise<unknown>) =>
+  Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
 const principal = { userAccountId: "inventory-transfer-integration", sessionId: "session" }
 const capabilities = [
   PartyCapabilities.partyCreate,
@@ -166,6 +168,12 @@ it.effect.skipIf(databaseUrl === undefined)(
             legalEntityId: scope.legalEntity.id,
             name: "Adjustment Warehouse",
           })
+          const transferDestination = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: scope.legalEntity.id,
+            name: "Adjustment Destination",
+          })
           assert.notStrictEqual(otherWarehouse.id, warehouse.id)
           const item = yield* inventory.createItem({
             principal,
@@ -217,6 +225,73 @@ it.effect.skipIf(databaseUrl === undefined)(
             { concurrency: "unbounded" },
           )
           assert.strictEqual(duplicateReservations[0].id, duplicateReservations[1].id)
+          const invalidReservationInsert = yield* postgresFailure(() =>
+            client`
+              insert into inventory.reservations
+                (tenant_id, warehouse_id, item_id, quantity, idempotency_key, status)
+              values
+                (${tenant.id}, ${warehouse.id}, ${item.id}, 1, 'invalid-initial-reservation', 'fulfilled')
+            `
+          )
+          assert.strictEqual((invalidReservationInsert as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidReservationInsert as { constraint_name?: string }).constraint_name,
+            "inventory_reservation_state_transition_check",
+          )
+          const invalidReservationTransition = yield* postgresFailure(() =>
+            client.begin(async (transaction) => {
+              await transaction`
+                update inventory.reservations set status = 'fulfilled'
+                where id = ${duplicateReservations[0].id}
+              `
+              await transaction`
+                update inventory.reservations set status = 'released'
+                where id = ${duplicateReservations[0].id}
+              `
+            })
+          )
+          assert.strictEqual((invalidReservationTransition as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidReservationTransition as { constraint_name?: string }).constraint_name,
+            "inventory_reservation_state_transition_check",
+          )
+          const invalidTransferInsert = yield* postgresFailure(() =>
+            client`
+              insert into inventory.stock_transfers
+                (tenant_id, legal_entity_id, source_warehouse_id, destination_warehouse_id,
+                 status, confirmed_at)
+              values
+                (${tenant.id}, ${scope.legalEntity.id}, ${warehouse.id},
+                 ${transferDestination.id}, 'confirmed', now())
+            `
+          )
+          assert.strictEqual((invalidTransferInsert as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidTransferInsert as { constraint_name?: string }).constraint_name,
+            "inventory_stock_transfer_state_transition_check",
+          )
+          const invalidTransferTransition = yield* postgresFailure(() =>
+            client.begin(async (transaction) => {
+              const [transfer] = await transaction<{ id: string }[]>`
+                insert into inventory.stock_transfers
+                  (tenant_id, legal_entity_id, source_warehouse_id, destination_warehouse_id)
+                values
+                  (${tenant.id}, ${scope.legalEntity.id}, ${warehouse.id},
+                   ${transferDestination.id})
+                returning id
+              `
+              await transaction`
+                update inventory.stock_transfers
+                set status = 'completed', confirmed_at = now(), completed_at = now()
+                where id = ${transfer!.id}
+              `
+            })
+          )
+          assert.strictEqual((invalidTransferTransition as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidTransferTransition as { constraint_name?: string }).constraint_name,
+            "inventory_stock_transfer_state_transition_check",
+          )
           const otherReservation = yield* inventory.reserveStock({
             principal,
             tenantId: otherTenant.id,

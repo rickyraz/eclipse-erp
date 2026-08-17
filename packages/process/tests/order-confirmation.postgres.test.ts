@@ -87,6 +87,27 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
         const aggregateId = crypto.randomUUID()
+        const nonRunningWorkflow = yield* postgresFailure(() =>
+          client`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, status, payload,
+               result, completed_at)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', 'invalid-initial-workflow',
+               ${aggregateId}, 'succeeded', '{}'::jsonb, '{}'::jsonb, now())
+          `
+        )
+        const nonPendingJob = yield* postgresFailure(() =>
+          client`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, status, lease_until, lease_owner,
+               lease_token, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.order_confirmation.post_commit', 'invalid-initial-job',
+               'leased', now() + interval '1 minute', 'initial-worker', ${crypto.randomUUID()},
+               '{}'::jsonb, 'initial-correlation')
+          `
+        )
 
         const unknownWorkflowType = yield* postgresFailure(() =>
           client`
@@ -183,6 +204,16 @@ it.effect.skipIf(databaseUrl === undefined)(
           `
         )
 
+        assert.strictEqual((nonRunningWorkflow as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (nonRunningWorkflow as { constraint_name?: string }).constraint_name,
+          "workflow_runs_state_transition_check",
+        )
+        assert.strictEqual((nonPendingJob as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (nonPendingJob as { constraint_name?: string }).constraint_name,
+          "process_jobs_state_transition_check",
+        )
         assert.strictEqual((unknownWorkflowType as { code?: string }).code, "23514")
         assert.strictEqual(
           (unknownWorkflowType as { constraint_name?: string }).constraint_name,
@@ -218,13 +249,128 @@ it.effect.skipIf(databaseUrl === undefined)(
           (invalidJobCompletion as { constraint_name?: string }).constraint_name,
           "process_jobs_state_check",
         )
-        for (const failure of [runningRecovery, succeededRecovery, completedRecovery]) {
+        assert.strictEqual((runningRecovery as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (runningRecovery as { constraint_name?: string }).constraint_name,
+          "workflow_runs_state_check",
+        )
+        for (const failure of [succeededRecovery, completedRecovery]) {
           assert.strictEqual((failure as { code?: string }).code, "23514")
           assert.strictEqual(
             (failure as { constraint_name?: string }).constraint_name,
-            "workflow_runs_state_check",
+            "workflow_runs_state_transition_check",
           )
         }
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "enforces Process workflow and job state transitions in PostgreSQL",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const aggregateId = crypto.randomUUID()
+        const [workflow] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into process.workflow_runs
+              (tenant_id, workflow_type, idempotency_key, aggregate_id, payload)
+            values
+              (${tenant!.id}, 'sales.order.confirmation', 'transition-workflow',
+               ${aggregateId}, '{}'::jsonb)
+            returning id
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.workflow_runs
+            set status = 'succeeded', result = '{}'::jsonb, completed_at = now()
+            where id = ${workflow!.id}
+          `
+        )
+        const workflowTerminalFailure = yield* postgresFailure(() =>
+          client`
+            update process.workflow_runs
+            set status = 'running', result = null, completed_at = null
+            where id = ${workflow!.id}
+          `
+        )
+        assert.strictEqual((workflowTerminalFailure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (workflowTerminalFailure as { constraint_name?: string }).constraint_name,
+          "workflow_runs_state_transition_check",
+        )
+
+        const [job] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into process.jobs
+              (tenant_id, job_type, idempotency_key, payload, correlation_id)
+            values
+              (${tenant!.id}, 'process.order_confirmation.post_commit',
+               'transition-job', '{}'::jsonb, 'transition-correlation')
+            returning id
+          `
+        )
+        const leaseToken = crypto.randomUUID()
+        yield* Effect.promise(() =>
+          client`
+            update process.jobs
+            set status = 'leased', lease_until = now() + interval '1 minute',
+                lease_owner = 'transition-worker', lease_token = ${leaseToken}
+            where id = ${job!.id}
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.jobs
+            set status = 'pending', scheduled_at = now(), lease_until = null,
+                lease_owner = null, lease_token = null
+            where id = ${job!.id}
+          `
+        )
+        const invalidJobTransition = yield* postgresFailure(() =>
+          client`
+            update process.jobs set status = 'completed' where id = ${job!.id}
+          `
+        )
+        assert.strictEqual((invalidJobTransition as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (invalidJobTransition as { constraint_name?: string }).constraint_name,
+          "process_jobs_state_transition_check",
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.jobs
+            set status = 'leased', lease_until = now() + interval '1 minute',
+                lease_owner = 'transition-worker', lease_token = ${leaseToken}
+            where id = ${job!.id}
+          `
+        )
+        yield* Effect.promise(() =>
+          client`
+            update process.jobs
+            set status = 'completed', lease_until = null, lease_owner = null,
+                lease_token = null, completed_at = now()
+            where id = ${job!.id}
+          `
+        )
+        const jobTerminalFailure = yield* postgresFailure(() =>
+          client`
+            update process.jobs
+            set status = 'pending', completed_at = null
+            where id = ${job!.id}
+          `
+        )
+        assert.strictEqual((jobTerminalFailure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (jobTerminalFailure as { constraint_name?: string }).constraint_name,
+          "process_jobs_state_transition_check",
+        )
       })),
 )
 

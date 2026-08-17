@@ -411,6 +411,19 @@ it.effect.skipIf(databaseUrl === undefined)(
             returning id
           `
         )
+        const nonDraftInsert = yield* postgresFailure(() =>
+          client`
+            insert into sales.orders
+              (tenant_id, customer_id, status, confirmation_idempotency_key, confirmed_at, total)
+            values
+              (${tenant!.id}, ${customer!.id}, 'confirmed', 'invalid-initial-state', now(), 0)
+          `
+        )
+        assert.strictEqual((nonDraftInsert as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (nonDraftInsert as { constraint_name?: string }).constraint_name,
+          "sales_order_state_transition_check",
+        )
         const [order] = yield* Effect.promise(() =>
           client<{ id: string }[]>`
             insert into sales.orders (tenant_id, customer_id, total)
@@ -423,6 +436,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             insert into sales.order_lines (tenant_id, order_id, item_id, quantity, unit_price)
             values (${tenant!.id}, ${order!.id}, ${crypto.randomUUID()}, 1, 10.00)
           `
+        )
+        const invalidTransition = yield* postgresFailure(() =>
+          client`
+            update sales.orders set status = 'cancelled' where id = ${order!.id}
+          `
+        )
+        assert.strictEqual((invalidTransition as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (invalidTransition as { constraint_name?: string }).constraint_name,
+          "sales_order_state_transition_check",
         )
         yield* Effect.promise(() =>
           client`

@@ -787,6 +787,55 @@ it.effect.skipIf(databaseUrl === undefined)(
               insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
             `
           )
+          const [organization] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.parties (tenant_id, kind, name)
+              values (${tenant!.id}, 'organization', 'Accounting State Organization') returning id
+            `
+          )
+          const [legalEntity] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into party.legal_entities (tenant_id, organization_party_id)
+              values (${tenant!.id}, ${organization!.id}) returning id
+            `
+          )
+          const invalidPeriodInsert = yield* postgresFailure(() =>
+            client`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on, status)
+              values (${tenant!.id}, ${legalEntity!.id}, '2026-01-01', '2026-12-31', 'closed')
+            `
+          )
+          assert.strictEqual((invalidPeriodInsert as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidPeriodInsert as { constraint_name?: string }).constraint_name,
+            "accounting_period_state_transition_check",
+          )
+          const [period] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on)
+              values (${tenant!.id}, ${legalEntity!.id}, '2026-01-01', '2026-12-31')
+              returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.accounting_periods set status = 'closed'
+              where id = ${period!.id}
+            `
+          )
+          const reopenedPeriod = yield* postgresFailure(() =>
+            client`
+              update accounting.accounting_periods set status = 'open'
+              where id = ${period!.id}
+            `
+          )
+          assert.strictEqual((reopenedPeriod as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (reopenedPeriod as { constraint_name?: string }).constraint_name,
+            "accounting_period_state_transition_check",
+          )
           const accounts = yield* Effect.promise(() =>
             client<{ id: string }[]>`
               insert into accounting.accounts (tenant_id, code, name, type)
@@ -795,6 +844,18 @@ it.effect.skipIf(databaseUrl === undefined)(
                 (${tenant!.id}, 'REVENUE', 'Revenue', 'revenue')
               returning id
             `
+          )
+          const invalidJournalInsert = yield* postgresFailure(() =>
+            client`
+              insert into accounting.journal_entries
+                (tenant_id, reference, status, posted_at)
+              values (${tenant!.id}, 'INVALID-INITIAL-JOURNAL', 'posted', now())
+            `
+          )
+          assert.strictEqual((invalidJournalInsert as { code?: string }).code, "23514")
+          assert.strictEqual(
+            (invalidJournalInsert as { constraint_name?: string }).constraint_name,
+            "accounting_journal_state_transition_check",
           )
           const blankReference = yield* postgresFailure(() =>
             client`
