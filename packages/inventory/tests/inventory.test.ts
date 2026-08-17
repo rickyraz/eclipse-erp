@@ -17,6 +17,7 @@ import {
   StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
   StockReservationInvalidState,
+  StockReservationLegalEntityMismatch,
   StockTransferDifferentLegalEntity,
   StockTransferInvalidState,
   StockUnavailable,
@@ -131,6 +132,17 @@ describe("inventory contract", () => {
         itemId: item.id,
         quantity: "10",
       })
+      assert.instanceOf(
+        yield* Effect.flip(inventory.reserveStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          legalEntityId: "legal-entity-b",
+          itemId: item.id,
+          quantity: "1",
+        })),
+        StockReservationLegalEntityMismatch,
+      )
       const reservation = yield* inventory.reserveStock({
         principal,
         tenantId,

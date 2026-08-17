@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=195
+total=196
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -204,6 +204,7 @@ gate bash -c 'grep -Fq "accounting.revenue.replay" packages/accounting/src/servi
 gate bash -c 'grep -Fq "\"sales.order.read\"" packages/authorization/src/capabilities.ts && grep -Fq "definition(\"sales.order.read\", \"sales\", \"order\", \"read\")" packages/authorization/src/capabilities.ts && grep -Fq "SalesCapabilities.orderRead" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "crossLinkedResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorization.removeMember" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorizationFailure.capability" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "InventoryCapabilities.stockReserve" packages/process/src/service.ts'
 gate bash -c 'grep -Fq "accountingAuthorizationFailure" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/src/service.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "legalEntityId: Schema.optionalKey(Schema.String)" packages/inventory/src/service.ts && grep -Fq "StockReservationLegalEntityMismatch" packages/inventory/src/service.ts && grep -Fq "legalEntityId: decoded.legalEntityId" packages/process/src/service.ts && grep -Fq "StockReservationLegalEntityMismatch" packages/inventory/tests/inventory.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

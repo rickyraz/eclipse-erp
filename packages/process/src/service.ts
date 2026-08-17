@@ -25,6 +25,7 @@ import {
   StockReservation,
   StockReservationIdempotencyConflict,
   StockReservationInvalidState,
+  StockReservationLegalEntityMismatch,
   StockReservationNotFound,
   StockUnavailable,
 } from "../../inventory/mod.ts"
@@ -275,6 +276,7 @@ type OrderConfirmationFailure =
   | SalesOrderNotFound
   | Schema.SchemaError
   | StockReservationIdempotencyConflict
+  | StockReservationLegalEntityMismatch
   | StockUnavailable
   | WorkflowAlreadyCompleted
   | WorkflowAlreadyInProgress
@@ -950,6 +952,7 @@ export const makeProcessService = Effect.gen(function* () {
                 principal: decoded.principal,
                 tenantId: decoded.tenantId,
                 warehouseId: decoded.warehouseId,
+                legalEntityId: decoded.legalEntityId,
                 itemId: line.itemId,
                 quantity: line.quantity,
                 idempotencyKey: `${decoded.idempotencyKey}:line:${index}`,

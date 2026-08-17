@@ -134,6 +134,7 @@ export const ReserveStockInput = Schema.Struct({
   warehouseId: Schema.String,
   itemId: Schema.String,
   quantity: Quantity,
+  legalEntityId: Schema.optionalKey(Schema.String),
   idempotencyKey: Schema.optionalKey(Schema.String.check(Schema.isPattern(/\S/))),
 })
 export const ReleaseReservationInput = Schema.Struct({
@@ -211,6 +212,15 @@ export class StockReservationIdempotencyConflict
     {
       tenantId: Schema.String,
       idempotencyKey: Schema.String,
+    },
+  ) {}
+export class StockReservationLegalEntityMismatch
+  extends Schema.TaggedErrorClass<StockReservationLegalEntityMismatch>()(
+    "StockReservationLegalEntityMismatch",
+    {
+      tenantId: Schema.String,
+      warehouseId: Schema.String,
+      legalEntityId: Schema.String,
     },
   ) {}
 export class StockReservationNotFound
@@ -298,7 +308,10 @@ export interface InventoryService {
     input: unknown,
   ) => Effect.Effect<
     StockReservation,
-    StockReservationIdempotencyConflict | StockUnavailable | CommonFailure
+    | StockReservationIdempotencyConflict
+    | StockReservationLegalEntityMismatch
+    | StockUnavailable
+    | CommonFailure
   >
   readonly releaseReservation: (
     input: unknown,
@@ -835,6 +848,18 @@ export const makeInventoryService = Effect.gen(function* () {
         })
         const reservation = yield* database.transaction(
           async (tx) => {
+            if (decoded.legalEntityId !== undefined) {
+              const [warehouse] = await tx.select({ legalEntityId: warehouses.legalEntityId })
+                .from(warehouses)
+                .where(and(
+                  eq(warehouses.tenantId, decoded.tenantId),
+                  eq(warehouses.id, decoded.warehouseId),
+                ))
+                .for("update")
+              if (warehouse?.legalEntityId !== decoded.legalEntityId) {
+                return { _tag: "legal-entity-mismatch" as const }
+              }
+            }
             if (decoded.idempotencyKey !== undefined) {
               const existingRows = await tx.select({
                 id: reservations.id,
@@ -935,6 +960,15 @@ export const makeInventoryService = Effect.gen(function* () {
             )
           }),
         )
+        if (reservation._tag === "legal-entity-mismatch") {
+          return yield* Effect.fail(
+            new StockReservationLegalEntityMismatch({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              legalEntityId: decoded.legalEntityId!,
+            }),
+          )
+        }
         if (reservation._tag === "idempotency-conflict") {
           return yield* Effect.fail(
             new StockReservationIdempotencyConflict({
@@ -1702,6 +1736,21 @@ export const makeInventoryTestLayer = () =>
               decoded.tenantId,
               InventoryCapabilities.stockReserve,
             )
+            if (decoded.legalEntityId !== undefined) {
+              const warehouse = storedWarehouses.get(decoded.warehouseId)
+              if (
+                warehouse?.tenantId !== decoded.tenantId ||
+                warehouse?.legalEntityId !== decoded.legalEntityId
+              ) {
+                return yield* Effect.fail(
+                  new StockReservationLegalEntityMismatch({
+                    tenantId: decoded.tenantId,
+                    warehouseId: decoded.warehouseId,
+                    legalEntityId: decoded.legalEntityId,
+                  }),
+                )
+              }
+            }
             const idempotencyKey = decoded.idempotencyKey === undefined
               ? undefined
               : `${decoded.tenantId}:${decoded.idempotencyKey}`

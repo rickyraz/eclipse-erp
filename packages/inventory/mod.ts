@@ -31,6 +31,7 @@ export {
   StockReservation,
   StockReservationIdempotencyConflict,
   StockReservationInvalidState,
+  StockReservationLegalEntityMismatch,
   StockReservationNotFound,
   StockReservationStatus,
   StockTransfer,
