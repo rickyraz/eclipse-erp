@@ -81,6 +81,21 @@ The implementation should change the fewest owners necessary:
 Do not add a TigerBeetle dependency in the documentation/contract phases. Add the pinned client only
 when the trusted adapter phase has an approved compatibility and operational target.
 
+### Current implementation slice
+
+The repository now contains the first non-activated slice:
+
+- `packages/accounting` owns the provider-neutral `FinancialLedgerPort`, schemas, stable outcome
+  variants, and deterministic in-memory test layer;
+- `packages/kernel` owns the pinned `tigerbeetle-node` client lifecycle, deterministic account and
+  transfer mapping, provider-status translation, linked transfer compilation, and scoped cleanup;
+- contract and adapter tests cover replay, conflicting replay, lost responses, rejection, mapping
+  version changes, balance lookup, linked transfers, and no-fallback behavior.
+
+This slice does not route the existing PostgreSQL Accounting service through TigerBeetle. It is an
+integration and contract proof only; activation still requires the durable intent/projection,
+worker, reconciliation, operational, and cutover gates below.
+
 ## Execution Sequence
 
 ### Phase 0 — Decision and authority baseline — complete in this change

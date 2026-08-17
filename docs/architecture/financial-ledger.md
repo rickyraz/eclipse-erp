@@ -22,9 +22,11 @@ financial data plane, not an ERP database and not a reporting warehouse. Postgre
 control-plane and non-ledger transactional database.
 
 The repository is in a transition period until the first profile is activated. Existing
-PostgreSQL-backed Accounting commands remain the current implementation during migration. They are
-not a reason to add a live PostgreSQL/TigerBeetle mirror, and no new command may silently assume
-that both stores are authoritative.
+PostgreSQL-backed Accounting commands remain the current implementation during migration. The
+provider-neutral `FinancialLedgerPort`, deterministic test adapter, and scoped TigerBeetle adapter
+are implemented as an unactivated integration slice; they do not change the current Accounting
+command path. They are not a reason to add a live PostgreSQL/TigerBeetle mirror, and no new command
+may silently assume that both stores are authoritative.
 
 ## Authority Matrix
 
@@ -178,7 +180,12 @@ delivery. Duplicate event delivery is handled independently from duplicate Tiger
 
 Every operation uses a stable, versioned identity. Account and transfer IDs are derived
 **deterministically** from EclipseERP identities and operation parts. The encoding, byte order,
-namespace, and mapping version are explicit and covered by collision and replay tests.
+namespace, and mapping version are explicit and covered by collision and replay tests. The current
+adapter's mapping version `v1` hashes the UTF-8 JSON tuple
+`["eclipse-erp/tigerbeetle", "v1", ...parts]` with SHA-256 and uses the first 16 bytes as a
+big-endian unsigned 128-bit ID; the forbidden zero and maximum values are remapped to `1`. Account
+parts are `account, mappingVersion, tenantId, legalEntityId, accountId, currency`; transfer parts
+are `transfer, mappingVersion, tenantId, legalEntityId, operationId, position`.
 
 The control-plane mapping records enough data to verify the complete operation:
 

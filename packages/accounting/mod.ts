@@ -8,6 +8,21 @@ export {
 } from "./src/catalog.ts"
 
 export {
+  CreateExecutionAccountInput,
+  ExecutionAccountOutcome,
+  FinancialAccountConstraint,
+  FinancialBalanceOutcome,
+  FinancialExecutionOutcome,
+  FinancialJournalLine,
+  FinancialLedgerPort,
+  FinancialManualRecoveryReason,
+  FinancialRejectionReason,
+  GetFinancialBalanceInput,
+  makeFinancialLedgerTestLayer,
+  PostFinancialJournalInput,
+} from "./src/financial-ledger.ts"
+
+export {
   Account,
   AccountAlreadyExists,
   AccountingConfiguration,
