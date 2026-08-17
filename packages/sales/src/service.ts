@@ -468,7 +468,7 @@ export const makeSalesService = Effect.gen(function* () {
               total: orders.total,
             }).from(orders).where(
               and(eq(orders.tenantId, decoded.tenantId), eq(orders.id, decoded.orderId)),
-            ),
+            ).for("update"),
           "sales.order.confirmed_total.lookup",
         )
         const order = rows[0]

@@ -24,6 +24,7 @@ const capabilities = [
   SalesCapabilities.customerCreate,
   SalesCapabilities.orderCreate,
   SalesCapabilities.orderConfirm,
+  SalesCapabilities.orderRead,
   SalesCapabilities.orderCancel,
 ] as const
 
@@ -118,6 +119,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             })),
             SalesOrderNotFound,
           )
+          const confirmedTotal = yield* database.withTransaction(
+            sales.getConfirmedOrderTotal({
+              principal,
+              tenantId: tenant!.id,
+              orderId: confirmed.id,
+            }),
+          )
+          assert.strictEqual(confirmedTotal, "100.00")
           const otherConfirmed = yield* sales.confirmOrder({
             principal,
             tenantId: otherTenant!.id,
