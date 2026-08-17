@@ -147,7 +147,8 @@ This decision does not convert domain modules into microservices or weaken accep
 boundaries.
 
 - EclipseERP remains one modular-monolith application family.
-- PostgreSQL remains canonical for business facts.
+- PostgreSQL remains canonical for non-ledger business facts and control-plane state; the activated
+  financial ledger profile follows ADR-0040.
 - Current cross-domain invariants that require one PostgreSQL transaction must remain colocated on a
   transactionally compatible database placement.
 - Splitting an accepted atomic invariant across database placements requires a superseding

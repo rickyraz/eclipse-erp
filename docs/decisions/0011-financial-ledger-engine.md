@@ -1,9 +1,9 @@
 # ADR-0011: Financial Ledger Execution Engine
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-01
 - Supersedes: None
-- Superseded by: None
+- Superseded by: ADR-0040
 
 > **Related documents**
 >

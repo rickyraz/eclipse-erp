@@ -13,10 +13,13 @@
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Messaging and outbox: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
-> - PostgreSQL truth ADR:
+> - Historical PostgreSQL truth ADR:
 >   [`../decisions/0003-postgresql-is-transactional-truth.md`](../decisions/0003-postgresql-is-transactional-truth.md)
 > - Stateful runtime ADR:
 >   [`../decisions/0025-introduce-stateful-entity-runtime.md`](../decisions/0025-introduce-stateful-entity-runtime.md)
+> - Financial ledger architecture: [`./financial-ledger.md`](./financial-ledger.md)
+> - Financial ledger ADR:
+>   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
 > - Replica read-your-writes ADR:
 >   [`../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md`](../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md)
 
@@ -36,7 +39,9 @@ Actively owned
 ```
 
 A stateful runtime may durably store active state without becoming the canonical business authority.
-PostgreSQL remains canonical unless a later ADR explicitly changes ownership.
+PostgreSQL remains canonical unless a later ADR explicitly changes ownership. ADR-0040 changes the
+financial-ledger scope: TigerBeetle is authoritative for accepted transfers, balances, and transfer
+history in an activated profile; PostgreSQL remains authoritative for the surrounding control plane.
 
 ## State Classes
 
@@ -44,8 +49,10 @@ Every runtime field or snapshot belongs to one class.
 
 ### Canonical
 
-PostgreSQL determines the business fact. Examples include posted journal lines, inventory movements,
-legal entities, invoices, payments, authorization grants, and audit records.
+PostgreSQL determines the business fact. Examples include inventory movements, legal entities,
+invoices, payments, authorization grants, audit records, fiscal policy, and financial operation
+metadata. In an activated TigerBeetle ledger profile, accepted transfers, balances, and transfer
+history are canonical in TigerBeetle; PostgreSQL journal rows are projections and mappings.
 
 Rules:
 
@@ -153,7 +160,8 @@ canonical mutation twice.
 ## Aggregate Version
 
 Invariant-sensitive canonical aggregates use a monotonic version, domain sequence, or equivalent
-expected-state predicate where stale ownership could otherwise commit an invalid transition.
+expected-state predicate where stale ownership could otherwise commit an invalid transition. The
+following `runtimeVersion` rules apply to PostgreSQL-owned aggregates and projections.
 
 Healthy state:
 
@@ -173,15 +181,21 @@ Invalid state:
 runtimeVersion > canonicalVersion
 ```
 
-A runtime version ahead of PostgreSQL must not be accepted as business truth. It indicates an
-uncommitted projection transition, corrupted state, incompatible restore, or protocol defect and
-requires rollback, rebuild, or manual recovery.
+A runtime version ahead of PostgreSQL must not be accepted as business truth for a PostgreSQL-owned
+aggregate. It indicates an uncommitted projection transition, corrupted state, incompatible restore,
+or protocol defect and requires rollback, rebuild, or manual recovery.
 
-Versions are scoped to one aggregate or projection stream. They are not a global transaction clock.
+For a TigerBeetle-backed financial projection, the canonical comparison is the financial
+reconciliation anchor defined by [`financial-ledger.md`](./financial-ledger.md). A PostgreSQL
+projection checkpoint is not financial authority; ahead/behind detection compares the projection's
+verified operation set, mapping version, and scan/checkpoint boundary with the TigerBeetle anchor.
+
+Versions and anchors are scoped to one aggregate, ledger, or projection stream. They are not a global
+transaction clock.
 
 ## Canonical Command Protocol
 
-The default protocol for a canonical mutation is:
+The default protocol for a canonical PostgreSQL mutation is:
 
 ```text
 1. authenticate and decode command
@@ -199,7 +213,11 @@ The default protocol for a canonical mutation is:
 13. return typed result
 ```
 
-Steps 8–10 are atomic. A canonical success response requires step 11.
+Steps 8–10 are atomic. A canonical success response requires step 11. A TigerBeetle-backed
+financial mutation uses the separate protocol in [`financial-ledger.md`](./financial-ledger.md):
+PostgreSQL persists intent, TigerBeetle accepts or rejects the deterministic operation, and
+PostgreSQL records the outcome and rebuildable projection. The two stores are not one ACID
+transaction.
 
 The runtime may validate against active state before opening the transaction, but PostgreSQL must
 reject a stale expected version or violated constraint. One active owner reduces expected conflicts;
@@ -274,6 +292,11 @@ known-stale state while waiting for background repair.
 
 ## Failure Matrix
 
+The following matrix applies to PostgreSQL-owned canonical mutations. TigerBeetle-backed financial
+operations use the separate failure and publication matrix in
+[`financial-ledger.md`](./financial-ledger.md); a PostgreSQL receipt failure after TigerBeetle
+acceptance means no caller-visible success, not that the accepted TigerBeetle fact disappeared.
+
 | Failure point                                           | Canonical result                        | Required behavior                                                     |
 | ------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------- |
 | Owner dies before PostgreSQL transaction                | No mutation                             | New owner restores/rebuilds; retry same command ID                    |
@@ -317,7 +340,8 @@ A local entity transaction is never presented as atomic across other entity addr
 Use:
 
 - an explicit PostgreSQL transaction when all synchronous owners support the repository transaction
-  context;
+  context and no external financial authority is involved;
+- the financial-ledger protocol for TigerBeetle-backed transfers;
 - a durable process with idempotent steps and compensation;
 - a committed event for fan-out;
 - manual recovery for unknown outcomes with no safe compensation.
@@ -327,12 +351,16 @@ wait.
 
 ## Accounting and Legally Significant State
 
-Accounting correctness remains database-enforced. Runtime coordination may manage fiscal-close
-sequencing, reconciliation sessions, approvals, or hot read models, but posted ledger facts remain
-canonical in the accounting engine and PostgreSQL-backed domain contract.
+Accounting policy, fiscal periods, authorization, journal meaning, and audit metadata remain owned
+by Accounting and PostgreSQL. For an activated TigerBeetle profile, accepted transfers, balances,
+and immutable transfer history are canonical in TigerBeetle; PostgreSQL journal and reporting rows
+are projections with deterministic provenance. Runtime coordination may manage submission,
+reconciliation sessions, approvals, or hot read models, but it cannot become a second financial
+authority.
 
 The same conservative rule applies to payments, tax submissions, legal documents, and other facts
-whose authority or audit history cannot be inferred from a runtime owner.
+whose authority or audit history cannot be inferred from a runtime owner. A future financial
+capability must explicitly choose its authority and cross-store protocol before activation.
 
 ## Schema Evolution
 

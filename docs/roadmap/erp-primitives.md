@@ -25,6 +25,8 @@
 >   [`../architecture/plugin-architecture.md`](../architecture/plugin-architecture.md)
 > - Semantic owner ADR:
 >   [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
+> - Financial ledger execution: [`./financial-ledger-execution.md`](./financial-ledger-execution.md)
+> - Financial ledger architecture: [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md)
 
 ## Rule
 
@@ -85,6 +87,7 @@ A plugin primitive is not Process Studio-ready until it satisfies the same Level
 | Document and lifecycle    | Owner-local orders, reservations, transfers, journals, cancellation, fulfillment, and reversal                                                    | `READY` (bounded P2 baseline)       | New document families need owner-specific identity, lifecycle, correction, and version decisions            |
 | Quantity and movement     | Non-negative balances, concurrent reservations/transfers, UOM validation, append-oriented corrections                                             | `READY` (P1 baseline)               | Lot/serial, valuation, and fractional quantity remain out of scope                                          |
 | Money and obligation      | Fixed two-decimal Legal Entity base-currency revenue posting and reversal                                                                         | `READY` (bounded P2 baseline)       | Tax, invoices, AP/AR, payments, FX, and settlement remain explicitly out of scope                           |
+| Financial ledger execution | ADR-0040 selects TigerBeetle for accepted transfers, balances, and immutable transfer history; PostgreSQL remains control plane | `DECIDED` (migration gated) | First activation is limited to the bounded Accounting profile and requires the financial-ledger roadmap gates |
 | Fiscal period and close   | Non-overlapping open/closed periods serialize with revenue posting                                                                                | `READY` (bounded P2 baseline)       | Reopen, adjusting periods, arbitrary posting dates, and advanced close remain out of scope                  |
 | Policy and authorization  | Capability catalog and deny-by-default checks cover current actions                                                                               | `READY` for current actions         | Add approval, override, and SoD policy only with new high-risk actions                                      |
 | Audit and correlation     | Messaging envelopes preserve actor, Tenant, command, correlation, causation, idempotency, and time                                                | `READY` (bounded P3 baseline)       | Deployment retention duration and external-provider audit remain gated operational decisions                |
@@ -219,7 +222,9 @@ The baseline is decided by
 documents remain owner-local; committed economic facts are corrected by new commands and reversals;
 the current executable posting flow is single-Legal-Entity, base-currency, fixed two-decimal money;
 and tax, invoices, AP/AR, payments, settlement, reopen, and adjusting periods remain explicitly out
-of scope until their owners and lifecycles are decided.
+of scope until their owners and lifecycles are decided. Financial execution migration is sequenced
+separately by [`financial-ledger-execution.md`](./financial-ledger-execution.md); it does not expand
+this business scope.
 
 Resolve before cataloging purchase, sales, billing, payment, or close actions:
 

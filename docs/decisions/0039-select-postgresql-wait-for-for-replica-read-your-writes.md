@@ -10,7 +10,8 @@
 > **Related documents**
 >
 > - ADR index: [`./README.md`](./README.md)
-> - PostgreSQL truth: [`./0003-postgresql-is-transactional-truth.md`](./0003-postgresql-is-transactional-truth.md)
+> - PostgreSQL control-plane architecture: [`../architecture/postgresql-19-architecture.md`](../architecture/postgresql-19-architecture.md)
+> - Financial ledger authority: [`./0040-adopt-tigerbeetle-financial-ledger.md`](./0040-adopt-tigerbeetle-financial-ledger.md)
 > - Non-interference: [`./0034-adopt-non-interference-overload-isolation.md`](./0034-adopt-non-interference-overload-isolation.md)
 > - State and consistency:
 >   [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)

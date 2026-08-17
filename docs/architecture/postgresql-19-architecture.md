@@ -9,7 +9,10 @@
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Hierarchy and graph selection:
 >   [`./hierarchy-and-graph-selection.md`](./hierarchy-and-graph-selection.md)
-> - Transactional-truth ADR:
+> - Financial ledger architecture: [`./financial-ledger.md`](./financial-ledger.md)
+> - Financial ledger ADR:
+>   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
+> - Historical transactional-truth ADR:
 >   [`../decisions/0003-postgresql-is-transactional-truth.md`](../decisions/0003-postgresql-is-transactional-truth.md)
 > - Replica read-your-writes ADR:
 >   [`../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md`](../decisions/0039-select-postgresql-wait-for-for-replica-read-your-writes.md)
@@ -18,10 +21,12 @@
 
 ## Position
 
-PostgreSQL 19 is the development floor and the transactional core. The project may track beta and
-release-candidate builds during development but must move to PostgreSQL 19 GA before production
-deployment. The kernel rejects connections whose `server_version_num` is below `190000` before
-running application work.
+PostgreSQL 19 is the development floor and the transactional core for the control plane and
+non-ledger domain state. The project may track beta and release-candidate builds during development
+but must move to PostgreSQL 19 GA before production deployment. The kernel rejects connections whose
+`server_version_num` is below `190000` before running application work. The financial ledger profile
+uses TigerBeetle for accepted transfers and balances through the boundary in
+[`financial-ledger.md`](./financial-ledger.md).
 
 ## Application Shape
 
@@ -70,17 +75,24 @@ typed public contract.
 
 ## Transactional Truth
 
-PostgreSQL stores all state that determines business truth, including:
+PostgreSQL stores the ERP control-plane and non-ledger state that determines business truth,
+including:
 
 - parties and legal entities;
 - orders and commitments;
 - reservations and stock movements;
 - invoices and payments;
-- journal entries and fiscal periods;
+- account meaning, fiscal periods, and posting policy;
 - permissions and workflow state;
 - audit events;
 - integration outbox entries;
-- durable jobs.
+- durable jobs;
+- journal/document metadata and rebuildable financial projections.
+
+For an activated financial ledger profile, TigerBeetle is authoritative for accepted financial
+transfers, balances, balance constraints, and immutable transfer history. PostgreSQL stores the
+operation intent, deterministic identity mapping, audit references, and projection state; those
+records do not become a competing financial authority.
 
 Redis, ClickHouse, search indexes, and caches are not authoritative.
 
@@ -91,10 +103,13 @@ Redis, ClickHouse, search indexes, and caches are not authoritative.
 - Use unique constraints for identity rules.
 - Use explicit transaction isolation for concurrency-sensitive operations.
 - Use row or advisory locks only with documented lock ordering.
-- Keep immutable financial facts append-oriented.
-- Record corrections through reversal or compensating entries.
+- Keep PostgreSQL-owned financial metadata and projections append-oriented.
+- Record corrections through reversal or compensating entries; accepted TigerBeetle transfers are
+  never edited or deleted.
 - Warehouse transfers are transactional inventory operations: confirmation
   deducts source availability, while completion credits the destination.
+- Do not treat a TigerBeetle call as part of a PostgreSQL transaction; use the durable financial-ledger
+  protocol and reconcile cross-store outcomes.
 
 ## Migration Integrity
 
@@ -165,4 +180,6 @@ Production readiness requires:
 - proof that adaptive admission cannot exceed physical pool and executor ceilings;
 - observability for lock waits and slow queries;
 - invariant checks;
-- workload replay and adversarial overload tests for risky changes.
+- workload replay and adversarial overload tests for risky changes;
+- when the financial ledger profile is enabled, corresponding TigerBeetle backup, restore, upgrade,
+  outage, reconciliation, and adapter-exit rehearsals.

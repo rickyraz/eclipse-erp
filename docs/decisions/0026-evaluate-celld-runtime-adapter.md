@@ -65,10 +65,12 @@ A `celld` cell does not prove that projection traffic cannot consume reserved co
 WorkloadCell does not establish one active owner for a business entity.
 
 `celld`'s bucket durability is a runtime property, not a transfer of EclipseERP business authority.
-Under ADR-0003, PostgreSQL remains canonical for EclipseERP business facts. A selected runtime field
-must therefore follow the canonical, rebuildable, runtime-durable, or ephemeral classification in
-[`state-and-consistency.md`](../architecture/state-and-consistency.md). A later ADR would be
-required to make a `celld` SQLite fact canonical for EclipseERP.
+PostgreSQL remains canonical for non-ledger business facts and control-plane state; financial
+transfer, balance, and transfer-history authority follows
+[ADR-0040](./0040-adopt-tigerbeetle-financial-ledger.md) when that profile is activated. A selected
+runtime field must therefore follow the canonical, rebuildable, runtime-durable, or ephemeral
+classification in [`state-and-consistency.md`](../architecture/state-and-consistency.md). A later
+ADR would be required to make a `celld` SQLite fact canonical for EclipseERP.
 
 ## Proposal
 

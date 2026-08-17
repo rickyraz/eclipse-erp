@@ -7,6 +7,7 @@
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Process Studio semantics: [`./process-studio.md`](./process-studio.md)
 > - Capability release and runtime governance:
 >   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
@@ -34,7 +35,9 @@ pg_durable
 
 Effect fibers are not durable. A Stateful Entity Runtime owns selected active entity state and
 serialization; it does not replace checkpointed multi-step workflow execution or durable
-accepted-work semantics.
+accepted-work semantics. TigerBeetle-backed financial operations use the financial-ledger protocol:
+PostgreSQL intent, deterministic submission, engine outcome, projection, and reconciliation. They
+must not be disguised as one direct PostgreSQL transaction.
 
 ## Compatibility Gate
 
@@ -54,11 +57,14 @@ upgrade, and adapter gate defined by
 
 ## Direct Transaction Examples
 
-- post an invoice;
+- post an invoice on the PostgreSQL profile;
 - reserve stock;
-- allocate a payment;
+- allocate a payment on its decided owner/profile;
 - close a fiscal period;
 - assign a critical role.
+
+TigerBeetle-backed financial posting is a durable accepted-work protocol rather than a direct
+PostgreSQL transaction; its exact scope is owned by [`financial-ledger.md`](./financial-ledger.md).
 
 These operations must complete atomically before success is returned.
 

@@ -16,6 +16,7 @@ This file defines how coding agents must work in the EclipseERP repository.
 > - External integration surface: [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
 > - Stateful runtime: [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
 > - State and consistency: [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
+> - Financial ledger: [`./docs/architecture/financial-ledger.md`](./docs/architecture/financial-ledger.md)
 > - Search architecture: [`./docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md)
 > - Workload isolation: [`./docs/architecture/workload-isolation.md`](./docs/architecture/workload-isolation.md)
 > - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
@@ -50,7 +51,7 @@ source of truth.
 - Do not assume an Effect fiber is durable.
 - Do not treat Drizzle as the domain model.
 - Do not encode a financial storage engine such as TigerBeetle in orthogonal
-  domain primitives; engine selection belongs in ADR-0011.
+  domain primitives; engine selection belongs in the current financial-ledger ADR.
 - Do not activate Zig without benchmark evidence and a safe fallback.
 
 ## Repository-Native Skills
@@ -252,9 +253,9 @@ use a typed service contract, including when both modules participate in the
 same PostgreSQL transaction.
 
 - The financial ledger domain must depend on an engine-independent port. Keep
-  PostgreSQL and any future TigerBeetle adapter behind kernel/infrastructure
-  boundaries; do not import engine-specific account, transfer, or balance types
-  into domain modules.
+  PostgreSQL and the TigerBeetle adapter behind kernel/infrastructure boundaries;
+  do not import engine-specific account, transfer, or balance types into domain
+  modules.
 
 ### Failure Ownership and Translation
 
@@ -307,7 +308,9 @@ introduced.
 
 - PostgreSQL 19+ is the minimum supported database version; the kernel must
   reject `server_version_num` values below `190000`.
-- PostgreSQL is the transactional source of truth.
+- PostgreSQL is the transactional source of truth for control-plane and non-ledger
+  business state; financial transfer, balance, and transfer-history authority follows
+  the current financial-ledger architecture.
 - Critical invariants require transactions and database constraints.
 - The pinned Drizzle Kit snapshot graph is authoritative for migration order and
   schema history; generated SQL remains review-required.
@@ -365,8 +368,10 @@ control, deployment cells, or shuffle sharding, read
 
 ## Stateful Runtime and Asynchronous Rules
 
-- PostgreSQL remains canonical for business facts; runtime-local durability does
-  not transfer business authority.
+- PostgreSQL remains canonical for control-plane and non-ledger business facts;
+  runtime-local durability does not transfer business authority. Financial transfer,
+  balance, and transfer-history authority follows the current financial-ledger
+  architecture.
 - Use the optional Stateful Entity Runtime only for an approved aggregate with a
   documented address, state class, version, idempotency, recovery, reconciliation,
   observability, and fallback path.

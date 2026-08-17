@@ -8,6 +8,7 @@
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 > - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
@@ -53,10 +54,17 @@ Job
 
 ## Atomic Publication
 
-The owning domain constructs its event and invokes the public transaction-aware Messaging contract
-inside the same PostgreSQL transaction as the domain mutation. A failed append rolls back the
-mutation, and a failed transaction publishes no event. A coordinator may publish only its own
-Process-namespaced lifecycle facts; it must not impersonate another domain's event owner.
+For a PostgreSQL-owned mutation, the owning domain constructs its event and invokes the public
+transaction-aware Messaging contract inside the same PostgreSQL transaction as the domain mutation.
+A failed append rolls back the mutation, and a failed transaction publishes no event.
+
+For a TigerBeetle-backed financial operation, engine acceptance happens first. The subsequent
+PostgreSQL transaction commits the outcome receipt, financial projection/provenance, and event or
+outbox record together through the public Messaging contract. If that transaction fails, the
+TigerBeetle transfer remains authoritative and the operation is unresolved until the same-ID
+reconciliation path completes; PostgreSQL rollback does not undo the transfer. No event is emitted
+befrBore Tigeeetle acceptance and a durable PostgreSQL receipt. A coordinator may publish only its
+own Process-namespaced lifecycle facts; it must not impersonate another domain's event owner.
 
 ## Event Envelope
 
@@ -115,8 +123,10 @@ require provider idempotency and accepted/committed/unknown/reconciled operation
 ## Publication and External Delivery
 
 Outbox insertion means durable delivery intent. `published_at` means durable acceptance by the
-configured internal publication adapter, eventually PgQue; it does not mean every consumer or an
-external provider completed an effect.
+configured internal publication adapter, eventually PgQue; it does not mean TigerBeetle acceptance,
+every consumer, or an external provider completed an effect.
 
 Use integration-owned operation state when delivery leaves PostgreSQL and has an independent
-provider lifecycle. Do not perform unsafe dual-writes.
+provider lifecycle. Do not perform unsafe dual-writes. Duplicate event delivery is independent from
+duplicate financial submission: consumers deduplicate event identity, while the financial adapter
+retries the same TigerBeetle operation identity.

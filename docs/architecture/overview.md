@@ -10,6 +10,7 @@
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Frontend architecture: [`./frontend.md`](./frontend.md)
 > - Process Studio architecture: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
@@ -26,18 +27,20 @@ Edge / thin workload router
   |
 WorkloadCell placement (topology-private)
   |
-  +--> Command plane --> command pool --> PostgreSQL primary
+  +--> Command plane --> command pool --> PostgreSQL control plane
   |         |
+  |         +--> FinancialLedgerPort --> trusted TigerBeetle adapter --> TigerBeetle
   |         `--> optional Stateful Entity Runtime for approved aggregates
   |
   +--> Query plane --> query pool --> rebuildable projection store
   |
   `--> Async plane --> PgQue / jobs / workflows / integrations
                               |
-                              `--> projection builders
+                              `--> projection builders and financial reconciliation
 
-PostgreSQL 19 remains canonical for transactional domain state, immutable
-accounting and inventory facts, authorization, audit, outbox, and durable work.
+PostgreSQL 19 remains canonical for non-ledger transactional domain state, metadata,
+authorization, audit, outbox, and durable work. TigerBeetle is canonical for accepted
+financial transfers, balances, and transfer history in the activated ledger profile.
 ```
 
 The API, worker, event relay, and migrator remain separate processes in one application family. They
@@ -71,10 +74,11 @@ Vite
 
 Effect handles typed failures, dependency injection, lifecycle, concurrency,
 retry, streams, and telemetry. Drizzle handles typed schema and queries.
-PostgreSQL remains responsible for canonical transactions and business
-invariants. The optional Stateful Entity Runtime may own active serialization
-and hot state for explicitly approved aggregates; it does not become canonical
-business authority.
+PostgreSQL remains responsible for control-plane transactions and non-ledger
+business invariants. The FinancialLedgerPort sends accepted financial movements
+to TigerBeetle; the optional Stateful Entity Runtime may own active serialization
+and hot state for explicitly approved aggregates, but it does not become financial
+authority.
 
 ## Boundaries
 
@@ -86,7 +90,8 @@ transaction, but Sales must not import or mutate Inventory tables directly.
 
 ## Consistency
 
-- Direct transaction: invariant required before request success.
+- Direct PostgreSQL transaction: non-ledger invariant required before request success.
+- Financial ledger protocol: durable PostgreSQL intent, TigerBeetle acceptance, projection, and reconciliation.
 - Stateful Entity Runtime: optional active ownership and identity-local serialization.
 - PgQue: committed fact and fan-out.
 - Job table: single-consumer work with lease and lifecycle.

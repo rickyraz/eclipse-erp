@@ -10,6 +10,7 @@
 >
 > - Global architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL ownership: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 > - Database roles: [`../operations/database-roles.md`](../operations/database-roles.md)
@@ -113,8 +114,10 @@ The owner may:
 
 A non-owner must not issue direct writes against the schema.
 
-Cross-domain consistency must use a public service contract inside the same
-transaction when atomicity is required.
+Cross-domain consistency must use a public service contract inside the same transaction when
+atomicity is required for a PostgreSQL-owned invariant. For a TigerBeetle-backed financial
+invariant, use `FinancialLedgerPort` plus the durable intent/outcome/reconciliation protocol; do
+not claim cross-store ACID or call the external engine while holding a PostgreSQL transaction open.
 
 ## Schema Ownership Registry
 

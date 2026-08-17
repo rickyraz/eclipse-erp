@@ -17,6 +17,8 @@
 >   [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Integration boundary:
 >   [`../architecture/integration-architecture.md`](../architecture/integration-architecture.md)
+> - Financial ledger authority:
+>   [`./0040-adopt-tigerbeetle-financial-ledger.md`](./0040-adopt-tigerbeetle-financial-ledger.md)
 
 ## Context
 
@@ -28,6 +30,14 @@ The current repository also has no reviewed, version-pinned PgQue installer or o
 configuration. PgQue must not become a runtime dependency merely because event-outbox rows exist.
 
 ## Decision
+
+### Financial execution profile
+
+The PostgreSQL transaction semantics below remain the transitional profile for scopes that have not
+passed the TigerBeetle activation gates in ADR-0040. They are not a permission to mirror live
+financial writes into TigerBeetle or to call TigerBeetle inside this PostgreSQL transaction. Moving
+this workflow's Accounting step to TigerBeetle requires a later consistency decision covering
+accepted, unknown, reconciliation, compensation, and user-visible status.
 
 ### Order and inventory lifecycle
 

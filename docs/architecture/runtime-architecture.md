@@ -9,6 +9,7 @@
 >
 > - Canonical architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
@@ -25,7 +26,10 @@ EclipseERP separates durable business truth from active business-state ownership
 
 ```text
 PostgreSQL
--> what is durably true
+-> what control-plane and non-ledger business state is durably true
+
+TigerBeetle through FinancialLedgerPort
+-> what financial transfers, balances, and transfer history are accepted
 
 Stateful Entity Runtime
 -> who owns selected active state and evaluates its next transition
@@ -55,9 +59,10 @@ WorkloadCell
 A `WorkloadCell` is governed by [`workload-isolation.md`](./workload-isolation.md). It is not a
 stateful entity, aggregate boundary, or authorization grant. A `celld` cell is an adapter
 implementation term, not an AWS-style workload cell. `celld` bucket durability does not make its
-SQLite state canonical for EclipseERP; runtime fields still follow the state classification and
-PostgreSQL anchor required by [`state-and-consistency.md`](./state-and-consistency.md). Runtime
-entity addressing, WorkloadCell placement, and PostgreSQL placement remain separate concerns.
+SQLite state canonical for EclipseERP; runtime fields still follow the state classification and the
+canonical anchor required by [`state-and-consistency.md`](./state-and-consistency.md) and
+[`financial-ledger.md`](./financial-ledger.md) for financial operations. Runtime entity addressing,
+WorkloadCell placement, and database placement remain separate concerns.
 
 ## System Shape
 
@@ -82,15 +87,16 @@ entity addressing, WorkloadCell placement, and PostgreSQL placement remain separ
                 │                 │
                 v                 v
 ┌──────────────────────────┐  ┌─────────────────────────┐
-│ PostgreSQL               │  │ PgQue / Jobs / Workflow│
-│ canonical facts          │  │ delivery and eventual  │
-│ transactions             │  │ work                   │
+│ PostgreSQL control plane │  │ PgQue / Jobs / Workflow│
+│ canonical non-ledger     │  │ delivery and eventual  │
+│ facts, transactions,     │  │ work                   │
 │ constraints and audit    │  │                        │
 └──────────────────────────┘  └─────────────────────────┘
 ```
 
 The domain contract owns business behavior. The runtime owns execution routing and entity lifecycle.
-PostgreSQL owns the committed facts. Async primitives own delivery and durable progress according to
+PostgreSQL owns committed control-plane and non-ledger facts; TigerBeetle owns accepted financial
+movements for the activated profile. Async primitives own delivery and durable progress according to
 their existing semantics.
 
 ## Runtime Contract
@@ -137,7 +143,8 @@ A candidate must have:
 2. one owning domain capability;
 3. a command surface through the owner's public contract;
 4. a meaningful serialization boundary;
-5. a documented canonical PostgreSQL representation;
+5. a documented canonical representation and, for financial entities, the TigerBeetle authority
+   and PostgreSQL projection;
 6. a recovery and reconciliation strategy;
 7. measurable or necessary runtime benefit.
 
@@ -208,9 +215,10 @@ route to current owner
 serialize and evaluate command
   |
   v
-commit canonical PostgreSQL transaction
+commit the owning canonical protocol
   |
-  +--> publish transactional event/outbox
+  +--> PostgreSQL transaction for PostgreSQL-owned facts
+  +--> FinancialLedgerPort protocol for TigerBeetle-backed financial facts
   |
   v
 advance or invalidate runtime projection
@@ -234,8 +242,9 @@ semantics are mandatory for that category even though the adapter remains replac
   address, active-owner, fencing, serialization, recovery, and observability semantics;
 - a command must not use the runtime for one transition and silently bypass it with a direct domain
   write for another transition on the same invariant;
-- the public domain contract, authorization, idempotency, PostgreSQL transaction, and constraints
-  remain in force on every adapter path.
+- the public domain contract, authorization, idempotency, owning financial/PostgreSQL protocol, and
+  constraints remain in force on every adapter path;
+- the runtime must not hold ownership or a PostgreSQL transaction across a TigerBeetle call.
 
 Therefore:
 
@@ -258,26 +267,29 @@ begins ownership acquisition.
 
 ### 2. Activate
 
-The owner loads runtime state. Rebuildable state may load a checkpoint and then catch up from
-PostgreSQL. Runtime-durable state may restore through the adapter, but it must still verify its
-canonical version where business facts are involved.
+The owner loads runtime state. Rebuildable state may load a checkpoint and then catch up from the
+canonical owner: PostgreSQL for control-plane facts or the approved financial-ledger reconciliation
+anchor for TigerBeetle-backed facts. Runtime-durable state may restore through the adapter, but it
+must still verify its canonical version where business facts are involved.
 
 ### 3. Reconcile
 
 Before accepting an invariant-sensitive command, the entity verifies that its runtime version is
-compatible with PostgreSQL. A stale entity catches up, rebuilds, or fails closed; it never
-overwrites a newer canonical version.
+compatible with the relevant canonical owner. A stale entity catches up, rebuilds, or fails closed;
+it never overwrites a newer canonical version.
 
 ### 4. Execute
 
 Commands for one address enter the entity's serialization boundary. Domain logic validates the
-transition. Canonical effects execute through the owning public domain service and PostgreSQL
-transaction.
+transition. Canonical effects execute through the owning public domain service and its approved
+PostgreSQL or financial-ledger protocol.
 
 ### 5. Commit and project
 
-PostgreSQL commit establishes canonical success. The runtime then advances its projection or marks
-it for catch-up. Transactional events and outbox records are written with the canonical mutation.
+The owning canonical protocol establishes success: PostgreSQL commit for PostgreSQL-owned facts,
+or durable TigerBeetle acceptance plus the required PostgreSQL receipt for financial facts. The
+runtime then advances its projection or marks it for catch-up. Transactional events and outbox
+records follow the protocol in [`financial-ledger.md`](./financial-ledger.md) when applicable.
 
 ### 6. Idle and hibernate
 
@@ -317,6 +329,9 @@ one local invariant
 cross-domain invariant that must commit together
 -> explicit shared PostgreSQL transaction context when supported
 
+TigerBeetle-backed financial invariant
+-> FinancialLedgerPort plus durable intent/outcome/reconciliation
+
 committed fact and fan-out
 -> PgQue event
 
@@ -341,8 +356,9 @@ Runtime state may contain:
 - active connection metadata;
 - non-canonical coordination state.
 
-It must not silently become the only copy of canonical journal, payment, inventory movement, legal
-document, authorization, or audit facts.
+It must not silently become the only copy of canonical journal metadata, payment, inventory movement,
+legal document, authorization, or audit facts. It must not become a second authority for accepted
+TigerBeetle transfers, balances, or transfer history.
 
 Detailed consistency rules are owned by [`state-and-consistency.md`](./state-and-consistency.md).
 
@@ -352,8 +368,8 @@ Every entity category declares one recovery mode:
 
 | Mode            | Recovery                                                       |
 | --------------- | -------------------------------------------------------------- |
-| Rebuildable     | Recompute from PostgreSQL facts and optional checkpoint        |
-| Runtime-durable | Restore adapter state, then verify/catch up against PostgreSQL |
+| Rebuildable     | Recompute from the relevant canonical facts and optional checkpoint |
+| Runtime-durable | Restore adapter state, then verify/catch up against the canonical owner |
 | Ephemeral       | Discard and recreate without business loss                     |
 | Canonical       | Forbidden by default; requires a separate ownership ADR        |
 

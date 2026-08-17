@@ -12,6 +12,7 @@
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
@@ -54,8 +55,10 @@
 
 ## Decision
 
-EclipseERP remains a modular monolith. This specification changes the application runtime, not the
-domain, ledger, audit, or transactional-integrity principles.
+EclipseERP remains a modular monolith. This specification defines the application runtime and
+cross-cutting boundaries; financial ledger authority is governed by the dedicated subsystem
+architecture and ADR-0040 without weakening domain ownership, audit, or transactional-integrity
+principles.
 
 | Area               | Decision                                                              |
 | ------------------ | --------------------------------------------------------------------- |
@@ -64,6 +67,7 @@ domain, ledger, audit, or transactional-integrity principles.
 | Runtime            | Deno                                                                  |
 | HTTP               | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno` |
 | Database           | PostgreSQL 19+                                                        |
+| Financial execution | TigerBeetle through the FinancialLedgerPort, activation-gated        |
 | Query layer        | Drizzle ORM with `postgres.js`                                        |
 | Migrations         | Pinned Drizzle Kit graph with reviewed SQL                            |
 | Stateful ownership | Optional vendor-neutral Stateful Entity Runtime                       |
@@ -73,7 +77,10 @@ domain, ledger, audit, or transactional-integrity principles.
 | Contracts          | Effect Schema                                                         |
 
 Effect owns typed failures, lifecycle, concurrency, retry, telemetry, and dependency injection.
-Drizzle owns typed schema and query construction. PostgreSQL owns constraints and transactions.
+Drizzle owns typed schema and query construction. PostgreSQL owns control-plane constraints and
+transactions. Accounting owns financial business invariants, policy, authorization, and command
+semantics; the financial ledger engine enforces the accepted transfer-level constraints through the
+FinancialLedgerPort.
 
 Deno remains the runtime and primary toolchain. npm ecosystem dependencies are canonical in the root
 `package.json`; Deno uses `nodeModulesDir: "auto"` so package peers resolve through the conventional
@@ -210,9 +217,11 @@ PostgreSQL features use Drizzle custom migrations. All SQL remains reviewed befo
 Detailed rationale and HTTP rules are owned by
 [ADR-0012](../decisions/0012-use-drizzle-schema-flow-and-effect-http.md).
 
-Financial ledger engine selection is an infrastructure decision owned by
-[ADR-0011](../decisions/0011-financial-ledger-engine.md), not by the orthogonal ledger domain
-primitives. PostgreSQL remains the initial authoritative ledger store.
+Financial ledger authority and execution are governed by
+[ADR-0040](../decisions/0040-adopt-tigerbeetle-financial-ledger.md) and the canonical
+[`financial-ledger.md`](./financial-ledger.md) subsystem architecture. TigerBeetle is the required
+financial execution engine for the activated profile; PostgreSQL remains authoritative for
+control-plane metadata, policy, workflow state, audit links, and projections.
 
 ## Search Contract
 
@@ -265,11 +274,13 @@ configuration decisions are owned by
 ## Transaction Contract
 
 A transaction context is explicit. Cross-domain operations that require atomic consistency
-participate in the same PostgreSQL transaction through typed services.
+participate in the same PostgreSQL transaction through typed services when they use the PostgreSQL
+profile. TigerBeetle-backed financial operations use the durable financial-ledger protocol and do
+not claim cross-store ACID.
 
 No module may mutate another module's tables directly. Sharing a transaction does not transfer
 semantic ownership; every invariant-sensitive mutation still passes through the owning domain's
-public typed service.
+public typed service. Financial execution goes through `FinancialLedgerPort`, never a provider SDK.
 
 ## Workload Isolation Contract
 
@@ -310,8 +321,10 @@ Stateless Effect services and direct PostgreSQL transactions remain the default.
 
 The runtime does not replace PostgreSQL, PgQue, the job table, the durable
 workflow engine, domain authorization, or public contracts. PostgreSQL remains
-canonical for business facts; runtime state is classified and reconciled under
-[`state-and-consistency.md`](./state-and-consistency.md).
+canonical for control-plane and non-ledger business facts; the activated financial
+profile uses TigerBeetle for accepted transfers, balances, and transfer history.
+Runtime state is classified and reconciled under [`state-and-consistency.md`](./state-and-consistency.md)
+and [`financial-ledger.md`](./financial-ledger.md).
 
 Domain packages must not depend directly on `celld`, Cloudflare Durable Objects,
 or another adapter. Runtime selection and topology remain infrastructure and
@@ -358,7 +371,10 @@ Effect fibers are not durable. Use:
 
 ```text
 PostgreSQL transaction
--> synchronous invariant
+-> PostgreSQL-owned synchronous invariant
+
+Financial ledger protocol
+-> PostgreSQL intent -> durable submission -> TigerBeetle outcome -> PostgreSQL receipt/projection -> reconciliation
 
 PgQue
 -> committed event and fan-out
@@ -369,6 +385,9 @@ Job table
 pg_durable
 -> checkpointed workflow after production approval
 ```
+
+The financial-ledger protocol is not a cross-store ACID transaction and must not be replaced with a
+held PostgreSQL transaction or an unkeyed retry. See [`financial-ledger.md`](./financial-ledger.md).
 
 ## HTTP Contract
 

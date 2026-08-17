@@ -14,8 +14,10 @@
 >   [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
 > - Canonical architecture:
 >   [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
-> - PostgreSQL truth:
+> - PostgreSQL truth history:
 >   [`./0003-postgresql-is-transactional-truth.md`](./0003-postgresql-is-transactional-truth.md)
+> - Financial ledger authority:
+>   [`./0040-adopt-tigerbeetle-financial-ledger.md`](./0040-adopt-tigerbeetle-financial-ledger.md)
 > - Semantic ownership:
 >   [`./0015-one-semantic-owner-per-invariant.md`](./0015-one-semantic-owner-per-invariant.md)
 > - Events, jobs, and workflows:
@@ -87,8 +89,10 @@ domain owner.
 
 ### Canonical authority
 
-PostgreSQL remains authoritative for canonical financial, legal, inventory, document, authorization,
-and audit facts. An acknowledged canonical transition must include a successful PostgreSQL commit.
+PostgreSQL remains authoritative for canonical legal, inventory, document, authorization, audit,
+and control-plane facts. Financial transfer, balance, and transfer-history authority follows
+[ADR-0040](./0040-adopt-tigerbeetle-financial-ledger.md) for an activated profile. An acknowledged
+PostgreSQL-owned canonical transition must include a successful PostgreSQL commit.
 
 Runtime-local durability does not imply business authority. Runtime state must be classified as
 canonical, rebuildable, runtime-durable, or ephemeral, with a documented recovery rule. No critical

@@ -14,6 +14,7 @@
 >
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
+> - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Messaging and event delivery: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
@@ -194,13 +195,43 @@ Domain execution owns:
 - business preconditions and invariants;
 - authorization enforcement;
 - tenant and organization boundaries;
-- database transactions and constraints;
-- durable business facts;
+- PostgreSQL transactions and constraints for PostgreSQL-owned facts;
+- `FinancialLedgerPort` execution and outcome semantics for TigerBeetle-backed financial effects;
+- durable business facts through their selected authority;
 - typed business failures;
 - domain audit and event publication.
 
 A process step invokes a public domain command. It must not import private repositories or mutate
 another module's tables.
+
+### TigerBeetle-backed actions
+
+A TigerBeetle-backed action is a cross-store financial effect, not a direct PostgreSQL transaction.
+Its catalog metadata must declare:
+
+- deterministic idempotency identity;
+- accepted, rejected, unknown, reconciled, and manual-recovery outcomes;
+- retry and timeout behavior;
+- whether dependent steps require reconciliation;
+- projection and event timing;
+- compensation or manual recovery for the accepted effect;
+- bounded-stale versus authoritative-current read behavior.
+
+Process Studio may invoke the public Accounting contract, but it must not call the TigerBeetle adapter,
+wait on a provider-specific flag, or claim that a PostgreSQL transaction includes the engine call.
+
+Before a TigerBeetle-backed action is cataloged, its Accounting public output must distinguish a
+successful domain result from reconciliation readiness without exposing provider status. The first
+profile uses:
+
+```text
+success: posted/reversed + operationId + reconciliationStatus(pending|reconciled)
+failures: rejected policy/business result | outcome unknown | manual recovery required
+```
+
+`unknown` and `manual recovery required` are typed process-visible failures or durable recovery
+states, not ordinary retryable business outputs. The catalog must persist the operation identity and
+branching result so a restart cannot submit a new financial operation.
 
 ### External Integration Execution
 
@@ -349,7 +380,8 @@ transactionSemantics
 
 The catalog does not permit the workflow runtime to stretch a PostgreSQL transaction across human
 tasks, timers, external calls, or process checkpoints. Local synchronous invariants remain
-owner-local transactions.
+owner-local transactions. A TigerBeetle-backed financial step uses the durable intent/outcome
+protocol in [`financial-ledger.md`](./financial-ledger.md), not a held PostgreSQL transaction.
 
 ### Preconditions and Effects
 
@@ -625,6 +657,7 @@ The validator checks at least:
 - waits and timers with required timeout/cancellation behavior;
 - parallel branches for conflicting declared effects;
 - compensation coverage for committed non-reversible actions;
+- financial-ledger outcome, reconciliation, and projection-read metadata for TigerBeetle-backed actions;
 - deprecated or incompatible catalog versions;
 - decisions remain pure;
 - forbidden arbitrary code, SQL, network, and cross-domain mutation.

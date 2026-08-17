@@ -76,6 +76,7 @@ broad workflow runtime remain gated.
 | Track | Purpose | Canonical subroadmap |
 |---|---|---|
 | ERP primitives | Resolve scope, master data, document, quantity, money, control, and integration semantics | [`erp-primitives.md`](./erp-primitives.md) |
+| Financial ledger execution | Migrate the bounded Accounting profile to the required TigerBeetle execution boundary | [`financial-ledger-execution.md`](./financial-ledger-execution.md) |
 | Domain maturity | Turn existing packages into stable action/event providers and identify missing domains | [`domain-maturity.md`](./domain-maturity.md) |
 | Process Studio readiness | Gate catalogs, runtime, recovery, and designer work | [`process-studio.md`](./process-studio.md) |
 | External integration surface | Gate connector protocols, auth, delivery, and external action/event normalization | [`integration-surface.md`](./integration-surface.md) |
@@ -99,7 +100,8 @@ audit, correlation, and causation
 ```
 
 No large workflow runtime should be started while these remain material
-`UNKNOWN` decisions.
+`UNKNOWN` decisions. Financial actions must also pass the authority and recovery gates in
+[`financial-ledger-execution.md`](./financial-ledger-execution.md) before depending on TigerBeetle.
 
 ### Domain Contract Gate — before catalog registration
 

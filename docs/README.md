@@ -19,6 +19,7 @@
 - [`./architecture/architecture-spec-v4.md`](./architecture/architecture-spec-v4.md)
 - [`./architecture/runtime-architecture.md`](./architecture/runtime-architecture.md)
 - [`./architecture/state-and-consistency.md`](./architecture/state-and-consistency.md)
+- [`./architecture/financial-ledger.md`](./architecture/financial-ledger.md)
 - [`./architecture/frontend.md`](./architecture/frontend.md)
 - [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md)
 - [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md)
@@ -51,6 +52,7 @@
 
 - [`./roadmap/README.md`](./roadmap/README.md)
 - [`./roadmap/erp-primitives.md`](./roadmap/erp-primitives.md)
+- [`./roadmap/financial-ledger-execution.md`](./roadmap/financial-ledger-execution.md)
 - [`./roadmap/domain-maturity.md`](./roadmap/domain-maturity.md)
 - [`./roadmap/integration-surface.md`](./roadmap/integration-surface.md)
 - [`./roadmap/process-studio.md`](./roadmap/process-studio.md)
