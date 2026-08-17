@@ -1020,6 +1020,27 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(storedOrder?.status, "draft")
           const counts = (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0]!
           assert.deepStrictEqual(counts, { workflow_runs: "0", events: "0", jobs: "0" })
+          const legalEntityMismatch = yield* Effect.flip(process.confirmOrder({
+            principal,
+            tenantId: tenant!.id,
+            orderId: order.id,
+            warehouseId: warehouse.id,
+            legalEntityId: crypto.randomUUID(),
+            commandId: "command-legal-entity-mismatch-1",
+            correlationId: "correlation-legal-entity-mismatch-1",
+            idempotencyKey: "legal-entity-mismatch-1",
+          }))
+          assert.strictEqual(legalEntityMismatch._tag, "StockReservationLegalEntityMismatch")
+          const [mismatchedOrder] = yield* Effect.promise(() =>
+            client<{ status: string }[]>`
+              select status from sales.orders where id = ${order.id}
+            `
+          )
+          assert.strictEqual(mismatchedOrder?.status, "draft")
+          assert.deepStrictEqual(
+            (yield* Effect.promise(() => readCounts(client, tenant!.id)))[0],
+            { workflow_runs: "0", events: "0", jobs: "0" },
+          )
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )
