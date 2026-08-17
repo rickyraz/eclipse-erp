@@ -70,6 +70,9 @@ export const consumerReceipts = messagingSchema.table("consumer_receipts", {
   tenantId: uuid("tenant_id").notNull(),
   consumerId: text("consumer_id").notNull(),
   eventId: uuid("event_id").notNull(),
+  eventType: text("event_type").notNull(),
+  eventVersion: integer("event_version").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   primaryKey({
@@ -82,4 +85,10 @@ export const consumerReceipts = messagingSchema.table("consumer_receipts", {
     name: "consumer_receipts_event_fkey",
   }),
   check("consumer_receipts_consumer_id_check", sql`${table.consumerId} ~ '[^[:space:]]'`),
+  check("consumer_receipts_event_type_check", sql`${table.eventType} ~ '[^[:space:]]'`),
+  check("consumer_receipts_event_version_check", sql`${table.eventVersion} > 0`),
+  check(
+    "consumer_receipts_idempotency_key_check",
+    sql`${table.idempotencyKey} ~ '[^[:space:]]'`,
+  ),
 ])

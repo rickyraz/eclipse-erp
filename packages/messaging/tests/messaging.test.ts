@@ -66,6 +66,9 @@ it.effect("rejects malformed envelope and receipt timestamps", () =>
         tenantId: event().tenantId,
         consumerId: "accounting.project-order",
         eventId: event().eventId,
+        eventType: event().eventType,
+        eventVersion: event().eventVersion,
+        idempotencyKey: event().idempotencyKey,
         completedAt: "not-a-timestamp",
       }),
     )
