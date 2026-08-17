@@ -267,7 +267,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const accounting = yield* Effect.provide(
             makeAccountingService,
-            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+            Layer.mergeAll(
+              requirements,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(SalesService, sales),
+            ),
           )
           const process = yield* Effect.provide(
             makeProcessService,
@@ -932,7 +936,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const accounting = yield* Effect.provide(
             makeAccountingService,
-            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+            Layer.mergeAll(
+              requirements,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(SalesService, sales),
+            ),
           )
           const process = yield* Effect.provide(
             makeProcessService,
@@ -1050,7 +1058,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const accounting = yield* Effect.provide(
             makeAccountingService,
-            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+            Layer.mergeAll(
+              requirements,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(SalesService, sales),
+            ),
           )
           const process = yield* Effect.provide(
             makeProcessService,

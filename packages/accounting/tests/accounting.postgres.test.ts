@@ -15,7 +15,12 @@ import {
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
+import { SalesService } from "../../sales/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
+
+const salesFacts = {
+  getConfirmedOrderTotal: () => Effect.succeed("10.00"),
+} as unknown as SalesService
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 
@@ -267,6 +272,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(Database, database),
               Layer.succeed(AuthorizationService, authorization),
               Layer.succeed(MessagingService, messaging),
+              Layer.succeed(SalesService, salesFacts),
             )
             const accounting = yield* Effect.provide(makeAccountingService, requirements)
             const input = {
@@ -568,6 +574,20 @@ it.effect.skipIf(databaseUrl === undefined)(
               ]).size,
               4,
             )
+            const tamperedJournal = yield* accounting.postRevenueForOrder({
+              ...input,
+              orderId: crypto.randomUUID(),
+              amount: "99.99",
+              commandId: "tampered-revenue-command",
+              correlationId: "tampered-revenue-correlation",
+            })
+            assert.deepStrictEqual(
+              tamperedJournal.lines.map(({ debit, credit }) => ({ debit, credit })),
+              [
+                { debit: "10.00", credit: "0" },
+                { debit: "0", credit: "10.00" },
+              ],
+            )
 
             const failingAccounting = yield* Effect.provide(
               makeAccountingService,
@@ -581,6 +601,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                       new DatabaseFailure({ operation: "messaging.test.append", cause: null }),
                     ),
                 }),
+                Layer.succeed(SalesService, salesFacts),
               ),
             )
             assert.instanceOf(
@@ -697,6 +718,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 Layer.succeed(Database, database),
                 Layer.succeed(AuthorizationService, authorization),
                 Layer.succeed(MessagingService, messaging),
+                Layer.succeed(SalesService, salesFacts),
               ),
             )
             const [closeResult, postResult] = yield* Effect.all([

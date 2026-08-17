@@ -9,6 +9,7 @@ import { makeUserAccountService, UserAccountService } from "../../packages/ident
 import { InventoryService, makeInventoryService } from "../../packages/inventory/mod.ts"
 import { makeMessagingService, MessagingService } from "../../packages/messaging/mod.ts"
 import { makePartyService, PartyService } from "../../packages/party/mod.ts"
+import { makeSalesService, SalesService } from "../../packages/sales/mod.ts"
 import {
   Database,
   makePostgresDatabase,
@@ -50,7 +51,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           businessRequirements,
           Layer.succeed(MessagingService, messaging),
         )
-        const accounting = yield* Effect.provide(makeAccountingService, messagingRequirements)
+        const sales = yield* Effect.provide(makeSalesService, messagingRequirements)
+        const accounting = yield* Effect.provide(
+          makeAccountingService,
+          Layer.merge(messagingRequirements, Layer.succeed(SalesService, sales)),
+        )
         const inventory = yield* Effect.provide(makeInventoryService, messagingRequirements)
         const services = Layer.mergeAll(
           Layer.succeed(AuthService, auth),

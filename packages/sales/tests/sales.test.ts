@@ -89,6 +89,10 @@ describe("sales contract", () => {
       assert.strictEqual(confirmed.status, "confirmed")
       assert.strictEqual(confirmed.id, repeated.id)
       assert.isNotNull(confirmed.confirmedAt)
+      assert.strictEqual(
+        yield* sales.getConfirmedOrderTotal({ tenantId, orderId: confirmed.id }),
+        "1250.00",
+      )
     })))
 
   it.effect("rejects a different confirmation key after confirmation", () =>

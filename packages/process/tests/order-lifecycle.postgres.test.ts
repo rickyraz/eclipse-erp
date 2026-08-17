@@ -108,7 +108,10 @@ const makeFixture = (client: Sql, tenantId: string, label: string) =>
     )
     const accounting = yield* Effect.provide(
       makeAccountingService,
-      Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+      Layer.merge(
+        Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+        Layer.succeed(SalesService, sales),
+      ),
     )
     const process = yield* Effect.provide(
       makeProcessService,

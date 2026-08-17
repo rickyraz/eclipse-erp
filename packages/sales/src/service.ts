@@ -91,6 +91,11 @@ export const CancelOrderInput = Schema.Struct({
   orderId: Schema.String,
 })
 
+export const GetConfirmedOrderTotalInput = Schema.Struct({
+  tenantId: Schema.String,
+  orderId: Schema.String,
+})
+
 export class CustomerAlreadyExists
   extends Schema.TaggedErrorClass<CustomerAlreadyExists>()("CustomerAlreadyExists", {
     tenantId: Schema.String,
@@ -154,6 +159,9 @@ export interface SalesService {
   readonly cancelOrder: (
     input: unknown,
   ) => Effect.Effect<SalesOrder, SalesOrderInvalidState | SalesOrderNotFound | CommonFailure>
+  readonly getConfirmedOrderTotal: (
+    input: unknown,
+  ) => Effect.Effect<string, SalesOrderInvalidState | SalesOrderNotFound | CommonFailure>
 }
 
 export const SalesService = Context.Service<SalesService>("EclipseERP/SalesService")
@@ -444,6 +452,37 @@ export const makeSalesService = Effect.gen(function* () {
         }
         return result.order
       }),
+    getConfirmedOrderTotal: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(GetConfirmedOrderTotalInput)(input)
+        const rows = yield* database.query(
+          (db) =>
+            db.select({
+              status: orders.status,
+              confirmedAt: orders.confirmedAt,
+              total: orders.total,
+            }).from(orders).where(
+              and(eq(orders.tenantId, decoded.tenantId), eq(orders.id, decoded.orderId)),
+            ),
+          "sales.order.confirmed_total.lookup",
+        )
+        const order = rows[0]
+        if (order === undefined) {
+          return yield* Effect.fail(
+            new SalesOrderNotFound({ tenantId: decoded.tenantId, orderId: decoded.orderId }),
+          )
+        }
+        if (order.status !== "confirmed" || order.confirmedAt === null) {
+          return yield* Effect.fail(
+            new SalesOrderInvalidState({
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+              status: order.status,
+            }),
+          )
+        }
+        return order.total
+      }),
     cancelOrder: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(CancelOrderInput)(input)
@@ -666,6 +705,26 @@ export const makeSalesTestLayer = () =>
             storedOrders.set(order.id, confirmed)
             confirmationKeys.set(order.id, decoded.idempotencyKey)
             return confirmed
+          }),
+        getConfirmedOrderTotal: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(GetConfirmedOrderTotalInput)(input)
+            const order = storedOrders.get(decoded.orderId)
+            if (order?.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new SalesOrderNotFound({ tenantId: decoded.tenantId, orderId: decoded.orderId }),
+              )
+            }
+            if (order.status !== "confirmed" || order.confirmedAt === null) {
+              return yield* Effect.fail(
+                new SalesOrderInvalidState({
+                  tenantId: decoded.tenantId,
+                  orderId: decoded.orderId,
+                  status: order.status,
+                }),
+              )
+            }
+            return order.total
           }),
         cancelOrder: (input) =>
           Effect.gen(function* () {

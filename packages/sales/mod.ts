@@ -16,6 +16,7 @@ export {
   Customer,
   CustomerAlreadyExists,
   CustomerNotFound,
+  GetConfirmedOrderTotalInput,
   makeSalesService,
   makeSalesTestLayer,
   Quotation,

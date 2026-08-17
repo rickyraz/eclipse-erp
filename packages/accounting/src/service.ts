@@ -19,6 +19,7 @@ import { AuthorizationDenied, AuthorizationService } from "../../authorization/m
 import { AccountingCapabilities } from "./capabilities.ts"
 import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingRevenuePostedEvent, RevenuePostedEventPayload } from "./events.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
@@ -267,6 +268,8 @@ export interface AccountingService {
     | EventIdempotencyConflict
     | JournalIdempotencyConflict
     | RevenuePostingProfileNotFound
+    | SalesOrderInvalidState
+    | SalesOrderNotFound
     | CommonFailure
   >
   readonly reverseRevenueForOrder: (
@@ -346,6 +349,7 @@ export const makeAccountingService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
   const messaging = yield* MessagingService
+  const sales = yield* SalesService
   const clock = yield* Clock.Clock
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   return {
@@ -667,6 +671,10 @@ export const makeAccountingService = Effect.gen(function* () {
         if (existing !== undefined) return existing
         const journal = yield* database.withTransaction(
           Effect.gen(function* () {
+            const amount = yield* sales.getConfirmedOrderTotal({
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+            })
             const mutation = yield* database.transaction(
               async (tx) => {
                 const profile = (await tx.select().from(revenuePostingProfiles).where(and(
@@ -698,8 +706,8 @@ export const makeAccountingService = Effect.gen(function* () {
                   reference,
                 }).returning({ id: journalEntries.id }))[0]!
                 const lines: readonly JournalLine[] = [
-                  { accountId: profile.receivableAccountId, debit: decoded.amount, credit: "0" },
-                  { accountId: profile.revenueAccountId, debit: "0", credit: decoded.amount },
+                  { accountId: profile.receivableAccountId, debit: amount, credit: "0" },
+                  { accountId: profile.revenueAccountId, debit: "0", credit: amount },
                 ]
                 await tx.insert(journalLines).values(lines.map((line) => ({
                   tenantId: decoded.tenantId,
