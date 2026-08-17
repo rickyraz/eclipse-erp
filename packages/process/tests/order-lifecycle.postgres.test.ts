@@ -881,6 +881,99 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "fulfillment rolls back prior reservation changes when a later reservation is invalid",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        const { tenantId, process, order, warehouse, legalEntity } = yield* prepare(
+          client,
+          "FULFILL-ROLLBACK",
+        )
+        const confirmation = yield* process.confirmOrder({
+          principal,
+          tenantId,
+          orderId: order.id,
+          warehouseId: warehouse.id,
+          legalEntityId: legalEntity.id,
+          commandId: "command-confirm-fulfill-rollback-1",
+          correlationId: "correlation-confirm-fulfill-rollback-1",
+          causationId: "causation-confirm-fulfill-rollback-1",
+          idempotencyKey: "confirm-fulfill-rollback-1",
+        })
+        const orderedReservations = confirmation.reservations.toSorted((a, b) =>
+          a.id.localeCompare(b.id)
+        )
+        const firstReservation = orderedReservations[0]!
+        const invalidReservation = orderedReservations.at(-1)!
+        yield* Effect.promise(() =>
+          client`
+            update inventory.reservations
+            set status = 'released'
+            where tenant_id = ${tenantId} and id = ${invalidReservation.id}
+          `
+        )
+        const beforeCounts = (yield* Effect.promise(() => readCounts(client, tenantId)))[0]!
+        const beforeBalances = yield* Effect.promise(() =>
+          client<{ item_id: string; on_hand: string; reserved: string }[]>`
+            select item_id, on_hand::text, reserved::text
+            from inventory.stock_balances
+            where tenant_id = ${tenantId} and warehouse_id = ${warehouse.id}
+            order by item_id
+          `
+        )
+        const beforeReservations = yield* Effect.promise(() =>
+          client<{ id: string; status: string }[]>`
+            select id, status
+            from inventory.reservations
+            where tenant_id = ${tenantId}
+            order by id
+          `
+        )
+
+        const failure = yield* Effect.flip(process.fulfillOrder({
+          principal,
+          tenantId,
+          orderId: order.id,
+          commandId: "command-fulfill-rollback-1",
+          correlationId: "correlation-fulfill-rollback-1",
+          causationId: "causation-fulfill-rollback-1",
+          idempotencyKey: "fulfill-rollback-1",
+        }))
+        assert.instanceOf(failure, StockReservationInvalidState)
+        assert.strictEqual(failure.status, "released")
+
+        const afterCounts = (yield* Effect.promise(() => readCounts(client, tenantId)))[0]!
+        const afterBalances = yield* Effect.promise(() =>
+          client<{ item_id: string; on_hand: string; reserved: string }[]>`
+            select item_id, on_hand::text, reserved::text
+            from inventory.stock_balances
+            where tenant_id = ${tenantId} and warehouse_id = ${warehouse.id}
+            order by item_id
+          `
+        )
+        const afterReservations = yield* Effect.promise(() =>
+          client<{ id: string; status: string }[]>`
+            select id, status
+            from inventory.reservations
+            where tenant_id = ${tenantId}
+            order by id
+          `
+        )
+        assert.deepStrictEqual(afterCounts, beforeCounts)
+        assert.deepStrictEqual(afterBalances, beforeBalances)
+        assert.deepStrictEqual(afterReservations, beforeReservations)
+        assert.strictEqual(
+          afterReservations.find(({ id }) => id === firstReservation.id)?.status,
+          "active",
+        )
+        assert.strictEqual(
+          afterReservations.find(({ id }) => id === invalidReservation.id)?.status,
+          "released",
+        )
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "fulfillment success, replay, conflict, and atomic cancellation rejection",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>
