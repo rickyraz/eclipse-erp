@@ -62,6 +62,57 @@ it.effect.skipIf(!enabled)(
         })
         assert.strictEqual(outcome._tag, "accepted")
         if (outcome._tag === "accepted") assert.strictEqual(outcome.transferCount, 1)
+
+        const constrainedDebitAccount = `integration-constrained-debit-${suffix}`
+        const constrainedCreditAccount = `integration-constrained-credit-${suffix}`
+        yield* ledger.createExecutionAccount({
+          tenantId: "00000000-0000-0000-0000-000000000001",
+          legalEntityId: "00000000-0000-0000-0000-000000000002",
+          accountId: constrainedDebitAccount,
+          currency: config.currency,
+          mappingVersion: 1,
+          balanceConstraint: "credits_must_not_exceed_debits",
+        })
+        yield* ledger.createExecutionAccount({
+          tenantId: "00000000-0000-0000-0000-000000000001",
+          legalEntityId: "00000000-0000-0000-0000-000000000002",
+          accountId: constrainedCreditAccount,
+          currency: config.currency,
+          mappingVersion: 1,
+          balanceConstraint: "debits_must_not_exceed_credits",
+        })
+        const constrainedAccepted = yield* ledger.postJournal({
+          tenantId: "00000000-0000-0000-0000-000000000001",
+          legalEntityId: "00000000-0000-0000-0000-000000000002",
+          operationId: `integration-constrained-${suffix}`,
+          journalId: `integration-constrained-journal-${suffix}`,
+          reference: `integration-constrained-${suffix}`,
+          currency: config.currency,
+          mappingVersion: 1,
+          lines: [
+            { accountId: constrainedDebitAccount, debitMinor: "125", creditMinor: "0" },
+            { accountId: constrainedCreditAccount, debitMinor: "0", creditMinor: "125" },
+          ],
+        })
+        assert.strictEqual(constrainedAccepted._tag, "accepted")
+        const constrainedRejected = yield* ledger.postJournal({
+          tenantId: "00000000-0000-0000-0000-000000000001",
+          legalEntityId: "00000000-0000-0000-0000-000000000002",
+          operationId: `integration-constraint-rejection-${suffix}`,
+          journalId: `integration-constraint-rejection-journal-${suffix}`,
+          reference: `integration-constraint-rejection-${suffix}`,
+          currency: config.currency,
+          mappingVersion: 1,
+          lines: [
+            { accountId: constrainedDebitAccount, debitMinor: "0", creditMinor: "126" },
+            { accountId: constrainedCreditAccount, debitMinor: "126", creditMinor: "0" },
+          ],
+        })
+        assert.deepStrictEqual(constrainedRejected, {
+          _tag: "rejected",
+          operationId: `integration-constraint-rejection-${suffix}`,
+          reason: "constraint_violation",
+        })
       }),
     ),
 )

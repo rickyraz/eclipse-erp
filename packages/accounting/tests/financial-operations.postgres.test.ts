@@ -65,6 +65,44 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           yield* Effect.promise(() =>
             client`
+              update accounting.financial_cutover_controls
+              set status = 'preparing_tigerbeetle'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'approved', cutover_watermark = 'test-watermark',
+                verification_hash = 'test-hash', opening_balance_verified = true,
+                historical_boundary_verified = true, reconciliation_healthy = true,
+                backup_recovery_verified = true, approved_by = 'test-operator', approved_at = now()
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'activating'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set financial_engine = 'tigerbeetle'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'tigerbeetle', activated_by = 'test-operator', activated_at = now()
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
               insert into accounting.accounting_periods
                 (tenant_id, legal_entity_id, starts_on, ends_on, status)
               values (${tenant!.id}, ${legalEntity!.id}, '1900-01-01', '2100-12-31', 'open')
@@ -106,6 +144,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             userAccountId: principal.userAccountId,
             tenantId: tenant!.id,
             capability: AccountingCapabilities.periodClose,
+          }, {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+            capability: AccountingCapabilities.financialProjectionRebuild,
           }])
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
@@ -159,6 +201,36 @@ it.effect.skipIf(databaseUrl === undefined)(
           })
           assert.strictEqual(postedRevenue.status, "reconciled")
 
+          yield* Effect.promise(() =>
+            client`
+              delete from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              delete from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+            `
+          )
+          const rebuiltProjection = yield* service.rebuildFinancialProjections({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+          })
+          assert.isAtLeast(rebuiltProjection.checkedOperations, 1)
+          assert.isAtLeast(rebuiltProjection.rebuiltOperations, 1)
+          const rebuiltRevenueTransfers = yield* Effect.promise(() =>
+            client<{ status: string; engine_transfer_id: string | null }[]>`
+              select status, engine_transfer_id
+              from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
+            `
+          )
+          assert.strictEqual(rebuiltRevenueTransfers.length, 1)
+          assert.strictEqual(rebuiltRevenueTransfers[0]!.status, "accepted")
+          assert.isNotNull(rebuiltRevenueTransfers[0]!.engine_transfer_id)
+
           const revenuePrincipal = {
             userAccountId: crypto.randomUUID(),
             sessionId: crypto.randomUUID(),
@@ -175,7 +247,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(MessagingService, messaging),
               Layer.succeed(DurableJobEnqueuer, jobs),
               Layer.succeed(SalesService, sales),
-              makeFinancialLedgerTestLayer(),
+              ledger,
             ),
           )
           const revenueOnlyIntent = yield* revenueOnlyService.createRevenueIntent({

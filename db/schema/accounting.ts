@@ -37,6 +37,17 @@ export const financialEngine = accountingSchema.enum(
   "financial_engine",
   ["postgresql", "tigerbeetle"],
 )
+export const financialCutoverStatus = accountingSchema.enum(
+  "financial_cutover_status",
+  [
+    "postgresql",
+    "preparing_tigerbeetle",
+    "verification_pending",
+    "approved",
+    "activating",
+    "tigerbeetle",
+  ],
+)
 export const financialOperationType = accountingSchema.enum(
   "financial_operation_type",
   ["journal_post", "journal_reverse", "revenue_post"],
@@ -87,6 +98,69 @@ export const legalEntityAccountingConfigurations = accountingSchema.table(
       "legal_entity_accounting_configurations_fiscal_month_check",
       sql`${table.fiscalYearStartMonth} between 1 and 12`,
     ),
+  ],
+)
+
+export const financialCutoverControls = accountingSchema.table(
+  "financial_cutover_controls",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    legalEntityId: uuid("legal_entity_id").notNull(),
+    status: financialCutoverStatus("status").notNull().default("postgresql"),
+    sourceEngine: financialEngine("source_engine").notNull().default("postgresql"),
+    targetEngine: financialEngine("target_engine").notNull().default("tigerbeetle"),
+    cutoverWatermark: text("cutover_watermark"),
+    verificationHash: text("verification_hash"),
+    openingBalanceVerified: boolean("opening_balance_verified").notNull().default(false),
+    historicalBoundaryVerified: boolean("historical_boundary_verified").notNull().default(false),
+    reconciliationHealthy: boolean("reconciliation_healthy").notNull().default(false),
+    backupRecoveryVerified: boolean("backup_recovery_verified").notNull().default(false),
+    unresolvedAcceptedOperations: integer("unresolved_accepted_operations").notNull().default(0),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    activatedBy: text("activated_by"),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.legalEntityId] }),
+    foreignKey({
+      columns: [table.tenantId, table.legalEntityId],
+      foreignColumns: [
+        legalEntityAccountingConfigurations.tenantId,
+        legalEntityAccountingConfigurations.legalEntityId,
+      ],
+      name: "financial_cutover_controls_configuration_fkey",
+    }).onDelete("cascade"),
+    check(
+      "financial_cutover_controls_source_engine_check",
+      sql`${table.sourceEngine} = 'postgresql'`,
+    ),
+    check(
+      "financial_cutover_controls_target_engine_check",
+      sql`${table.targetEngine} = 'tigerbeetle'`,
+    ),
+    check(
+      "financial_cutover_controls_unresolved_check",
+      sql`${table.unresolvedAcceptedOperations} >= 0`,
+    ),
+    check(
+      "financial_cutover_controls_approval_check",
+      sql`(${table.status} not in ('approved', 'activating', 'tigerbeetle') or
+        (${table.openingBalanceVerified} and ${table.historicalBoundaryVerified} and
+         ${table.reconciliationHealthy} and ${table.backupRecoveryVerified} and
+         ${table.unresolvedAcceptedOperations} = 0 and
+         ${table.cutoverWatermark} is not null and ${table.verificationHash} is not null and
+         ${table.approvedBy} is not null and ${table.approvedAt} is not null))`,
+    ),
+    check(
+      "financial_cutover_controls_activation_check",
+      sql`(${table.status} <> 'tigerbeetle' or
+        (${table.activatedBy} is not null and ${table.activatedAt} is not null))`,
+    ),
+    index("financial_cutover_controls_status_index").on(table.status),
   ],
 )
 

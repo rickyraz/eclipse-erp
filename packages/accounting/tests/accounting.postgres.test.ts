@@ -80,8 +80,39 @@ it.effect.skipIf(databaseUrl === undefined)(
 
           yield* Effect.promise(() =>
             client`
+              update accounting.financial_cutover_controls
+              set status = 'preparing_tigerbeetle'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'approved', cutover_watermark = 'test-watermark',
+                verification_hash = 'test-hash', opening_balance_verified = true,
+                historical_boundary_verified = true, reconciliation_healthy = true,
+                backup_recovery_verified = true, approved_by = 'test-operator', approved_at = now()
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'activating'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
               update accounting.legal_entity_accounting_configurations
               set financial_engine = 'tigerbeetle'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_cutover_controls
+              set status = 'tigerbeetle', activated_by = 'test-operator', activated_at = now()
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )

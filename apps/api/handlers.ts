@@ -463,6 +463,40 @@ export const AccountingHandlers = HttpApiBuilder.group(
   "Accounting",
   (handlers) =>
     handlers
+      .handle("prepareTigerBeetleCutover", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* AccountingService.use((service) =>
+            service.prepareTigerBeetleCutover({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              legalEntityId: params.id,
+            })
+          )
+        })))
+      .handle("approveTigerBeetleCutover", ({ headers, params, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* AccountingService.use((service) =>
+            service.approveTigerBeetleCutover({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              legalEntityId: params.id,
+              ...payload,
+            })
+          )
+        })))
+      .handle("activateTigerBeetleCutover", ({ headers, params }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* AccountingService.use((service) =>
+            service.activateTigerBeetleCutover({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              legalEntityId: params.id,
+            })
+          )
+        })))
       .handle("configureLegalEntity", ({ headers, params, payload }) =>
         apiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
@@ -491,6 +525,17 @@ export const AccountingHandlers = HttpApiBuilder.group(
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.postJournal({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("rebuildFinancialProjections", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* FinancialOperationService.use((service) =>
+            service.rebuildFinancialProjections({
               principal,
               tenantId: headers["x-tenant-id"],
               ...payload,

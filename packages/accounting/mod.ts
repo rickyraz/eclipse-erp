@@ -26,6 +26,8 @@ export {
   FinancialOperationService,
   FinancialOperationServiceLive,
   FinancialOperationStatus,
+  FinancialProjectionRebuildBlocked,
+  FinancialProjectionRebuildResult,
   FinancialRevenueAmountMismatch,
   FinancialReversalAlreadyExists,
   FinancialReversalSourceNotFound,
@@ -34,7 +36,20 @@ export {
   FinancialReversalSourceRequired,
   FinancialSalesNotConfigured,
   makeFinancialOperationService,
+  RebuildFinancialProjectionInput,
 } from "./src/financial-operations.ts"
+export {
+  financialFailureMatrix,
+  FinancialFailurePoint,
+  verifyOpeningBalances,
+} from "./src/financial-readiness.ts"
+export type {
+  FinancialFailureMatrixRow,
+  OpeningBalance,
+  OpeningBalanceMismatch,
+  OpeningBalanceVerification,
+} from "./src/financial-readiness.ts"
+
 export type {
   CreateFinancialJournalIntentInput as CreateFinancialJournalIntentInputType,
   CreateFinancialRevenueIntentInput as CreateFinancialRevenueIntentInputType,
@@ -72,10 +87,13 @@ export {
   AccountingPeriodOverlap,
   AccountingService,
   AccountNotFound,
+  ActivateTigerBeetleCutoverInput,
+  ApproveTigerBeetleCutoverInput,
   ClosePeriodInput,
   ConfigureLegalEntityInput,
   ConfigureRevenuePostingInput,
   CreateAccountInput,
+  FinancialCutoverControl,
   FinancialEngineActivated,
   FinancialEngineCutoverBlocked,
   FinancialOperationsPending,
@@ -90,6 +108,7 @@ export {
   OpenPeriodInput,
   PostJournalInput,
   PostRevenueForOrderInput,
+  PrepareTigerBeetleCutoverInput,
   RevenueJournalNotFound,
   RevenuePostingProfile,
   RevenuePostingProfileAlreadyExists,

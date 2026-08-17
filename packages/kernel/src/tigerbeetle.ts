@@ -247,6 +247,8 @@ const accountOutcome = (
   }
   if (
     result.status === runtime.CreateAccountStatus.exists_with_different_flags ||
+    result.status === runtime.CreateAccountStatus.exists_with_different_user_data_128 ||
+    result.status === runtime.CreateAccountStatus.exists_with_different_user_data_64 ||
     result.status === runtime.CreateAccountStatus.exists_with_different_user_data_32 ||
     result.status === runtime.CreateAccountStatus.exists_with_different_ledger ||
     result.status === runtime.CreateAccountStatus.exists_with_different_code
@@ -282,7 +284,7 @@ const rejectionReason = (
     case runtime.CreateTransferStatus.id_already_failed:
       return "constraint_violation" as const
     default:
-      return "invalid_amount" as const
+      return "constraint_violation" as const
   }
 }
 
@@ -675,9 +677,12 @@ const makeAdapter = (
       if (account === undefined) {
         return { _tag: "not_found" as const, accountId: decoded.accountId }
       }
+      const requiredHistoryFlag = runtime.AccountFlags.history
       if (
         account.ledger !== config.ledger || account.code !== config.code ||
-        account.user_data_32 !== decoded.mappingVersion
+        account.user_data_128 !== 0n || account.user_data_64 !== 0n ||
+        account.user_data_32 !== decoded.mappingVersion || account.reserved !== 0 ||
+        (account.flags & requiredHistoryFlag) !== requiredHistoryFlag
       ) {
         return {
           _tag: "manual_recovery" as const,

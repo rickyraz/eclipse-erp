@@ -107,6 +107,52 @@ describe("financial ledger contract", () => {
       assert.strictEqual(invalidInput._tag, "SchemaError")
     })))
 
+  it.effect("enforces account constraints and fail-closed availability", () =>
+    withLedger(
+      Effect.gen(function* () {
+        const ledger = yield* FinancialLedgerPort
+        yield* ledger.createExecutionAccount({
+          ...account("cash"),
+          balanceConstraint: "credits_must_not_exceed_debits",
+        })
+        yield* ledger.createExecutionAccount({
+          ...account("revenue"),
+          balanceConstraint: "debits_must_not_exceed_credits",
+        })
+        assert.deepStrictEqual(yield* ledger.postJournal(journal("accepted-with-constraints")), {
+          _tag: "accepted",
+          operationId: "accepted-with-constraints",
+          mappingVersion: 1,
+          acceptedAt: "0",
+          transferCount: 1,
+          transferIds: ["transfer:tenant-a:legal-entity-a:accepted-with-constraints:0"],
+        })
+        assert.deepStrictEqual(
+          yield* ledger.postJournal({
+            ...journal("constraint-rejection"),
+            lines: [
+              { accountId: "cash", debitMinor: "0", creditMinor: "12501" },
+              { accountId: "revenue", debitMinor: "12501", creditMinor: "0" },
+            ],
+          }),
+          {
+            _tag: "rejected",
+            operationId: "constraint-rejection",
+            reason: "constraint_violation",
+          },
+        )
+        assert.deepStrictEqual(yield* ledger.getBalance({ ...account("cash") }), {
+          _tag: "available",
+          accountId: "cash",
+          mappingVersion: 1,
+          debitsPendingMinor: "0",
+          debitsPostedMinor: "12500",
+          creditsPendingMinor: "0",
+          creditsPostedMinor: "0",
+        })
+      }),
+    ))
+
   it.effect("keeps balance reads provider-neutral", () =>
     withLedger(Effect.gen(function* () {
       const ledger = yield* FinancialLedgerPort
@@ -124,4 +170,19 @@ describe("financial ledger contract", () => {
         creditsPostedMinor: "0",
       })
     })))
+
+  it.effect("keeps provider outage distinct from rejection", () =>
+    withLedger(
+      Effect.gen(function* () {
+        const ledger = yield* FinancialLedgerPort
+        yield* ledger.createExecutionAccount(account("cash"))
+        yield* ledger.createExecutionAccount(account("revenue"))
+        assert.deepStrictEqual(yield* ledger.postJournal(journal("unavailable-operation")), {
+          _tag: "unknown",
+          operationId: "unavailable-operation",
+          reason: "unavailable",
+        })
+      }),
+      { unavailableFor: "unavailable-operation" },
+    ))
 })

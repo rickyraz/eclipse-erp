@@ -98,9 +98,10 @@ The repository now contains a bounded, non-activated execution slice:
   integration tests cover replay, rejection, reconciliation, period fencing, and projection behavior.
 
 The existing PostgreSQL `postJournal` and revenue commands remain transitional for compatibility;
-the new financial-operation endpoints and worker path are not a production cutover. Activation still
-requires the operational, historical replay/opening-balance, bounded rehearsal, and cutover gates
-below.
+the new financial-operation endpoints and worker path are not a production cutover. Controlled
+prepare/approve/activate commands, database activation gates, exact opening-balance comparison,
+and an operation-level projection rebuild now exist, but activation still requires the operational,
+historical replay/opening-balance, bounded rehearsal, and cutover gates below.
 
 ## Execution Sequence
 
@@ -168,7 +169,8 @@ Exit gate:
 [x] retry state survives process restart
 [x] duplicate intent cannot create two logical operations
 [x] PostgreSQL failure after submission has a recorded retry/recovery path
-[ ] PostgreSQL failure before submission and projection rebuild still require dedicated proof
+[x] operation projection rebuild has a PostgreSQL regression proof
+[ ] PostgreSQL before/after-engine kill-point evidence still requires dedicated proof
 ```
 
 ### Phase 3 — Test adapter and failure proof
@@ -243,9 +245,9 @@ is the only correction path for an accepted financial movement.
 Exit gate:
 
 ```text
-[ ] projection is rebuildable from TigerBeetle facts plus PostgreSQL metadata
+[x] operation projection is rebuildable from TigerBeetle facts plus PostgreSQL metadata
 [x] reconciliation is idempotent and fail-closed on mismatch
-[ ] reports reproduce the expected balance and transfer history
+[ ] complete report rebuild reproduces the expected balance and transfer history
 [x] no PostgreSQL balance is used as a competing financial authority
 ```
 
@@ -279,12 +281,12 @@ Before production activation:
 Exit gate:
 
 ```text
-[ ] opening balances and historical replay are signed off
-[ ] restore and outage runbooks are executable
+[ ] opening balances and historical replay are signed off against a real bounded cohort
+[ ] restore and outage runbooks are executable against the supported deployment
 [ ] recovery watermark and cross-store restore comparison are proven
-[ ] in-flight operation treatment is explicit
-[ ] adapter exit does not require deleting financial history
-[ ] cutover has a bounded scope and an owner
+[x] in-flight operation treatment is explicit in the failure matrix and runbook
+[x] adapter exit does not require deleting financial history
+[ ] cutover has a bounded scope and an owner with an executed rehearsal
 ```
 
 ### Phase 7 — Scoped production activation
@@ -328,21 +330,51 @@ cross-domain contract, event timing, failure semantics, and user-visible result.
 ## Global Activation Checklist
 
 ```text
-[ ] authority matrix approved
+[x] authority matrix approved
 [ ] first profile scope approved
-[ ] FinancialLedgerPort and failures are public-contract tested
-[ ] deterministic ID mapping is versioned and collision-tested
-[ ] durable intent and idempotency survive restart
-[ ] test adapter proves all failure points
-[ ] trusted adapter is isolated and provider-compatible
-[ ] linked, reversal, balance, and batch behavior are proven
-[ ] PostgreSQL projections are rebuildable and non-authoritative
+[x] FinancialLedgerPort and failures are public-contract tested
+[x] deterministic ID mapping is versioned and collision-tested
+[x] durable intent and idempotency survive process restart in the covered path
+[ ] test adapter proves every distributed failure point, including PostgreSQL kill points
+[x] trusted adapter is isolated and provider-compatible
+[x] linked, reversal, balance, and batch behavior are proven at the adapter boundary
+[ ] PostgreSQL projections are rebuildable for the complete reporting surface
 [ ] reconciliation, quarantine, alerts, and manual recovery are operational
 [ ] backup/restore/upgrade/exit rehearsals pass
-[ ] historical replay/opening balance is verified
-[ ] no silent PostgreSQL fallback exists for the activated profile
+[ ] historical replay/opening balance is verified for the bounded cohort
+[x] no silent PostgreSQL fallback exists for the activated profile
 [ ] every cross-domain workflow has its own accepted consistency decision
 ```
+
+## Audit A–M and release decision (2026-08-17)
+
+The implementation is hardened and tested, but this audit is a release gate, not a production
+approval. `P0` means production-blocking; `P1` means a correctness/readiness gap that must close
+before pilot approval; `P2` means operational maturity work that must be tracked.
+
+| Bagian | Status | Klasifikasi | Bukti / celah yang tersisa |
+| --- | --- | --- | --- |
+| A. Authority dan ownership | jelas | P0 gate | TigerBeetle memegang transfer accepted/balance/history; PostgreSQL memegang control-plane. Tidak ada fallback atau dual authority pada route aktif. |
+| B. State machine | implemented | P1 | `intent -> submitted -> accepted -> reconciled` dan transisi database sudah dijaga; fault proof end-to-end belum lengkap. |
+| C. Crash windows | partial | P1 | Status `accepted` dan finalisasi retryable menutup crash setelah acceptance; kill point PostgreSQL sebelum/sesudah engine belum direhearsal penuh. |
+| D. Idempotency dan concurrency | implemented | P1 | ID deterministik, uniqueness, replay, dan concurrent intent diuji; duplicate-worker rehearsal deployment belum ada. |
+| E. Reconciliation | partial | P1 | Lost response, `not_found`, unavailable, partial result, metadata/mapping mismatch fail closed; orphan scan/checkpoint global dan full rebuild belum terbukti. |
+| F. Worker dan durable jobs | implemented | P1 | Worker memakai kontrak Accounting/Process, lease fencing, retry, dan reconciliation; restart/lease rehearsal produksi belum ada. |
+| G. Projection, receipt, outbox | partial | P1 | Receipt diterima lebih dulu dan finalisasi terpisah; operation projection dapat direbuild dan diuji, tetapi reproduksi seluruh report belum terbukti. |
+| H. Outage/restart | unproven | P0 | Belum ada bukti PostgreSQL/TigerBeetle outage, adapter exit, process restart, dan recovery watermark terhadap deployment target. |
+| I. Backup/restore | unproven | P0 | Belum ada restore rehearsal, cross-store correspondence, orphan comparison, atau independently-restored-store fencing yang dieksekusi. |
+| J. Migration/cutover | partial | P0 | Opening-balance verifier dan state machine tersedia; historical replay/opening-balance sign-off dan bounded cohort rehearsal belum ada. |
+| K. Authorization/security | hardened | P1 | Capability activation/rebuild, authorization ordering, tenant fencing, dan no-fallback path tersedia; production credential/privilege rehearsal belum ada. |
+| L. Amount/ID/mapping | implemented | P1 | Currency, uppercase mapping, UInt128, deterministic IDs, metadata, linked transfer, dan balance constraints diuji. |
+| M. Reversal/observability/testing | partial | P1/P2 | Reversal dan failure tests membaik; metrics, SLO, alert, dashboard, complete fault matrix, dan runbook execution evidence belum lengkap. |
+
+**Keputusan: NO-GO untuk produksi.** TigerBeetle tetap non-default dan konfigurasi normal tetap
+menolak aktivasi langsung. P0 yang wajib ditutup: (1) full PostgreSQL-before/after-engine fault
+matrix dengan kill/restart/worker termination, (2) backup/restore dan cross-store comparison,
+(3) outage/adapter-exit recovery, (4) historical/opening-balance verification, dan (5) bounded
+cutover rehearsal dengan owner, watermark, approval, serta bukti observability. Local one-replica
+integration test yang lulus hanya membuktikan adapter compatibility; tidak membuktikan quorum,
+production recovery, atau restore readiness.
 
 ## Explicit Non-Goals
 

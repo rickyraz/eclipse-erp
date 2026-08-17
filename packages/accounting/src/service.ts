@@ -3,12 +3,14 @@ import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
 import {
   accountingPeriods,
   accounts,
+  financialCutoverControls,
   financialOperations,
   journalEntries,
   journalLines,
@@ -22,12 +24,25 @@ import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mo
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingRevenuePostedEvent, RevenuePostedEventPayload } from "./events.ts"
+import {
+  type ExecutionAccountOutcome,
+  type FinancialAccountConstraint,
+  FinancialLedgerPort,
+} from "./financial-ledger.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
 const FinancialEngine = Schema.Literals(["postgresql", "tigerbeetle"])
+const FinancialCutoverStatus = Schema.Literals([
+  "postgresql",
+  "preparing_tigerbeetle",
+  "verification_pending",
+  "approved",
+  "activating",
+  "tigerbeetle",
+])
 const Precision = Schema.Literal(2)
 const FiscalYearStartMonth = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 12 }))
 const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/))
@@ -90,6 +105,48 @@ export type AccountingPeriod = Schema.Schema.Type<typeof AccountingPeriod>
 export type RevenuePostingProfile = Schema.Schema.Type<typeof RevenuePostingProfile>
 
 const ScopedInput = { principal: Principal, tenantId: Schema.String }
+
+export const FinancialCutoverControl = Schema.Struct({
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  status: FinancialCutoverStatus,
+  sourceEngine: Schema.Literal("postgresql"),
+  targetEngine: Schema.Literal("tigerbeetle"),
+  cutoverWatermark: Schema.NullOr(NonEmptyString),
+  verificationHash: Schema.NullOr(NonEmptyString),
+  openingBalanceVerified: Schema.Boolean,
+  historicalBoundaryVerified: Schema.Boolean,
+  reconciliationHealthy: Schema.Boolean,
+  backupRecoveryVerified: Schema.Boolean,
+  unresolvedAcceptedOperations: Schema.Int,
+  approvedBy: Schema.NullOr(NonEmptyString),
+  approvedAt: Schema.NullOr(Schema.String),
+  activatedBy: Schema.NullOr(NonEmptyString),
+  activatedAt: Schema.NullOr(Schema.String),
+  lastError: Schema.NullOr(NonEmptyString),
+})
+export type FinancialCutoverControl = Schema.Schema.Type<typeof FinancialCutoverControl>
+
+export const PrepareTigerBeetleCutoverInput = Schema.Struct({
+  ...ScopedInput,
+  legalEntityId: Uuid,
+})
+
+export const ApproveTigerBeetleCutoverInput = Schema.Struct({
+  ...ScopedInput,
+  legalEntityId: Uuid,
+  cutoverWatermark: NonEmptyString,
+  verificationHash: NonEmptyString,
+  openingBalanceVerified: Schema.Boolean,
+  historicalBoundaryVerified: Schema.Boolean,
+  reconciliationHealthy: Schema.Boolean,
+  backupRecoveryVerified: Schema.Boolean,
+})
+
+export const ActivateTigerBeetleCutoverInput = Schema.Struct({
+  ...ScopedInput,
+  legalEntityId: Uuid,
+})
 
 export const ConfigureLegalEntityInput = Schema.Struct({
   ...ScopedInput,
@@ -171,7 +228,14 @@ export class FinancialEngineCutoverBlocked
     {
       tenantId: Schema.String,
       legalEntityId: Schema.String,
-      reason: Schema.Literal("activation_gates_pending"),
+      reason: Schema.Literals([
+        "activation_gates_pending",
+        "not_prepared",
+        "verification_mismatch",
+        "unresolved_operations",
+        "ledger_not_configured",
+        "account_provisioning_failed",
+      ]),
     },
   ) {}
 
@@ -269,6 +333,33 @@ export interface AccountingService {
     AccountingConfiguration,
     | AccountingConfigurationAlreadyExists
     | AccountingLegalEntityNotFound
+    | FinancialEngineCutoverBlocked
+    | CommonFailure
+  >
+  readonly prepareTigerBeetleCutover: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialCutoverControl,
+    | AccountingLegalEntityNotFound
+    | FinancialEngineActivated
+    | FinancialEngineCutoverBlocked
+    | CommonFailure
+  >
+  readonly approveTigerBeetleCutover: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialCutoverControl,
+    | AccountingLegalEntityNotFound
+    | FinancialEngineActivated
+    | FinancialEngineCutoverBlocked
+    | CommonFailure
+  >
+  readonly activateTigerBeetleCutover: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialCutoverControl,
+    | AccountingLegalEntityNotFound
+    | FinancialEngineActivated
     | FinancialEngineCutoverBlocked
     | CommonFailure
   >
@@ -387,7 +478,75 @@ export const makeAccountingService = Effect.gen(function* () {
   const messaging = yield* MessagingService
   const sales = yield* SalesService
   const clock = yield* Clock.Clock
+  const ledgerOption = yield* Effect.serviceOption(FinancialLedgerPort)
   const now = () => new Date(clock.currentTimeMillisUnsafe())
+  const toCutoverControl = (row: {
+    readonly tenantId: string
+    readonly legalEntityId: string
+    readonly status: FinancialCutoverControl["status"]
+    readonly sourceEngine: "postgresql" | "tigerbeetle"
+    readonly targetEngine: "postgresql" | "tigerbeetle"
+    readonly cutoverWatermark: string | null
+    readonly verificationHash: string | null
+    readonly openingBalanceVerified: boolean
+    readonly historicalBoundaryVerified: boolean
+    readonly reconciliationHealthy: boolean
+    readonly backupRecoveryVerified: boolean
+    readonly unresolvedAcceptedOperations: number
+    readonly approvedBy: string | null
+    readonly approvedAt: Date | null
+    readonly activatedBy: string | null
+    readonly activatedAt: Date | null
+    readonly lastError: string | null
+  }): FinancialCutoverControl => ({
+    tenantId: row.tenantId,
+    legalEntityId: row.legalEntityId,
+    status: row.status,
+    sourceEngine: row.sourceEngine as "postgresql",
+    targetEngine: row.targetEngine as "tigerbeetle",
+    cutoverWatermark: row.cutoverWatermark,
+    verificationHash: row.verificationHash,
+    openingBalanceVerified: row.openingBalanceVerified,
+    historicalBoundaryVerified: row.historicalBoundaryVerified,
+    reconciliationHealthy: row.reconciliationHealthy,
+    backupRecoveryVerified: row.backupRecoveryVerified,
+    unresolvedAcceptedOperations: row.unresolvedAcceptedOperations,
+    approvedBy: row.approvedBy,
+    approvedAt: row.approvedAt?.toISOString() ?? null,
+    activatedBy: row.activatedBy,
+    activatedAt: row.activatedAt?.toISOString() ?? null,
+    lastError: row.lastError,
+  })
+  const cutoverSelection = {
+    tenantId: financialCutoverControls.tenantId,
+    legalEntityId: financialCutoverControls.legalEntityId,
+    status: financialCutoverControls.status,
+    sourceEngine: financialCutoverControls.sourceEngine,
+    targetEngine: financialCutoverControls.targetEngine,
+    cutoverWatermark: financialCutoverControls.cutoverWatermark,
+    verificationHash: financialCutoverControls.verificationHash,
+    openingBalanceVerified: financialCutoverControls.openingBalanceVerified,
+    historicalBoundaryVerified: financialCutoverControls.historicalBoundaryVerified,
+    reconciliationHealthy: financialCutoverControls.reconciliationHealthy,
+    backupRecoveryVerified: financialCutoverControls.backupRecoveryVerified,
+    unresolvedAcceptedOperations: financialCutoverControls.unresolvedAcceptedOperations,
+    approvedBy: financialCutoverControls.approvedBy,
+    approvedAt: financialCutoverControls.approvedAt,
+    activatedBy: financialCutoverControls.activatedBy,
+    activatedAt: financialCutoverControls.activatedAt,
+    lastError: financialCutoverControls.lastError,
+  }
+  const cutoverBlocked = (
+    tenantId: string,
+    legalEntityId: string,
+    reason: FinancialEngineCutoverBlocked["reason"],
+  ) => Effect.fail(new FinancialEngineCutoverBlocked({ tenantId, legalEntityId, reason }))
+  const balanceConstraintForAccountType = (
+    type: Account["type"],
+  ): FinancialAccountConstraint =>
+    type === "asset" || type === "expense"
+      ? "credits_must_not_exceed_debits"
+      : "debits_must_not_exceed_credits"
   const ensureLegacyEngine = (tenantId: string, legalEntityId: string) =>
     Effect.gen(function* () {
       const [configuration] = yield* database.query(
@@ -423,7 +582,365 @@ export const makeAccountingService = Effect.gen(function* () {
         )
       }
     })
+  const loadCutoverControl = (tenantId: string, legalEntityId: string, lock = false) =>
+    database.query(
+      (db) => {
+        const query = db.select(cutoverSelection).from(financialCutoverControls).where(and(
+          eq(financialCutoverControls.tenantId, tenantId),
+          eq(financialCutoverControls.legalEntityId, legalEntityId),
+        ))
+        return lock ? query.for("update") : query
+      },
+      "accounting.financial_cutover.get",
+    )
+
   return {
+    prepareTigerBeetleCutover: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(PrepareTigerBeetleCutoverInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: AccountingCapabilities.financialEngineActivate,
+        })
+        return yield* database.withTransaction(
+          Effect.gen(function* () {
+            const [configuration] = yield* database.query(
+              (db) =>
+                db.select({ financialEngine: legalEntityAccountingConfigurations.financialEngine })
+                  .from(legalEntityAccountingConfigurations).where(and(
+                    eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                    eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                  )).for("update"),
+              "accounting.financial_cutover.prepare.configuration",
+            )
+            if (configuration === undefined) {
+              return yield* Effect.fail(
+                new AccountingLegalEntityNotFound({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                }),
+              )
+            }
+            const [current] = yield* loadCutoverControl(
+              decoded.tenantId,
+              decoded.legalEntityId,
+              true,
+            )
+            if (current === undefined) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "not_prepared",
+              )
+            }
+            if (
+              configuration.financialEngine === "tigerbeetle" || current.status === "tigerbeetle"
+            ) {
+              return yield* Effect.fail(
+                new FinancialEngineActivated({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                }),
+              )
+            }
+            if (current.status !== "postgresql") return toCutoverControl(current)
+            const [prepared] = yield* database.query(
+              (db) =>
+                db.update(financialCutoverControls).set({
+                  status: "preparing_tigerbeetle",
+                  lastError: null,
+                  updatedAt: now(),
+                }).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                )).returning(cutoverSelection),
+              "accounting.financial_cutover.prepare",
+            )
+            return toCutoverControl(prepared!)
+          }),
+          "accounting.financial_cutover.prepare.transaction",
+        )
+      }),
+    approveTigerBeetleCutover: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ApproveTigerBeetleCutoverInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: AccountingCapabilities.financialEngineActivate,
+        })
+        return yield* database.withTransaction(
+          Effect.gen(function* () {
+            const [current] = yield* loadCutoverControl(
+              decoded.tenantId,
+              decoded.legalEntityId,
+              true,
+            )
+            if (current === undefined) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "not_prepared",
+              )
+            }
+            if (current.status === "tigerbeetle") return toCutoverControl(current)
+            if (current.status === "approved") {
+              if (
+                current.cutoverWatermark === decoded.cutoverWatermark &&
+                current.verificationHash === decoded.verificationHash
+              ) return toCutoverControl(current)
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "verification_mismatch",
+              )
+            }
+            if (current.status === "postgresql") {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "not_prepared",
+              )
+            }
+            const [configuration] = yield* database.query(
+              (db) =>
+                db.select({ financialEngine: legalEntityAccountingConfigurations.financialEngine })
+                  .from(legalEntityAccountingConfigurations).where(and(
+                    eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                    eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                  )).for("update"),
+              "accounting.financial_cutover.approve.configuration",
+            )
+            if (configuration?.financialEngine !== "postgresql") {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "verification_mismatch",
+              )
+            }
+            const unresolved = yield* database.query(
+              (db) =>
+                db.select({ id: financialOperations.id }).from(financialOperations).where(and(
+                  eq(financialOperations.tenantId, decoded.tenantId),
+                  eq(financialOperations.legalEntityId, decoded.legalEntityId),
+                  inArray(financialOperations.status, [
+                    "intent",
+                    "submitted",
+                    "accepted",
+                    "unknown",
+                  ]),
+                )),
+              "accounting.financial_cutover.approve.unresolved",
+            )
+            if (
+              !decoded.openingBalanceVerified || !decoded.historicalBoundaryVerified ||
+              !decoded.reconciliationHealthy || !decoded.backupRecoveryVerified
+            ) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "verification_mismatch",
+              )
+            }
+            if (unresolved.length > 0) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "unresolved_operations",
+              )
+            }
+            const [approved] = yield* database.query(
+              (db) =>
+                db.update(financialCutoverControls).set({
+                  status: "approved",
+                  cutoverWatermark: decoded.cutoverWatermark,
+                  verificationHash: decoded.verificationHash,
+                  openingBalanceVerified: decoded.openingBalanceVerified,
+                  historicalBoundaryVerified: decoded.historicalBoundaryVerified,
+                  reconciliationHealthy: decoded.reconciliationHealthy,
+                  backupRecoveryVerified: decoded.backupRecoveryVerified,
+                  unresolvedAcceptedOperations: unresolved.length,
+                  approvedBy: decoded.principal.userAccountId,
+                  approvedAt: now(),
+                  lastError: null,
+                  updatedAt: now(),
+                }).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                )).returning(cutoverSelection),
+              "accounting.financial_cutover.approve",
+            )
+            return toCutoverControl(approved!)
+          }),
+          "accounting.financial_cutover.approve.transaction",
+        )
+      }),
+    activateTigerBeetleCutover: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ActivateTigerBeetleCutoverInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: AccountingCapabilities.financialEngineActivate,
+        })
+        if (Option.isNone(ledgerOption)) {
+          return yield* cutoverBlocked(
+            decoded.tenantId,
+            decoded.legalEntityId,
+            "ledger_not_configured",
+          )
+        }
+        const activating = yield* database.withTransaction(
+          Effect.gen(function* () {
+            const [current] = yield* loadCutoverControl(
+              decoded.tenantId,
+              decoded.legalEntityId,
+              true,
+            )
+            if (current === undefined) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "not_prepared",
+              )
+            }
+            if (current.status === "tigerbeetle") return toCutoverControl(current)
+            if (current.status !== "approved" && current.status !== "activating") {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "activation_gates_pending",
+              )
+            }
+            const [configuration] = yield* database.query(
+              (db) =>
+                db.select({ financialEngine: legalEntityAccountingConfigurations.financialEngine })
+                  .from(legalEntityAccountingConfigurations).where(and(
+                    eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                    eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                  )).for("update"),
+              "accounting.financial_cutover.activate.configuration",
+            )
+            if (configuration?.financialEngine !== "postgresql") {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "verification_mismatch",
+              )
+            }
+            const [updated] = yield* database.query(
+              (db) =>
+                db.update(financialCutoverControls).set({
+                  status: "activating",
+                  lastError: null,
+                  updatedAt: now(),
+                }).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                )).returning(cutoverSelection),
+              "accounting.financial_cutover.activating",
+            )
+            return toCutoverControl(updated!)
+          }),
+          "accounting.financial_cutover.activate.prepare",
+        )
+        if (activating.status === "tigerbeetle") return activating
+
+        const [activationConfiguration] = yield* database.query(
+          (db) =>
+            db.select({ baseCurrency: legalEntityAccountingConfigurations.baseCurrency })
+              .from(legalEntityAccountingConfigurations).where(and(
+                eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+              )),
+          "accounting.financial_cutover.activate.currency",
+        )
+        if (activationConfiguration === undefined) {
+          return yield* cutoverBlocked(
+            decoded.tenantId,
+            decoded.legalEntityId,
+            "verification_mismatch",
+          )
+        }
+        const accountRows = yield* database.query(
+          (db) =>
+            db.select({ id: accounts.id, type: accounts.type }).from(accounts).where(
+              eq(accounts.tenantId, decoded.tenantId),
+            ),
+          "accounting.financial_cutover.activate.accounts",
+        )
+        for (const account of accountRows) {
+          const result: ExecutionAccountOutcome = yield* ledgerOption.value.createExecutionAccount({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            accountId: account.id,
+            currency: activationConfiguration.baseCurrency,
+            mappingVersion: 1,
+            balanceConstraint: balanceConstraintForAccountType(account.type),
+          })
+          if (result._tag !== "accepted") {
+            yield* database.query(
+              (db) =>
+                db.update(financialCutoverControls).set({
+                  lastError: `account_provisioning_${result._tag}`,
+                  updatedAt: now(),
+                }).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                )),
+              "accounting.financial_cutover.activate.account_failure",
+            )
+            return yield* cutoverBlocked(
+              decoded.tenantId,
+              decoded.legalEntityId,
+              "account_provisioning_failed",
+            )
+          }
+        }
+        return yield* database.withTransaction(
+          Effect.gen(function* () {
+            yield* database.query(
+              (db) =>
+                db.update(legalEntityAccountingConfigurations).set({
+                  financialEngine: "tigerbeetle",
+                  updatedAt: now(),
+                }).where(and(
+                  eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                  eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                )),
+              "accounting.financial_cutover.activate.engine",
+            )
+            const [control] = yield* database.query(
+              (db) =>
+                db.update(financialCutoverControls).set({
+                  status: "tigerbeetle",
+                  activatedBy: decoded.principal.userAccountId,
+                  activatedAt: now(),
+                  lastError: null,
+                  updatedAt: now(),
+                }).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                  eq(financialCutoverControls.status, "activating"),
+                )).returning(cutoverSelection),
+              "accounting.financial_cutover.activate.complete",
+            )
+            if (control !== undefined) return toCutoverControl(control)
+            const [completed] = yield* loadCutoverControl(
+              decoded.tenantId,
+              decoded.legalEntityId,
+            )
+            if (completed?.status === "tigerbeetle") return toCutoverControl(completed)
+            return yield* cutoverBlocked(
+              decoded.tenantId,
+              decoded.legalEntityId,
+              "activation_gates_pending",
+            )
+          }),
+          "accounting.financial_cutover.activate.complete.transaction",
+        )
+      }),
     configureLegalEntity: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
@@ -1326,8 +1843,135 @@ export const makeAccountingTestLayer = () =>
       const periods = new Map<string, AccountingPeriod>()
       const storedAccounts = new Map<string, Account>()
       const storedJournals = new Map<string, JournalEntry>()
+      const controls = new Map<string, FinancialCutoverControl>()
       const nextId = () => crypto.randomUUID()
+      const testControl = (tenantId: string, legalEntityId: string) => {
+        const key = `${tenantId}:${legalEntityId}`
+        const existing = controls.get(key)
+        if (existing !== undefined) return existing
+        const created: FinancialCutoverControl = {
+          tenantId,
+          legalEntityId,
+          status: "postgresql",
+          sourceEngine: "postgresql",
+          targetEngine: "tigerbeetle",
+          cutoverWatermark: null,
+          verificationHash: null,
+          openingBalanceVerified: false,
+          historicalBoundaryVerified: false,
+          reconciliationHealthy: false,
+          backupRecoveryVerified: false,
+          unresolvedAcceptedOperations: 0,
+          approvedBy: null,
+          approvedAt: null,
+          activatedBy: null,
+          activatedAt: null,
+          lastError: null,
+        }
+        controls.set(key, created)
+        return created
+      }
       const service: AccountingService = {
+        prepareTigerBeetleCutover: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(PrepareTigerBeetleCutoverInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: AccountingCapabilities.financialEngineActivate,
+            })
+            const key = `${decoded.tenantId}:${decoded.legalEntityId}`
+            if (!configurations.has(key)) {
+              return yield* Effect.fail(
+                new AccountingLegalEntityNotFound({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                }),
+              )
+            }
+            const current = testControl(decoded.tenantId, decoded.legalEntityId)
+            if (current.status === "tigerbeetle") {
+              return yield* Effect.fail(
+                new FinancialEngineActivated({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                }),
+              )
+            }
+            if (current.status === "postgresql") {
+              const prepared = { ...current, status: "preparing_tigerbeetle" as const }
+              controls.set(key, prepared)
+              return prepared
+            }
+            return current
+          }),
+        approveTigerBeetleCutover: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ApproveTigerBeetleCutoverInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: AccountingCapabilities.financialEngineActivate,
+            })
+            const key = `${decoded.tenantId}:${decoded.legalEntityId}`
+            const current = controls.get(key)
+            if (current === undefined || current.status === "postgresql") {
+              return yield* Effect.fail(
+                new FinancialEngineCutoverBlocked({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "not_prepared",
+                }),
+              )
+            }
+            if (current.status === "tigerbeetle") return current
+            if (
+              !decoded.openingBalanceVerified || !decoded.historicalBoundaryVerified ||
+              !decoded.reconciliationHealthy || !decoded.backupRecoveryVerified
+            ) {
+              return yield* Effect.fail(
+                new FinancialEngineCutoverBlocked({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "verification_mismatch",
+                }),
+              )
+            }
+            const approved = {
+              ...current,
+              status: "approved" as const,
+              cutoverWatermark: decoded.cutoverWatermark,
+              verificationHash: decoded.verificationHash,
+              openingBalanceVerified: true,
+              historicalBoundaryVerified: true,
+              reconciliationHealthy: true,
+              backupRecoveryVerified: true,
+              approvedBy: decoded.principal.userAccountId,
+              approvedAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
+            }
+            controls.set(key, approved)
+            return approved
+          }),
+        activateTigerBeetleCutover: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ActivateTigerBeetleCutoverInput)(
+              input,
+            )
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: AccountingCapabilities.financialEngineActivate,
+            })
+            const current = controls.get(`${decoded.tenantId}:${decoded.legalEntityId}`)
+            if (current?.status === "tigerbeetle") return current
+            return yield* Effect.fail(
+              new FinancialEngineCutoverBlocked({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.legalEntityId,
+                reason: "ledger_not_configured",
+              }),
+            )
+          }),
         configureLegalEntity: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(ConfigureLegalEntityInput)(input)
@@ -1364,6 +2008,7 @@ export const makeAccountingTestLayer = () =>
               financialEngine: decoded.financialEngine ?? "postgresql",
             }
             configurations.set(key, configuration)
+            testControl(decoded.tenantId, decoded.legalEntityId)
             return configuration
           }),
         createAccount: (input) =>

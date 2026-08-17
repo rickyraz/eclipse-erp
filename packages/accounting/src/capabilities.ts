@@ -1,5 +1,7 @@
 export const AccountingCapabilities = {
   legalEntityConfigure: "accounting.legal_entity.configure",
+  financialEngineActivate: "accounting.financial_engine.activate",
+  financialProjectionRebuild: "accounting.financial_projection.rebuild",
   accountCreate: "accounting.account.create",
   journalPost: "accounting.journal.post",
   revenueConfigure: "accounting.revenue.configure",

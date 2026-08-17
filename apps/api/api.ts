@@ -40,7 +40,9 @@ import {
 import {
   Account,
   AccountingConfiguration,
+  FinancialCutoverControl,
   FinancialOperation,
+  FinancialProjectionRebuildResult,
   JournalEntry,
   JournalLine,
 } from "../../packages/accounting/mod.ts"
@@ -327,6 +329,44 @@ const Process = HttpApiGroup.make("Process").add(
 )
 
 const Accounting = HttpApiGroup.make("Accounting").add(
+  HttpApiEndpoint.post(
+    "prepareTigerBeetleCutover",
+    "/accounting/legal-entities/:id/tigerbeetle/prepare",
+    {
+      params: { id: Schema.String },
+      headers: tenantHeaders,
+      success: FinancialCutoverControl,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
+  HttpApiEndpoint.post(
+    "approveTigerBeetleCutover",
+    "/accounting/legal-entities/:id/tigerbeetle/approve",
+    {
+      params: { id: Schema.String },
+      headers: tenantHeaders,
+      payload: Schema.Struct({
+        cutoverWatermark: Schema.String,
+        verificationHash: Schema.String,
+        openingBalanceVerified: Schema.Boolean,
+        historicalBoundaryVerified: Schema.Boolean,
+        reconciliationHealthy: Schema.Boolean,
+        backupRecoveryVerified: Schema.Boolean,
+      }),
+      success: FinancialCutoverControl,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
+  HttpApiEndpoint.post(
+    "activateTigerBeetleCutover",
+    "/accounting/legal-entities/:id/tigerbeetle/activate",
+    {
+      params: { id: Schema.String },
+      headers: tenantHeaders,
+      success: FinancialCutoverControl,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
   HttpApiEndpoint.post("configureLegalEntity", "/accounting/legal-entities/:id/configuration", {
     params: { id: Schema.String },
     headers: tenantHeaders,
@@ -354,6 +394,12 @@ const Accounting = HttpApiGroup.make("Accounting").add(
     headers: tenantHeaders,
     payload: Schema.Struct({ reference: Schema.String, lines: Schema.Array(JournalLine) }),
     success: CreatedJournal,
+    error: errors,
+  }).middleware(BearerAuth),
+  HttpApiEndpoint.post("rebuildFinancialProjections", "/accounting/financial-projections/rebuild", {
+    headers: tenantHeaders,
+    payload: Schema.Struct({ legalEntityId: Schema.String }),
+    success: FinancialProjectionRebuildResult,
     error: errors,
   }).middleware(BearerAuth),
   HttpApiEndpoint.post("createFinancialJournalIntent", "/accounting/financial-operations", {

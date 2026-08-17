@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema"
 import {
   accountingPeriods,
   accounts,
+  financialCutoverControls,
   financialOperations,
   financialOperationTransfers,
   journalEntries,
@@ -27,7 +28,11 @@ import {
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingCapabilities } from "./capabilities.ts"
-import { type FinancialExecutionOutcome, FinancialLedgerPort } from "./financial-ledger.ts"
+import {
+  type FinancialAccountConstraint,
+  type FinancialExecutionOutcome,
+  FinancialLedgerPort,
+} from "./financial-ledger.ts"
 import { AccountingFinancialOperationReconciledEvent } from "./events.ts"
 import {
   AccountingPeriodNotOpen,
@@ -144,6 +149,20 @@ export const FinancialOperationJobPayload = Schema.Struct({
   operationId: NonEmptyString,
 })
 
+export const RebuildFinancialProjectionInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+})
+
+export const FinancialProjectionRebuildResult = Schema.Struct({
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  checkedOperations: Schema.Int,
+  rebuiltOperations: Schema.Int,
+  quarantinedOperations: Schema.Int,
+})
+
 export type CreateFinancialJournalIntentInput = Schema.Schema.Type<
   typeof CreateFinancialJournalIntentInput
 >
@@ -157,6 +176,12 @@ export type FinancialOperationCommandInput = Schema.Schema.Type<
   typeof FinancialOperationCommandInput
 >
 export type FinancialOperationJobPayload = Schema.Schema.Type<typeof FinancialOperationJobPayload>
+export type RebuildFinancialProjectionInput = Schema.Schema.Type<
+  typeof RebuildFinancialProjectionInput
+>
+export type FinancialProjectionRebuildResult = Schema.Schema.Type<
+  typeof FinancialProjectionRebuildResult
+>
 
 export class FinancialOperationNotFound
   extends Schema.TaggedErrorClass<FinancialOperationNotFound>()("FinancialOperationNotFound", {
@@ -198,6 +223,17 @@ export class FinancialOperationReconciliationConflict
   extends Schema.TaggedErrorClass<FinancialOperationReconciliationConflict>()(
     "FinancialOperationReconciliationConflict",
     { operationId: NonEmptyString },
+  ) {}
+
+export class FinancialProjectionRebuildBlocked
+  extends Schema.TaggedErrorClass<FinancialProjectionRebuildBlocked>()(
+    "FinancialProjectionRebuildBlocked",
+    {
+      tenantId: Uuid,
+      legalEntityId: Uuid,
+      operationId: NonEmptyString,
+      reason: Schema.Literals(["unavailable", "not_found", "mapping_mismatch"]),
+    },
   ) {}
 
 export class FinancialReversalSourceRequired
@@ -330,6 +366,18 @@ export interface FinancialOperationService {
     | FinancialLedgerNotActivated
     | FinancialOperationNotFound
     | FinancialOperationReconciliationConflict
+    | DatabaseFailure
+    | Schema.SchemaError
+  >
+  readonly rebuildFinancialProjections: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialProjectionRebuildResult,
+    | AuthorizationDenied
+    | EventIdempotencyConflict
+    | FinancialLedgerNotConfigured
+    | FinancialOperationNotFound
+    | FinancialProjectionRebuildBlocked
     | DatabaseFailure
     | Schema.SchemaError
   >
@@ -529,9 +577,65 @@ const pairTransfers = (
   return result
 }
 
+const pairMinorTransfers = (
+  lines: readonly {
+    readonly accountId: string
+    readonly debitMinor: string
+    readonly creditMinor: string
+  }[],
+) => {
+  const debits = lines.flatMap((line) =>
+    BigInt(line.debitMinor) > 0n
+      ? [{ accountId: line.accountId, amount: BigInt(line.debitMinor) }]
+      : []
+  )
+  const credits = lines.flatMap((line) =>
+    BigInt(line.creditMinor) > 0n
+      ? [{ accountId: line.accountId, amount: BigInt(line.creditMinor) }]
+      : []
+  )
+  const pairs: Array<{
+    readonly position: number
+    readonly debitAccountId: string
+    readonly creditAccountId: string
+    readonly amountMinor: string
+  }> = []
+  let debitIndex = 0
+  let creditIndex = 0
+  let debitRemaining = debits[0]?.amount ?? 0n
+  let creditRemaining = credits[0]?.amount ?? 0n
+  while (debitIndex < debits.length && creditIndex < credits.length) {
+    const amount = debitRemaining < creditRemaining ? debitRemaining : creditRemaining
+    pairs.push({
+      position: pairs.length,
+      debitAccountId: debits[debitIndex]!.accountId,
+      creditAccountId: credits[creditIndex]!.accountId,
+      amountMinor: amount.toString(),
+    })
+    debitRemaining -= amount
+    creditRemaining -= amount
+    if (debitRemaining === 0n) {
+      debitIndex += 1
+      debitRemaining = debits[debitIndex]?.amount ?? 0n
+    }
+    if (creditRemaining === 0n) {
+      creditIndex += 1
+      creditRemaining = credits[creditIndex]?.amount ?? 0n
+    }
+  }
+  return pairs
+}
+
 const submitJobType = "accounting.financial_operation.submit"
 const reconcileJobType = "accounting.financial_operation.reconcile"
 const currentTime = () => new Date(Date.now())
+
+const balanceConstraintForAccountType = (
+  type: "asset" | "liability" | "equity" | "revenue" | "expense",
+): FinancialAccountConstraint =>
+  type === "asset" || type === "expense"
+    ? "credits_must_not_exceed_debits"
+    : "debits_must_not_exceed_credits"
 
 export const makeFinancialOperationService = Effect.gen(function* () {
   const database = yield* Database
@@ -694,7 +798,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                     engineAcceptedAt: outcome.acceptedAt,
                     rejectionReason: null,
                     recoveryReason: "mapping_mismatch",
-                    observedEngine: null,
+                    observedEngine,
                     lastError: "transfer_projection_mismatch",
                     reconciledAt: null,
                     updatedAt: now,
@@ -729,7 +833,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                   reconciledAt: null,
                   rejectionReason: null,
                   recoveryReason: null,
-                  observedEngine: null,
+                  observedEngine,
                   lastError: null,
                   updatedAt: now,
                 }).where(
@@ -771,7 +875,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                 engineAcceptedAt: null,
                 rejectionReason: outcome._tag === "rejected" ? outcome.reason : null,
                 recoveryReason: outcome._tag === "manual_recovery" ? outcome.reason : null,
-                observedEngine: outcome._tag === "manual_recovery" ? observedEngine : null,
+                observedEngine,
                 lastError: outcome._tag === "unknown" ? outcome.reason : null,
                 scheduledAt: outcome._tag === "unknown" ? new Date(now.getTime() + 5_000) : now,
                 updatedAt: now,
@@ -814,6 +918,305 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         return yield* finalizeAccepted(operationId, tenantId)
       }
       return receipt
+    })
+
+  const rebuildAcceptedProjection = (
+    tenantId: string,
+    operationId: string,
+    outcome: Extract<FinancialExecutionOutcome, { readonly _tag: "accepted" }>,
+  ) =>
+    database.withTransaction(
+      Effect.gen(function* () {
+        const now = currentTime()
+        const current = yield* loadOperationOrFail(tenantId, operationId, true)
+        if (current.status !== "accepted" && current.status !== "reconciled") return current
+        const [updated] = yield* database.query(
+          (db) =>
+            db.update(financialOperations).set({
+              status: "reconciled",
+              engineAcceptedAt: outcome.acceptedAt,
+              reconciledAt: current.reconciledAt ?? now,
+              rejectionReason: null,
+              recoveryReason: null,
+              observedEngine: "tigerbeetle",
+              lastError: null,
+              updatedAt: now,
+            }).where(and(
+              eq(financialOperations.tenantId, tenantId),
+              eq(financialOperations.id, current.id),
+            )).returning(operationSelection),
+          "accounting.financial_projection_rebuild.operation",
+        )
+        const desiredJournalStatus = current.operationType === "journal_reverse"
+          ? "reversed"
+          : "posted"
+        const desiredReversesEntryId = current.operationType === "journal_reverse"
+          ? current.sourceJournalId
+          : null
+        const [journal] = yield* database.query(
+          (db) =>
+            db.select({
+              status: journalEntries.status,
+              reversesEntryId: journalEntries.reversesEntryId,
+              postedAt: journalEntries.postedAt,
+            }).from(journalEntries).where(and(
+              eq(journalEntries.tenantId, tenantId),
+              eq(journalEntries.id, current.journalId),
+            )),
+          "accounting.financial_projection_rebuild.journal.get",
+        )
+        if (
+          journal !== undefined &&
+          (journal.status !== desiredJournalStatus ||
+            journal.reversesEntryId !== desiredReversesEntryId || journal.postedAt === null)
+        ) {
+          yield* database.query(
+            (db) =>
+              db.update(journalEntries).set({
+                status: desiredJournalStatus,
+                reversesEntryId: desiredReversesEntryId,
+                postedAt: current.reconciledAt ?? now,
+                updatedAt: now,
+              }).where(and(
+                eq(journalEntries.tenantId, tenantId),
+                eq(journalEntries.id, current.journalId),
+              )),
+            "accounting.financial_projection_rebuild.journal",
+          )
+        }
+        const transfers = yield* database.query(
+          (db) =>
+            db.select({ position: financialOperationTransfers.position }).from(
+              financialOperationTransfers,
+            ).where(and(
+              eq(financialOperationTransfers.tenantId, tenantId),
+              eq(financialOperationTransfers.operationId, current.id),
+            )),
+          "accounting.financial_projection_rebuild.transfers",
+        )
+        for (const transfer of transfers) {
+          const transferId = outcome.transferIds[transfer.position]
+          if (transferId === undefined) continue
+          yield* database.query(
+            (db) =>
+              db.update(financialOperationTransfers).set({
+                engineTransferId: transferId,
+                status: "accepted",
+                observedTimestamp: outcome.acceptedAt,
+                updatedAt: now,
+              }).where(and(
+                eq(financialOperationTransfers.tenantId, tenantId),
+                eq(financialOperationTransfers.operationId, current.id),
+                eq(financialOperationTransfers.position, transfer.position),
+              )),
+            "accounting.financial_projection_rebuild.transfer",
+          )
+        }
+        yield* messaging.append({
+          tenantId,
+          eventId: current.id,
+          eventType: AccountingFinancialOperationReconciledEvent.id,
+          eventVersion: AccountingFinancialOperationReconciledEvent.version,
+          aggregateType: AccountingFinancialOperationReconciledEvent.aggregateType,
+          aggregateId: current.id,
+          commandId: operationId,
+          correlationId: operationId,
+          causationId: operationId,
+          idempotencyKey: operationId,
+          actorPrincipalId: current.actorPrincipalId,
+          occurredAt: (current.reconciledAt ?? now).toISOString(),
+          payload: {
+            operationId,
+            journalId: current.journalId,
+            mappingVersion: current.mappingVersion,
+          },
+        })
+        return updated!
+      }),
+      "accounting.financial_projection_rebuild.finalize",
+    )
+
+  const quarantineProjection = (tenantId: string, operationId: string) =>
+    database.withTransaction(
+      Effect.gen(function* () {
+        const now = currentTime()
+        const current = yield* loadOperationOrFail(tenantId, operationId, true)
+        if (current.status === "manual_recovery") return current
+        const [updated] = yield* database.query(
+          (db) =>
+            db.update(financialOperations).set({
+              status: "manual_recovery",
+              recoveryReason: "mapping_mismatch",
+              rejectionReason: null,
+              lastError: "financial_projection_rebuild_mismatch",
+              reconciledAt: null,
+              updatedAt: now,
+            }).where(and(
+              eq(financialOperations.tenantId, tenantId),
+              eq(financialOperations.id, current.id),
+            )).returning(operationSelection),
+          "accounting.financial_projection_rebuild.quarantine.operation",
+        )
+        yield* database.query(
+          (db) =>
+            db.update(financialOperationTransfers).set({
+              status: "manual_recovery",
+              updatedAt: now,
+            }).where(and(
+              eq(financialOperationTransfers.tenantId, tenantId),
+              eq(financialOperationTransfers.operationId, current.id),
+            )),
+          "accounting.financial_projection_rebuild.quarantine.transfers",
+        )
+        return updated!
+      }),
+      "accounting.financial_projection_rebuild.quarantine",
+    )
+
+  const rebuildFinancialProjections = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(RebuildFinancialProjectionInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: AccountingCapabilities.financialProjectionRebuild,
+      })
+      if (Option.isNone(ledgerOption)) {
+        return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
+      }
+      const operations = yield* database.query(
+        (db) =>
+          db.select(operationSelection).from(financialOperations).where(and(
+            eq(financialOperations.tenantId, decoded.tenantId),
+            eq(financialOperations.legalEntityId, decoded.legalEntityId),
+            eq(financialOperations.engine, "tigerbeetle"),
+            eq(financialOperations.engineVerified, true),
+            inArray(financialOperations.status, ["accepted", "reconciled"]),
+          )).orderBy(financialOperations.createdAt),
+        "accounting.financial_projection_rebuild.operations",
+      )
+      let rebuiltOperations = 0
+      let quarantinedOperations = 0
+      for (const operation of operations) {
+        const lines = yield* database.query(
+          (db) =>
+            db.select({
+              accountId: journalLines.accountId,
+              debit: journalLines.debit,
+              credit: journalLines.credit,
+            }).from(journalLines).where(and(
+              eq(journalLines.tenantId, decoded.tenantId),
+              eq(journalLines.entryId, operation.journalId),
+            )),
+          "accounting.financial_projection_rebuild.lines",
+        )
+        const journalInput = {
+          tenantId: decoded.tenantId,
+          legalEntityId: operation.legalEntityId,
+          operationId: operation.operationId,
+          journalId: operation.journalId,
+          reference: operation.reference,
+          currency: operation.currency,
+          mappingVersion: operation.mappingVersion,
+          lines: lines.map((line) => ({
+            accountId: line.accountId,
+            debitMinor: toMinor(line.debit),
+            creditMinor: toMinor(line.credit),
+          })),
+        }
+        const outcome = yield* ledgerOption.value.reconcileJournal(journalInput)
+        if (outcome._tag === "accepted") {
+          const expected = yield* ledgerOption.value.expectedTransferIds(journalInput)
+          const expectedPairs = pairMinorTransfers(journalInput.lines)
+          const identitiesMatch = outcome.transferCount === expected.length &&
+            outcome.transferIds.length === expected.length &&
+            outcome.transferIds.every((id, index) => id === expected[index]) &&
+            expectedPairs.length === expected.length
+          if (!identitiesMatch) {
+            yield* quarantineProjection(decoded.tenantId, operation.operationId)
+            quarantinedOperations += 1
+            continue
+          }
+          const projected = yield* database.query(
+            (db) =>
+              db.select({
+                position: financialOperationTransfers.position,
+                debitAccountId: financialOperationTransfers.debitAccountId,
+                creditAccountId: financialOperationTransfers.creditAccountId,
+                amountMinor: financialOperationTransfers.amountMinor,
+                engineTransferId: financialOperationTransfers.engineTransferId,
+              }).from(financialOperationTransfers).where(and(
+                eq(financialOperationTransfers.tenantId, decoded.tenantId),
+                eq(financialOperationTransfers.operationId, operation.id),
+              )),
+            "accounting.financial_projection_rebuild.transfer_identity",
+          )
+          const projectedByPosition = new Map(
+            projected.map((transfer) => [transfer.position, transfer]),
+          )
+          let projectionMismatch = false
+          for (const expectedPair of expectedPairs) {
+            const existing = projectedByPosition.get(expectedPair.position)
+            if (existing === undefined) {
+              yield* database.query(
+                (db) =>
+                  db.insert(financialOperationTransfers).values({
+                    tenantId: decoded.tenantId,
+                    operationId: operation.id,
+                    position: expectedPair.position,
+                    debitAccountId: expectedPair.debitAccountId,
+                    creditAccountId: expectedPair.creditAccountId,
+                    amountMinor: expectedPair.amountMinor,
+                    engineTransferId: outcome.transferIds[expectedPair.position],
+                    status: "unresolved",
+                  }),
+                "accounting.financial_projection_rebuild.transfer_insert",
+              )
+              continue
+            }
+            if (
+              existing.debitAccountId !== expectedPair.debitAccountId ||
+              existing.creditAccountId !== expectedPair.creditAccountId ||
+              String(existing.amountMinor) !== expectedPair.amountMinor ||
+              (existing.engineTransferId !== null &&
+                existing.engineTransferId !== outcome.transferIds[expectedPair.position])
+            ) projectionMismatch = true
+          }
+          const hasUnexpectedPosition = projected.some((transfer) =>
+            !expectedPairs.some((expectedPair) => expectedPair.position === transfer.position)
+          )
+          if (
+            projected.length > expectedPairs.length || hasUnexpectedPosition || projectionMismatch
+          ) {
+            yield* quarantineProjection(decoded.tenantId, operation.operationId)
+            quarantinedOperations += 1
+            continue
+          }
+          yield* rebuildAcceptedProjection(decoded.tenantId, operation.operationId, outcome)
+          rebuiltOperations += 1
+          continue
+        }
+        if (outcome._tag === "manual_recovery" || outcome._tag === "rejected") {
+          yield* quarantineProjection(decoded.tenantId, operation.operationId)
+          quarantinedOperations += 1
+          continue
+        }
+        return yield* Effect.fail(
+          new FinancialProjectionRebuildBlocked({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            operationId: operation.operationId,
+            reason: outcome.reason === "not_found" ? "not_found" : "unavailable",
+          }),
+        )
+      }
+      return {
+        tenantId: decoded.tenantId,
+        legalEntityId: decoded.legalEntityId,
+        checkedOperations: operations.length,
+        rebuiltOperations,
+        quarantinedOperations,
+      }
     })
 
   const submit = (input: unknown, jobType: string) =>
@@ -1025,13 +1428,33 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       if (state.lines.length === 0) return toOperation(state.operation)
       const ledger = ledgerOption.value
       const accountIds = [...new Set(state.lines.map((line) => line.accountId))]
+      const accountRows = yield* database.query(
+        (db) =>
+          db.select({ id: accounts.id, type: accounts.type }).from(accounts).where(and(
+            eq(accounts.tenantId, decoded.tenantId),
+            inArray(accounts.id, accountIds),
+          )),
+        "accounting.financial_operation.submit.accounts",
+      )
+      const accountTypes = new Map(accountRows.map((account) => [account.id, account.type]))
       for (const accountId of accountIds) {
+        const accountType = accountTypes.get(accountId)
+        if (accountType === undefined) {
+          return toOperation(
+            yield* writeReceipt(decoded.operationId, decoded.tenantId, {
+              _tag: "manual_recovery",
+              operationId: decoded.operationId,
+              reason: "mapping_mismatch",
+            }, "tigerbeetle"),
+          )
+        }
         const accountOutcome = yield* ledger.createExecutionAccount({
           tenantId: decoded.tenantId,
           legalEntityId: state.operation.legalEntityId,
           accountId,
           currency: state.operation.currency,
           mappingVersion: state.operation.mappingVersion,
+          balanceConstraint: balanceConstraintForAccountType(accountType),
         })
         if (accountOutcome._tag !== "accepted") {
           const operationOutcome: FinancialExecutionOutcome = accountOutcome._tag === "rejected"
@@ -1052,7 +1475,12 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               reason: accountOutcome.reason,
             }
           return toOperation(
-            yield* writeReceipt(decoded.operationId, decoded.tenantId, operationOutcome),
+            yield* writeReceipt(
+              decoded.operationId,
+              decoded.tenantId,
+              operationOutcome,
+              "tigerbeetle",
+            ),
           )
         }
       }
@@ -1071,6 +1499,57 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           creditMinor: toMinor(line.credit),
         })),
       }
+      const expectedTransferIds = yield* ledger.expectedTransferIds(journalInput)
+      const transferIdentitiesPersisted = yield* database.withTransaction(
+        Effect.gen(function* () {
+          const current = yield* loadOperationOrFail(decoded.tenantId, decoded.operationId, true)
+          const rows = yield* database.query(
+            (db) =>
+              db.select({
+                position: financialOperationTransfers.position,
+                engineTransferId: financialOperationTransfers.engineTransferId,
+              }).from(financialOperationTransfers).where(and(
+                eq(financialOperationTransfers.tenantId, decoded.tenantId),
+                eq(financialOperationTransfers.operationId, current.id),
+              )),
+            "accounting.financial_operation.submit.transfer_identities",
+          )
+          rows.sort((left, right) => left.position - right.position)
+          if (rows.length !== expectedTransferIds.length) return false
+          if (
+            rows.some((row, index) =>
+              row.engineTransferId !== null && row.engineTransferId !== expectedTransferIds[index]
+            )
+          ) return false
+          for (const row of rows) {
+            const transferId = expectedTransferIds[row.position]
+            if (transferId === undefined || row.engineTransferId !== null) continue
+            yield* database.query(
+              (db) =>
+                db.update(financialOperationTransfers).set({
+                  engineTransferId: transferId,
+                  updatedAt: currentTime(),
+                }).where(and(
+                  eq(financialOperationTransfers.tenantId, decoded.tenantId),
+                  eq(financialOperationTransfers.operationId, current.id),
+                  eq(financialOperationTransfers.position, row.position),
+                )),
+              "accounting.financial_operation.submit.transfer_identity",
+            )
+          }
+          return true
+        }),
+        "accounting.financial_operation.submit.transfer_identities_transaction",
+      )
+      if (!transferIdentitiesPersisted) {
+        return toOperation(
+          yield* writeReceipt(decoded.operationId, decoded.tenantId, {
+            _tag: "manual_recovery",
+            operationId: decoded.operationId,
+            reason: "mapping_mismatch",
+          }, "tigerbeetle"),
+        )
+      }
       let outcome = yield* (state.reconcile
         ? ledger.reconcileJournal(journalInput)
         : ledger.postJournal(journalInput))
@@ -1078,7 +1557,6 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         outcome = yield* ledger.postJournal(journalInput)
       }
       if (outcome._tag === "accepted") {
-        const expectedTransferIds = yield* ledger.expectedTransferIds(journalInput)
         if (
           outcome.transferCount !== expectedTransferIds.length ||
           outcome.transferIds.length !== expectedTransferIds.length ||
@@ -1091,7 +1569,14 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           }
         }
       }
-      return toOperation(yield* writeReceipt(decoded.operationId, decoded.tenantId, outcome))
+      return toOperation(
+        yield* writeReceipt(
+          decoded.operationId,
+          decoded.tenantId,
+          outcome,
+          "tigerbeetle",
+        ),
+      )
     })
 
   const createJournalIntent = (
@@ -1164,6 +1649,15 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                 ).for("update"),
             "accounting.financial_operation.intent.configuration",
           )
+          const [cutover] = yield* database.query(
+            (db) =>
+              db.select({ status: financialCutoverControls.status })
+                .from(financialCutoverControls).where(and(
+                  eq(financialCutoverControls.tenantId, decoded.tenantId),
+                  eq(financialCutoverControls.legalEntityId, decoded.legalEntityId),
+                )).for("update"),
+            "accounting.financial_operation.intent.cutover",
+          )
           const [period] = yield* database.query(
             (db) =>
               db.select({ id: accountingPeriods.id }).from(accountingPeriods).where(
@@ -1177,7 +1671,10 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               ).for("update"),
             "accounting.financial_operation.intent.period",
           )
-          if (configuration?.financialEngine !== "tigerbeetle") {
+          if (
+            configuration?.financialEngine !== "tigerbeetle" ||
+            cutover?.status !== "tigerbeetle"
+          ) {
             return yield* Effect.fail(
               new FinancialLedgerNotActivated({
                 tenantId: decoded.tenantId,
@@ -1562,6 +2059,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
     createReversalIntent,
     submitFinancialOperation: (input) => submit(input, submitJobType),
     reconcileFinancialOperation: (input) => submit(input, reconcileJobType),
+    rebuildFinancialProjections,
   } satisfies FinancialOperationService
 })
 

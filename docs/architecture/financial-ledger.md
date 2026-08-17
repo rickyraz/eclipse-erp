@@ -13,7 +13,8 @@
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - P2 financial baseline: [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
-> - Execution roadmap: [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
+> > - Execution roadmap: [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
+> - Recovery and cutover runbook: [`../operations/tigerbeetle-recovery.md`](../operations/tigerbeetle-recovery.md)
 
 ## Position
 
@@ -29,9 +30,10 @@ command path. They are not a reason to add a live PostgreSQL/TigerBeetle mirror,
 may silently assume that both stores are authoritative.
 
 A Legal Entity selects its route explicitly with `financial_engine`, which defaults to PostgreSQL
-until the cutover gates are approved. Durable financial operations default their requested engine to
-TigerBeetle, but historical rows are marked `engine_verified = false` during migration rather than
-being treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations
+until the controlled cutover gates are approved and `financial_cutover_controls` reaches
+`tigerbeetle`. Durable financial operations persist their deterministic transfer identities before
+submission. Historical rows are marked `engine_verified = false` during migration rather than being
+treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations
 are fenced into manual recovery. Once any Legal Entity for a tenant is routed to TigerBeetle, the
 legacy tenant-scoped PostgreSQL journal path is rejected rather than allowing two authorities.
 

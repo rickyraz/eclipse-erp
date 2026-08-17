@@ -71,4 +71,5 @@
 - [`./development/documentation-workflow.md`](./development/documentation-workflow.md)
 - [`./development/testing.md`](./development/testing.md)
 - [`./operations/database-roles.md`](./operations/database-roles.md)
+- [`./operations/tigerbeetle-recovery.md`](./operations/tigerbeetle-recovery.md)
 - [`./product/vision.md`](./product/vision.md)
