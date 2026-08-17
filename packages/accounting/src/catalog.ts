@@ -43,6 +43,7 @@ export const AccountingRevenuePostAction = defineActionCatalogEntry({
   preconditions: [
     "authorized",
     "idempotency_key_stable",
+    "sales_order_confirmed",
     "revenue_profile_configured",
     "accounting_period_open",
   ],

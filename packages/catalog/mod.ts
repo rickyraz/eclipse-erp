@@ -26,6 +26,7 @@ export type ActionPrecondition =
   | "revenue_profile_configured"
   | "accounting_period_open"
   | "sales_order_draft"
+  | "sales_order_confirmed"
 
 export type ActionEffect =
   | "stock_balance_adjusted"
