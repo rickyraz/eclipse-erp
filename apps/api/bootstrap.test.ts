@@ -21,6 +21,7 @@ import {
   StockTransferDifferentLegalEntity,
 } from "../../packages/inventory/mod.ts"
 import { makeMessagingTestLayer } from "../../packages/messaging/mod.ts"
+import { SalesService } from "../../packages/sales/mod.ts"
 import { bootstrapTenant } from "./bootstrap.ts"
 
 const principal = { userAccountId: "bootstrap-admin", sessionId: "session" }
@@ -48,11 +49,21 @@ const withBootstrap = <A, E>(
   >,
 ) => {
   const authorizationLayer = makeAuthorizationTestLayer()
+  const messagingLayer = makeMessagingTestLayer()
+  const accountingLayer = makeAccountingTestLayer().pipe(
+    Layer.provide(Layer.mergeAll(
+      authorizationLayer,
+      messagingLayer,
+      Layer.succeed(SalesService, {
+        getConfirmedOrderTotal: () => Effect.succeed("0.00"),
+      } as unknown as SalesService),
+    )),
+  )
   const businessLayers = Layer.mergeAll(
     makePartyTestLayer(),
-    makeAccountingTestLayer(),
+    accountingLayer,
     makeInventoryTestLayer(),
-  ).pipe(Layer.provide(Layer.merge(authorizationLayer, makeMessagingTestLayer())))
+  ).pipe(Layer.provide(Layer.merge(authorizationLayer, messagingLayer)))
   return Effect.provide(
     program,
     Layer.mergeAll(makeAuthTestLayer(), authorizationLayer, businessLayers),

@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import { DatabaseFailure } from "../../kernel/mod.ts"
+import { SalesService } from "../../sales/mod.ts"
 import {
   type EventEnvelope,
   makeMessagingTestLayer,
@@ -33,6 +34,9 @@ const revenueOrderIds = {
   idempotency: "00000000-0000-4000-8000-000000000013",
   rollback: "00000000-0000-4000-8000-000000000014",
 } as const
+const salesFacts = {
+  getConfirmedOrderTotal: () => Effect.succeed("125.00"),
+} as unknown as SalesService
 const revenueMetadata = {
   commandId: "revenue-command-1",
   correlationId: "revenue-correlation-1",
@@ -57,7 +61,7 @@ const withAccounting = <A, E>(
   Effect.provide(
     program,
     makeAccountingTestLayer().pipe(
-      Layer.provide(Layer.merge(
+      Layer.provide(Layer.mergeAll(
         makeAuthorizationTestLayer(
           [tenantId, otherTenantId].flatMap((tenantId) =>
             grantedCapabilities.map((capability) => ({
@@ -68,6 +72,7 @@ const withAccounting = <A, E>(
           ),
         ),
         messaging,
+        Layer.succeed(SalesService, salesFacts),
       )),
     ),
   )
@@ -440,11 +445,13 @@ describe("accounting contract", () => {
         const journal = yield* accounting.postRevenueForOrder(input)
         const replay = yield* accounting.postRevenueForOrder({
           ...input,
+          amount: "99.99",
           commandId: "revenue-post-retry-command",
           correlationId: "revenue-post-retry-correlation",
         })
 
         assert.strictEqual(replay.id, journal.id)
+        assert.strictEqual(replay.lines[0]?.debit, "125.00")
         assert.strictEqual(events.length, 1)
         assert.notStrictEqual(events[0]?.eventId, journal.id)
         assert.deepStrictEqual(events[0], {

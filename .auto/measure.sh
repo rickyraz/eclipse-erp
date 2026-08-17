@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=184
+total=185
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -190,6 +190,7 @@ gate bash -c 'grep -Fq "const confirmedTotal = yield* database.withTransaction" 
 gate bash -c 'grep -Fq "AccountingRevenuePostAction" packages/accounting/src/catalog.ts && grep -Fq "AccountingTypedActionCatalog = [AccountingRevenuePostAction]" packages/accounting/src/catalog.ts && grep -Fq "three Level 3 action slices" docs/roadmap/domain-maturity.md && grep -Fq "server-derived amount" docs/roadmap/domain-maturity.md'
 gate bash -c 'grep -Fq "sales_order_confirmed" packages/catalog/mod.ts && grep -Fq "sales_order_confirmed" packages/accounting/src/catalog.ts'
 gate bash -c 'grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "replayedWithTamperedAmount" packages/accounting/tests/accounting.postgres.test.ts'
+gate bash -c 'grep -Fq "const salesFacts" packages/accounting/tests/accounting.test.ts && grep -Fq "amount: \"99.99\"" packages/accounting/tests/accounting.test.ts && grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "Layer.succeed(SalesService" apps/api/bootstrap.test.ts'
 gate bash -c 'grep -Fq "\"sales.order.read\"" packages/authorization/src/capabilities.ts && grep -Fq "definition(\"sales.order.read\", \"sales\", \"order\", \"read\")" packages/authorization/src/capabilities.ts && grep -Fq "SalesCapabilities.orderRead" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "crossLinkedResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorization.removeMember" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorizationFailure.capability" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "InventoryCapabilities.stockReserve" packages/process/src/service.ts'
 gate bash -c 'grep -Fq "accountingAuthorizationFailure" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/src/service.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/tests/order-confirmation.postgres.test.ts'

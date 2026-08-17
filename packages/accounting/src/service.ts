@@ -1199,6 +1199,7 @@ export const makeAccountingTestLayer = () =>
     Effect.gen(function* () {
       const authorization = yield* AuthorizationService
       const messaging = yield* MessagingService
+      const sales = yield* SalesService
       const clock = yield* Clock.Clock
       const configurations = new Map<string, AccountingConfiguration>()
       const profiles = new Map<string, RevenuePostingProfile>()
@@ -1369,13 +1370,18 @@ export const makeAccountingTestLayer = () =>
               tenantId: decoded.tenantId,
               capability: AccountingCapabilities.revenuePost,
             })
+            const amount = yield* sales.getConfirmedOrderTotal({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              orderId: decoded.orderId,
+            })
             const reference = revenueReference(decoded.legalEntityId, decoded.orderId)
             const commandId = decoded.commandId.trim()
             const correlationId = decoded.correlationId.trim()
             const causationId = decoded.causationId?.trim() ?? null
             const existing = storedJournals.get(`${decoded.tenantId}:${reference}`)
             if (existing !== undefined) {
-              if (existing.lines[0]?.debit !== decoded.amount) {
+              if (existing.lines[0]?.debit !== amount) {
                 return yield* Effect.fail(
                   new JournalIdempotencyConflict({ tenantId: decoded.tenantId, reference }),
                 )
@@ -1415,8 +1421,8 @@ export const makeAccountingTestLayer = () =>
               status: "posted",
               postedAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
               lines: [
-                { accountId: profile.receivableAccountId, debit: decoded.amount, credit: "0" },
-                { accountId: profile.revenueAccountId, debit: "0", credit: decoded.amount },
+                { accountId: profile.receivableAccountId, debit: amount, credit: "0" },
+                { accountId: profile.revenueAccountId, debit: "0", credit: amount },
               ],
             }
             yield* messaging.append({
