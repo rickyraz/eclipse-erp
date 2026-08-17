@@ -57,6 +57,7 @@ const capabilities = [
   SalesCapabilities.customerCreate,
   SalesCapabilities.orderCreate,
   SalesCapabilities.orderConfirm,
+  SalesCapabilities.orderRead,
   SalesCapabilities.orderCancel,
   InventoryCapabilities.warehouseCreate,
   InventoryCapabilities.itemCreate,

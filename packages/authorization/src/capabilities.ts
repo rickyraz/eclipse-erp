@@ -23,6 +23,7 @@ export const CapabilityIds = [
   "sales.quotation.create",
   "sales.order.create",
   "sales.order.confirm",
+  "sales.order.read",
   "sales.order.cancel",
   "process.order_confirmation.recover",
   "process.order_confirmation.manual_recovery",
@@ -203,6 +204,7 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
   definition("sales.quotation.create", "sales", "quotation", "create"),
   definition("sales.order.create", "sales", "order", "create"),
   definition("sales.order.confirm", "sales", "order", "confirm"),
+  definition("sales.order.read", "sales", "order", "read"),
   definition("sales.order.cancel", "sales", "order", "cancel"),
   definition(
     "process.order_confirmation.recover",

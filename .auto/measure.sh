@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=177
+total=179
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -184,6 +184,8 @@ gate bash -c 'grep -Fq "getConfirmedOrderTotal" packages/accounting/src/service.
 gate bash -c 'grep -Fq "rejects a missing source before running the consumer effect" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.strictEqual(executions, 0)" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "messaging.receipt.source.lookup" packages/messaging/src/service.ts'
 gate bash -c 'grep -Fq "moves transfer lines only at confirmation and completion" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "reference_id: transfer.id" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "kind: \"receipt\"" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "quantity: \"-4\"" packages/inventory/tests/inventory.postgres.test.ts'
 gate bash -c 'grep -Fq "SalesOrderInvalidState" packages/sales/tests/sales.test.ts && grep -Fq "SalesOrderNotFound" packages/sales/tests/sales.test.ts && grep -Fq "00000000-0000-4000-8000-000000000002" packages/sales/tests/sales.test.ts && grep -Fq "getConfirmedOrderTotal" packages/sales/tests/sales.test.ts'
+gate bash -c 'grep -Fq "orderRead: \"sales.order.read\"" packages/sales/src/capabilities.ts && grep -Fq "capability: SalesCapabilities.orderRead" packages/sales/src/service.ts && grep -Fq "denies confirmed-order total reads without capability" packages/sales/tests/sales.test.ts && grep -Fq "SalesCapabilities.orderRead" packages/process/src/service.ts'
+gate bash -c 'grep -Fq "\"sales.order.read\"" packages/authorization/src/capabilities.ts && grep -Fq "definition(\"sales.order.read\", \"sales\", \"order\", \"read\")" packages/authorization/src/capabilities.ts && grep -Fq "SalesCapabilities.orderRead" packages/process/tests/order-confirmation.postgres.test.ts'
 gate bash -c 'grep -Fq "crossLinkedResult" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorization.removeMember" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "authorizationFailure.capability" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "InventoryCapabilities.stockReserve" packages/process/src/service.ts'
 gate bash -c 'grep -Fq "accountingAuthorizationFailure" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/src/service.ts && grep -Fq "AccountingCapabilities.revenuePost" packages/process/tests/order-confirmation.postgres.test.ts'
 

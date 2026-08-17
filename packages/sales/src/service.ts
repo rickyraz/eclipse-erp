@@ -92,7 +92,7 @@ export const CancelOrderInput = Schema.Struct({
 })
 
 export const GetConfirmedOrderTotalInput = Schema.Struct({
-  tenantId: Schema.String,
+  ...ScopedInput,
   orderId: Schema.String,
 })
 
@@ -455,6 +455,11 @@ export const makeSalesService = Effect.gen(function* () {
     getConfirmedOrderTotal: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(GetConfirmedOrderTotalInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: SalesCapabilities.orderRead,
+        })
         const rows = yield* database.query(
           (db) =>
             db.select({
@@ -709,6 +714,11 @@ export const makeSalesTestLayer = () =>
         getConfirmedOrderTotal: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(GetConfirmedOrderTotalInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: SalesCapabilities.orderRead,
+            })
             const order = storedOrders.get(decoded.orderId)
             if (order?.tenantId !== decoded.tenantId) {
               return yield* Effect.fail(

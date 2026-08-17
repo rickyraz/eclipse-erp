@@ -672,6 +672,7 @@ export const makeAccountingService = Effect.gen(function* () {
         const journal = yield* database.withTransaction(
           Effect.gen(function* () {
             const amount = yield* sales.getConfirmedOrderTotal({
+              principal: decoded.principal,
               tenantId: decoded.tenantId,
               orderId: decoded.orderId,
             })

@@ -53,6 +53,7 @@ const capabilities = [
   SalesCapabilities.customerCreate,
   SalesCapabilities.orderCreate,
   SalesCapabilities.orderConfirm,
+  SalesCapabilities.orderRead,
   InventoryCapabilities.warehouseCreate,
   InventoryCapabilities.itemCreate,
   InventoryCapabilities.stockReceive,
@@ -874,6 +875,11 @@ it.effect.skipIf(databaseUrl === undefined)(
             userAccountId: principal.userAccountId,
             tenantId: tenant!.id,
             capability: SalesCapabilities.orderConfirm,
+          })
+          yield* authorization.grant({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+            capability: SalesCapabilities.orderRead,
           })
           const authorizationFailure = yield* Effect.flip(process.confirmOrder(input))
           assert.instanceOf(authorizationFailure, AuthorizationDenied)

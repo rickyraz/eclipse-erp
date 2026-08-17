@@ -594,6 +594,11 @@ export const makeProcessService = Effect.gen(function* () {
       yield* authorization.authorize({
         principal: input.principal,
         tenantId: input.tenantId,
+        capability: SalesCapabilities.orderRead,
+      })
+      yield* authorization.authorize({
+        principal: input.principal,
+        tenantId: input.tenantId,
         capability: InventoryCapabilities.stockReserve,
       })
       yield* authorization.authorize({

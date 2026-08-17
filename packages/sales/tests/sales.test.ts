@@ -25,6 +25,7 @@ const capabilities = [
   "sales.quotation.create",
   "sales.order.create",
   "sales.order.confirm",
+  "sales.order.read",
   "sales.order.cancel",
 ] as const
 
@@ -74,7 +75,9 @@ describe("sales contract", () => {
       assert.strictEqual(quotation.status, "draft")
       assert.strictEqual(order.quotationId, quotation.id)
       assert.instanceOf(
-        yield* Effect.flip(sales.getConfirmedOrderTotal({ tenantId, orderId: order.id })),
+        yield* Effect.flip(
+          sales.getConfirmedOrderTotal({ principal, tenantId, orderId: order.id }),
+        ),
         SalesOrderInvalidState,
       )
 
@@ -96,11 +99,12 @@ describe("sales contract", () => {
       assert.strictEqual(confirmed.id, repeated.id)
       assert.isNotNull(confirmed.confirmedAt)
       assert.strictEqual(
-        yield* sales.getConfirmedOrderTotal({ tenantId, orderId: confirmed.id }),
+        yield* sales.getConfirmedOrderTotal({ principal, tenantId, orderId: confirmed.id }),
         "1250.00",
       )
       assert.instanceOf(
         yield* Effect.flip(sales.getConfirmedOrderTotal({
+          principal,
           tenantId: "00000000-0000-4000-8000-000000000002",
           orderId: confirmed.id,
         })),
@@ -179,6 +183,19 @@ describe("sales contract", () => {
           orderId: "00000000-0000-4000-8000-000000000099",
           ...confirmationMetadata,
           idempotencyKey: "ungranted-confirmation",
+        })),
+        AuthorizationDenied,
+      )
+    })))
+
+  it.effect("denies confirmed-order total reads without capability", () =>
+    withSales(Effect.gen(function* () {
+      const sales = yield* SalesService
+      assert.instanceOf(
+        yield* Effect.flip(sales.getConfirmedOrderTotal({
+          principal,
+          tenantId: "00000000-0000-4000-8000-000000000003",
+          orderId: "00000000-0000-4000-8000-000000000099",
         })),
         AuthorizationDenied,
       )
