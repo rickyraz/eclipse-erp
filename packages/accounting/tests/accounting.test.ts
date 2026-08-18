@@ -622,8 +622,8 @@ describe("accounting contract", () => {
         get keyId() {
           return signer.keyId
         },
-        sign: (payload: string) => signer.sign(payload),
-        verify: (payload: string, signature: string) => signer.verify(payload, signature),
+        sign: (payload: Uint8Array) => signer.sign(payload),
+        verify: (payload: Uint8Array, signature: Uint8Array) => signer.verify(payload, signature),
       }
       const legalEntityId = "00000000-0000-4000-8000-000000000003"
       const authorization = makeAuthorizationTestLayer([

@@ -220,8 +220,9 @@ operation-scoped checkpoint is not global orphan-scan or point-in-time completen
 
 A signed evidence artifact is accepted only when its canonical evidence hash is signed by the
 configured Ed25519 signer. The test signer is ephemeral and is not production key-management
-evidence. Production must supply a KMS/HSM-backed `FinancialVerificationSigner` layer, retain the
-public-key resolution record, and verify the signature during release review.
+evidence. Production must supply a custody-approved `FinancialVerificationSigner` layer. The
+current TigerBeetle readiness gate requires KMS/HSM or an explicitly approved equivalent custody
+profile. Retain the public-key resolution record and verify the signature during release review.
 
 Latest local evidence (2026-08-17): the official TigerBeetle binary `0.17.9+cc1c06a` passed the
 scoped one-replica integration test, including a linked accepted journal, deterministic replay path,

@@ -9,9 +9,12 @@ export {
   validatePostgresVersion,
 } from "./database.ts"
 export {
+  FinancialVerificationKeyGenerationFailure,
   FinancialVerificationKeyNotFound,
   FinancialVerificationKeyring,
   FinancialVerificationSigner,
+  FinancialVerificationSigningFailure,
+  FinancialVerificationVerificationFailure,
   generateEd25519FinancialVerificationSigner,
   makeEd25519FinancialVerificationSigner,
   makeFinancialVerificationKeyring,

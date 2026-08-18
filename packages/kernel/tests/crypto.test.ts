@@ -26,10 +26,12 @@ it.effect("provides cryptography through the Effect environment", () =>
 it.effect("signs and verifies a readiness payload with an explicit key id", () =>
   Effect.gen(function* () {
     const generated = yield* generateEd25519FinancialVerificationSigner("test-key")
-    const signature = yield* Effect.promise(() => generated.signer.sign("artifact-hash"))
-    assert.isTrue(yield* Effect.promise(() => generated.signer.verify("artifact-hash", signature)))
+    const payload = new TextEncoder().encode("artifact-hash")
+    const signature = yield* generated.signer.sign(payload)
+    assert.strictEqual(generated.pair.privateKey.extractable, false)
+    assert.isTrue(yield* generated.signer.verify(payload, signature))
     assert.isFalse(
-      yield* Effect.promise(() => generated.signer.verify("different-hash", signature)),
+      yield* generated.signer.verify(new TextEncoder().encode("different-hash"), signature),
     )
   }))
 
@@ -37,13 +39,14 @@ it.effect("verifies with multiple historical keys and fails closed for an unknow
   Effect.gen(function* () {
     const oldKey = yield* generateEd25519FinancialVerificationSigner("old-key")
     const currentKey = yield* generateEd25519FinancialVerificationSigner("current-key")
-    const signature = yield* Effect.promise(() => oldKey.signer.sign("artifact-hash"))
+    const payload = new TextEncoder().encode("artifact-hash")
+    const signature = yield* oldKey.signer.sign(payload)
     yield* Effect.gen(function* () {
       const keyring = yield* FinancialVerificationKeyring
-      assert.isTrue(yield* keyring.verify("old-key", "artifact-hash", signature))
-      assert.isFalse(yield* keyring.verify("current-key", "artifact-hash", signature))
+      assert.isTrue(yield* keyring.verify("old-key", payload, signature))
+      assert.isFalse(yield* keyring.verify("current-key", payload, signature))
       assert.instanceOf(
-        yield* Effect.flip(keyring.verify("missing-key", "artifact-hash", signature)),
+        yield* Effect.flip(keyring.verify("missing-key", payload, signature)),
         FinancialVerificationKeyNotFound,
       )
     }).pipe(

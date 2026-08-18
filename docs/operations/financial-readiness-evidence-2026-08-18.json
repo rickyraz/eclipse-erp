@@ -257,10 +257,10 @@
       "evidenceClass": "missing",
       "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["packages/kernel/src/crypto.ts", "apps/api/mod.ts"],
-      "reason": "FAIL: the repository has a signer port and WebCrypto test implementation, but no selected KMS/HSM provider, production layer, non-exportable key proof, audit identity, access policy, or provider-outage rehearsal.",
+      "reason": "FAIL: the repository has a signer port and WebCrypto test implementation, but no selected production custody provider (KMS/HSM or an explicitly approved equivalent), production layer, custody proof, audit identity, access policy, or provider-outage rehearsal.",
       "failureCategory": "environment",
-      "requiredEvidence": "Provider-specific KMS/HSM signing with key ID, non-exportability or equivalent custody guarantee, workload identity, least-privilege policy, audit logs, and fail-closed outage behavior.",
-      "remediation": "Select the deployment provider, implement one provider-backed signer in kernel infrastructure, wire it only in explicit production composition, and rehearse denied/unavailable operations."
+      "requiredEvidence": "Provider-specific custody-backed signing with key ID, non-exportability or an approved equivalent custody guarantee, workload identity, least-privilege policy, audit logs, and fail-closed outage behavior.",
+      "remediation": "Select the deployment custody policy, implement one approved signer in kernel infrastructure, wire it only in explicit production composition, and rehearse denied/unavailable operations."
     },
     {
       "id": "key_rotation_recovery",

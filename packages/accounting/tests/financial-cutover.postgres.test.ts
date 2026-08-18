@@ -1,5 +1,6 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"
 
 import {
@@ -155,8 +156,14 @@ it.effect.skipIf(databaseUrl === undefined)(
           })
           assert.strictEqual(rejected.status, "rejected")
           assert.strictEqual(rejected.signatureAlgorithm, "Ed25519")
+          const rejectedSignature = yield* Effect.fromResult(
+            Encoding.decodeBase64Url(rejected.signature),
+          )
           assert.strictEqual(
-            yield* Effect.promise(() => signer.verify(rejected.artifactHash, rejected.signature)),
+            yield* signer.verify(
+              new TextEncoder().encode(rejected.artifactHash),
+              rejectedSignature,
+            ),
             true,
           )
           const artifactMutation = yield* Effect.flip(Effect.tryPromise({

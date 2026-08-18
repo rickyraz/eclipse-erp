@@ -342,9 +342,14 @@ modules, reporting workers, and untrusted plugins must not connect directly.
 The production profile requires:
 
 - version-pinned client and compatibility evidence;
-- a KMS/HSM-backed Ed25519 signer layer for bounded verification artifacts, with key-ID resolution
-  and independent signature verification; the default composition root intentionally supplies no
-  signer and therefore cannot approve activation;
+- a provider-neutral signer port: canonical artifact-hash UTF-8 bytes are signed and raw signature
+  bytes are verified; base64url is only the persistence boundary;
+- a production custody-approved Ed25519 signer layer for bounded verification artifacts, with key-ID
+  resolution and independent signature verification; software-managed keys, KMS, or enterprise HSM
+  may implement the provider-neutral port. The current TigerBeetle readiness gate requires
+  KMS/HSM or an explicitly approved equivalent custody profile. The local Web Crypto signer and
+  in-memory keyring are development/test adapters only; the default composition root intentionally
+  supplies no signer and therefore cannot approve activation;
 - bounded request batching and concurrency;
 - backup, restore, upgrade, and point-in-time relationship procedures;
 - health, latency, rejection, unknown-outcome, projection-lag, and reconciliation metrics;
