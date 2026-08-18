@@ -258,27 +258,36 @@ unnecessary financial payloads.
 
 ## 8. Executed readiness rehearsal — August 18, 2026
 
-The machine-readable gate record is [`financial-readiness-evidence-2026-08-18.json`](./financial-readiness-evidence-2026-08-18.json). The final checker is:
+The machine-readable gate record is
+[`financial-readiness-evidence-2026-08-18.json`](./financial-readiness-evidence-2026-08-18.json).
+The final checker is:
 
 ```sh
 deno task financial:gate
 ```
 
-It accepts only `staging-real` or `production-real` evidence for the final decision. Repository
-proof and local-real evidence remain visible but cannot produce `GO`.
+Each gate declares its accepted evidence classes. Operational gates require `staging-real` or
+`production-real` evidence. Repository proof is accepted only for deterministic mechanical
+invariants that do not claim deployment behavior: artifact integrity and historical-key
+verification. Every gate must still pass before `GO`.
 
 Executed evidence:
 
-- Repository contract, financial-readiness, ledger, kernel, and worker tests passed: 24 tests.
+- Type checking, formatting, linting, package boundaries, 186 contract tests, and 195 full-suite
+  tests passed.
+- The API now reaches its listening state after exact import-map aliases were added for all
+  transitive dependencies of the pinned Effect beta.103 Deno adapter.
+- The worker now passes Effect module loading and reaches PostgreSQL, but the selected local
+  database lacks `process.jobs`; process-kill and lease-expiry rehearsal remains blocked until a
+  migrated disposable database is used.
 - A real TigerBeetle `0.17.9` one-replica development process was formatted, started, terminated
-  with `SIGTERM`, restarted from the same replica file, and passed the live adapter integration
-  test before and after restart.
+  with `SIGTERM`, restarted from the same replica file, and passed the live adapter integration test
+  before and after restart.
 - PostgreSQL `19beta3` was dumped with the matching `pg_dump`, restored into an independent local
   database, and reopened successfully. This was not a production cohort and had no corresponding
   TigerBeetle restore.
-- API and worker process rehearsal did not reach a running service. The pinned raw Deno adapter
-  failed to resolve Effect subpaths in this checkout before database startup, so OS-kill,
-  worker-lease, and durable financial-operation evidence could not be collected.
+- Artifact hashing, Ed25519 verification, forgery rejection, PostgreSQL immutability, and
+  historical-key verification after signer rotation passed deterministic tests.
 - No multi-replica TigerBeetle cluster, quorum-loss rehearsal, production KMS/HSM signer, alert
   pipeline, global transfer scan, or bounded production-equivalent cohort was available.
 

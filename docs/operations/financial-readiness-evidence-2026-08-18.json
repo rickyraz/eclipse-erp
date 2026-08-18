@@ -2,11 +2,22 @@
   "schemaVersion": 1,
   "reviewedAt": "2026-08-18",
   "baselineCommit": "056828250526",
-  "repositoryHeadAtRun": "af2e11fb333ea3012689a2b9c7b6b85c5ffe15d5",
+  "repositoryHeadAtRun": "88afde6d31a21d10656d3e2076a24de6e72a683b",
   "decision": "NO-GO — PostgreSQL remains the default financial engine.",
+  "summary": {
+    "passed": 2,
+    "failed": 14,
+    "total": 16,
+    "explanation": "Artifact integrity and historical-key verification are deterministic repository invariants and pass with repository proof. Operational gates still require staging-real or production-real evidence, so two local passes cannot authorize activation."
+  },
   "evidencePolicy": {
-    "finalPassEvidenceClasses": ["staging-real", "production-real"],
-    "repoProofAndLocalRealDoNotSubstituteForDeploymentEvidence": true
+    "defaultOperationalEvidenceClasses": ["staging-real", "production-real"],
+    "repositoryProofAllowedOnlyForMechanicalGates": [
+      "artifact_integrity",
+      "key_rotation_recovery"
+    ],
+    "repoProofAndLocalRealDoNotSubstituteForDeploymentEvidence": true,
+    "allGatesMustPassForGo": true
   },
   "observations": [
     {
@@ -14,9 +25,36 @@
       "evidenceClass": "repo-proof",
       "status": "PASS",
       "commands": [
-        "deno task test packages/accounting/tests/financial-readiness.test.ts packages/accounting/tests/financial-ledger.test.ts packages/kernel/tests/tigerbeetle.test.ts apps/worker/worker.test.ts"
+        "deno task check",
+        "deno task test:contract",
+        "deno task test",
+        "deno task boundary:lint",
+        "deno fmt --check apps packages tooling tests db deno.json sgconfig.yml vitest.config.ts",
+        "deno lint apps packages tooling tests vitest.config.ts"
       ],
-      "outcome": "4 files, 24 tests passed. This is repository proof, not process-kill or deployment proof."
+      "outcome": "Type checking, formatting, linting, package boundaries, 186 contract tests, and 195 full-suite tests passed.",
+      "limits": "Repository validation proves deterministic code behavior only; it does not prove deployment topology, operator response, provider custody, or production data recovery."
+    },
+    {
+      "id": "api_process_start",
+      "evidenceClass": "local-real",
+      "status": "PASS",
+      "commands": [
+        "deno check apps/api/mod.ts apps/worker/mod.ts",
+        "deno run --allow-read --allow-env --allow-net apps/api/mod.ts"
+      ],
+      "outcome": "The API reached the listening state on http://0.0.0.0:8000 after exact import-map aliases were added for the pinned Effect beta.103 Deno adapter dependencies.",
+      "limits": "This proves local process startup, not a financial operation, process-kill recovery, staging routing, or production-equivalent supervision."
+    },
+    {
+      "id": "worker_process_start",
+      "evidenceClass": "local-real",
+      "status": "FAIL",
+      "commands": [
+        "deno run -A apps/worker/mod.ts"
+      ],
+      "outcome": "The worker now passes Effect module loading and reaches PostgreSQL, then fails because the selected local database does not contain process.jobs.",
+      "limits": "A migrated disposable database and a real financial job are still required before worker lease/restart behavior can be rehearsed."
     },
     {
       "id": "local_tigerbeetle_process_restart",
@@ -28,8 +66,8 @@
         "TIGERBEETLE_INTEGRATION=1 ... deno task test packages/kernel/tests/tigerbeetle.integration.test.ts",
         "kill -TERM <tigerbeetle-pid>; restart the same replica; rerun the integration test"
       ],
-      "outcome": "The real one-replica development process was terminated and restarted; the adapter integration test passed before and after restart.",
-      "limits": "Cluster 0, one replica, --development, no quorum, no production credentials, no economic cohort."
+      "outcome": "A real one-replica TigerBeetle development process passed adapter integration before and after SIGTERM and restart.",
+      "limits": "One development replica has no quorum-loss, state-sync, supervisor, production credentials, or economic-cohort semantics."
     },
     {
       "id": "local_postgresql_backup_restore",
@@ -37,32 +75,21 @@
       "status": "PASS",
       "commands": [
         "/usr/lib/postgresql/19/bin/pg_dump --dbname=postgresql://postgres:postgres@127.0.0.1:5433/ritsei --file=/tmp/ritsei-pg-backup-19.sql",
-        "/usr/lib/postgresql/19/bin/psql ... -c 'drop database if exists ritsei_restore_20260818' -c 'create database ritsei_restore_20260818'",
+        "/usr/lib/postgresql/19/bin/psql ... -c 'create database ritsei_restore_20260818'",
         "/usr/lib/postgresql/19/bin/psql --dbname=.../ritsei_restore_20260818 -f /tmp/ritsei-pg-backup-19.sql"
       ],
-      "outcome": "A PostgreSQL 19beta3 dump restored successfully into an independent local database.",
-      "limits": "The local source contained no production cohort and no corresponding TigerBeetle restore; dump re-export differs only by PostgreSQL's generated restrict token."
+      "outcome": "A PostgreSQL 19beta3 dump restored into an independent local database.",
+      "limits": "The source did not contain a production-equivalent cohort and no corresponding TigerBeetle restore or cross-store comparison was performed."
     },
     {
-      "id": "api_worker_process_start",
-      "evidenceClass": "missing",
-      "status": "FAIL",
+      "id": "historical_signing_key_rotation",
+      "evidenceClass": "repo-proof",
+      "status": "PASS",
       "commands": [
-        "DATABASE_URL=... deno task dev",
-        "deno task worker"
+        "deno task test packages/kernel/tests/crypto.test.ts packages/accounting/tests/accounting.test.ts"
       ],
-      "outcome": "Entrypoints did not reach a running API/worker: the pinned raw Deno adapter could not resolve Effect subpaths such as effect/unstable/socket/Socket and effect/Runtime in this Deno process.",
-      "limits": "No real API/worker process-kill, lease-expiry, or durable financial cohort could be executed from this checkout."
-    },
-    {
-      "id": "tigerbeetle_deployment",
-      "evidenceClass": "missing",
-      "status": "FAIL",
-      "commands": [
-        "ss -ltn",
-        "tigerbeetle --help"
-      ],
-      "outcome": "No production-style multi-replica cluster, supervisor, backup mechanism, or quorum topology is present."
+      "outcome": "A signed artifact created with an old key remains verifiable and approvable after the active signer rotates, provided the historical verifier remains in the keyring.",
+      "limits": "This proves key-ID resolution semantics, not KMS/HSM custody, provider audit logs, revocation policy, or emergency recovery."
     }
   ],
   "gates": [
@@ -71,128 +98,228 @@
       "title": "Controlled activation cannot be bypassed",
       "observed": "PASS",
       "evidenceClass": "repo-proof",
-      "evidence": ["packages/accounting/tests/financial-cutover.postgres.test.ts", "db/schema/accounting.ts"],
-      "reason": "Activation and direct-route protections are tested, but no staging deployment rehearsal proves the operational path."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "packages/accounting/tests/financial-cutover.postgres.test.ts",
+        "db/schema/accounting.ts"
+      ],
+      "reason": "FAIL for release: PostgreSQL constraints and service authorization reject direct activation in tests, but the complete deployed prepare/approve/activate path has not been exercised with real runtime roles and credentials.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "A staging rehearsal showing authorized prepare, independently produced evidence, separate approval, activation, and rejection of direct database or legacy-route bypass attempts.",
+      "remediation": "Run the bounded staging cohort with distinct principals and capture database audit rows, capability decisions, artifact IDs, and the final engine state."
     },
     {
       "id": "process_kill_no_double_posting",
       "title": "Real process kill cannot create economic double-posting",
       "observed": "FAIL",
       "evidenceClass": "mock-only",
-      "evidence": ["packages/accounting/tests/financial-readiness.test.ts", "apps/worker/worker.test.ts"],
-      "reason": "Failure-point adapters are not OS process-kill evidence; no financial operation was run through a real API/worker deployment."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "packages/accounting/tests/financial-readiness.test.ts",
+        "apps/worker/worker.test.ts"
+      ],
+      "reason": "FAIL: fault injection proves retry logic at code seams, but no operating-system kill occurred after a real TigerBeetle acceptance while a real worker owned the durable job.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "A migrated staging database, real worker process, real TigerBeetle transfer, kill at the accepted-before-finalized boundary, restart, and proof of one economic transfer set and one finalized projection.",
+      "remediation": "Build and run a subprocess rehearsal that records operation ID, transfer IDs, lease token, kill timestamp, restart timestamp, and post-recovery reconciliation result."
     },
     {
       "id": "worker_adapter_restart",
       "title": "Worker and adapter restart is deterministic",
       "observed": "FAIL",
-      "evidenceClass": "missing",
-      "evidence": ["docs/operations/tigerbeetle-recovery.md"],
-      "reason": "Only the local TigerBeetle adapter process was restarted; the real worker could not boot and lease recovery was not observed."
+      "evidenceClass": "local-real",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "apps/worker/mod.ts",
+        "apps/worker/runner.ts",
+        "docs/operations/tigerbeetle-recovery.md"
+      ],
+      "reason": "FAIL: Effect import resolution is fixed, but the local worker stops at a missing process.jobs table; no leased financial job survived worker termination and lease expiry.",
+      "failureCategory": "environment",
+      "requiredEvidence": "A fully migrated disposable or staging database plus two real worker processes demonstrating stale-lease rejection and successful reacquisition after expiry.",
+      "remediation": "Migrate the rehearsal database, enqueue one financial operation job, kill worker A while leased, wait for expiry, start worker B, and verify fenced completion."
     },
     {
       "id": "tigerbeetle_outage_fail_closed",
       "title": "TigerBeetle outage fails closed",
       "observed": "PASS",
       "evidenceClass": "mock-only",
-      "evidence": ["packages/accounting/tests/financial-readiness.test.ts", "packages/kernel/tests/tigerbeetle.test.ts"],
-      "reason": "The code path is fail-closed in test/fault-injection evidence, but no real outage and recovery budget were rehearsed."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "packages/accounting/tests/financial-readiness.test.ts",
+        "packages/kernel/tests/tigerbeetle.test.ts"
+      ],
+      "reason": "FAIL for release: mock and adapter tests show no PostgreSQL fallback, but no real network/process outage measured unknown outcomes, retry timing, recovery, and final reconciliation.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "A real TigerBeetle outage during submission proving no PostgreSQL financial acceptance, bounded retry behavior, restored connectivity, and same-ID reconciliation.",
+      "remediation": "Inject a staging network or process outage and retain operation, transfer, journal, retry, latency, and reconciliation evidence."
     },
     {
       "id": "replica_quorum_failure",
       "title": "Replica and quorum failure behavior is proven",
       "observed": "FAIL",
       "evidenceClass": "missing",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["docs/operations/tigerbeetle-recovery.md"],
-      "reason": "The only live run used one development replica; quorum, state sync, and replica recovery were not exercised."
+      "reason": "FAIL: the only real TigerBeetle run used one development replica, so quorum loss, view change, replica state synchronization, and recovery were impossible to observe.",
+      "failureCategory": "environment",
+      "requiredEvidence": "A version-pinned production-equivalent multi-replica cluster with controlled replica loss, quorum loss, restart, state sync, and client outcome records.",
+      "remediation": "Provision the target replica topology in staging and execute the documented failure matrix under the real supervisor and network policy."
     },
     {
       "id": "postgresql_not_financial_authority",
       "title": "PostgreSQL never becomes silent financial authority after activation",
       "observed": "PASS",
       "evidenceClass": "repo-proof",
-      "evidence": ["docs/architecture/financial-ledger.md", "packages/accounting/src/service.ts"],
-      "reason": "The route and fallback policy are encoded and tested, but no activated staging cohort proves it under outage."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "docs/architecture/financial-ledger.md",
+        "packages/accounting/src/service.ts",
+        "packages/accounting/src/financial-operations.ts"
+      ],
+      "reason": "FAIL for release: code and constraints contain no fallback route, but no activated staging cohort has proven this while TigerBeetle is unavailable and PostgreSQL remains reachable.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "An activated staging legal entity subjected to TigerBeetle outage, with proof that PostgreSQL journal/projection state never records financial acceptance as authority.",
+      "remediation": "Combine the outage rehearsal with database snapshots and rejected legacy-route calls before, during, and after the outage."
     },
     {
       "id": "independent_backup_restore",
       "title": "Independent PostgreSQL and TigerBeetle backup/restore is proven",
       "observed": "FAIL",
       "evidenceClass": "local-real",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["docs/operations/financial-readiness-evidence-2026-08-18.json"],
-      "reason": "Only an empty/local PostgreSQL dump was restored; no independent TigerBeetle restore or cross-store comparison exists."
+      "reason": "FAIL: PostgreSQL restored locally, but there is no independent TigerBeetle restore, non-empty shared cohort, matching restore boundary, or cross-store comparison.",
+      "failureCategory": "environment",
+      "requiredEvidence": "Independent PostgreSQL and TigerBeetle backups from the same frozen cohort, restoration to isolated endpoints, exact watermark selection, and zero unexplained mismatch.",
+      "remediation": "Define provider-supported TigerBeetle backup/restore operations, freeze posting, restore both stores independently, then run signed cross-store reconciliation."
     },
     {
       "id": "recovery_watermark",
       "title": "Recovery watermark is exact and auditable",
       "observed": "PASS",
       "evidenceClass": "repo-proof",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["packages/accounting/src/financial-readiness.ts", "db/schema/accounting.ts"],
-      "reason": "Checkpoint fields and exact comparisons are tested, but no restored pair has produced a verified production watermark."
+      "reason": "FAIL for release: checkpoint structure, immutability, hashes, and comparisons exist, but watermark values are not yet collected from an independently restored pair of real stores.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "Store-derived source and target watermarks, snapshot references, checked timestamp, cohort identity, and signed exact-comparison output from restored staging data.",
+      "remediation": "Add trusted watermark collectors to the restore rehearsal and reject manually supplied production watermarks."
     },
     {
       "id": "global_reconciliation",
       "title": "Global reconciliation has zero unexplained mismatch",
       "observed": "FAIL",
       "evidenceClass": "missing",
-      "evidence": ["docs/architecture/financial-ledger.md"],
-      "reason": "The current implementation is explicitly operation-scoped and does not provide a global TigerBeetle transfer/orphan scan."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "docs/architecture/financial-ledger.md",
+        "packages/accounting/src/financial-operations.ts"
+      ],
+      "reason": "FAIL: reconciliation starts from PostgreSQL-known operation IDs and cannot discover an arbitrary provider-only TigerBeetle transfer; balance arrays are also incomplete for a global proof.",
+      "failureCategory": "code",
+      "requiredEvidence": "A supported global transfer inventory or CDC cursor, complete account balances, orphan detection in both directions, deterministic hashes, and zero unexplained mismatch for the bounded cohort.",
+      "remediation": "Add an infrastructure-private TigerBeetle scan/CDC capability supported by the pinned version, feed it into checkpoint comparison, and test provider-only orphan detection."
     },
     {
       "id": "projection_rebuild",
       "title": "Projection and report rebuild is reproducible",
       "observed": "PASS",
       "evidenceClass": "repo-proof",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["packages/accounting/tests/financial-operations.postgres.test.ts"],
-      "reason": "Operation projection rebuild is tested, but complete independent report/balance rebuild evidence is not available."
+      "reason": "FAIL for release: operation projections and outbox facts rebuild deterministically, but a complete independent balance/report/history rebuild has not run against restored production-equivalent data.",
+      "failureCategory": "evidence",
+      "requiredEvidence": "A clean staging projection database rebuilt from authoritative facts, followed by deterministic report, balance, transfer-history, and hash comparison.",
+      "remediation": "Create the bounded first-profile report snapshot and run rebuild/comparison after independent restore."
     },
     {
       "id": "artifact_integrity",
       "title": "Verification artifacts remain immutable and cryptographically valid",
       "observed": "PASS",
       "evidenceClass": "repo-proof",
-      "evidence": ["packages/accounting/tests/financial-cutover.postgres.test.ts", "packages/kernel/tests/crypto.test.ts"],
-      "reason": "Signed artifact, immutability, forgery, and hash verification tests pass; the signer is still an in-process test key."
+      "acceptedEvidenceClasses": ["repo-proof", "staging-real", "production-real"],
+      "evidence": [
+        "packages/accounting/tests/financial-cutover.postgres.test.ts",
+        "packages/kernel/tests/crypto.test.ts",
+        "packages/accounting/tests/accounting.test.ts",
+        "db/schema/accounting.ts"
+      ],
+      "reason": "PASS: canonical hashing is deterministic, Ed25519 signatures are verified, forged signatures are rejected, PostgreSQL blocks artifact mutation, and approval recomputes the persisted evidence hash. This gate covers artifact integrity only; production key custody is evaluated separately.",
+      "failureCategory": "none",
+      "requiredEvidence": "The current repository tests and PostgreSQL constraint evidence are sufficient because this gate is a deterministic mechanical invariant.",
+      "remediation": "None for integrity semantics; retain regression tests when schemas, hashing, signatures, or immutability triggers change."
     },
     {
       "id": "production_signing_custody",
       "title": "Production-grade signing and key custody is proven",
       "observed": "FAIL",
       "evidenceClass": "missing",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["packages/kernel/src/crypto.ts", "apps/api/mod.ts"],
-      "reason": "No KMS/HSM/provider implementation, production composition, audit identity, or unavailable-provider rehearsal exists."
+      "reason": "FAIL: the repository has a signer port and WebCrypto test implementation, but no selected KMS/HSM provider, production layer, non-exportable key proof, audit identity, access policy, or provider-outage rehearsal.",
+      "failureCategory": "environment",
+      "requiredEvidence": "Provider-specific KMS/HSM signing with key ID, non-exportability or equivalent custody guarantee, workload identity, least-privilege policy, audit logs, and fail-closed outage behavior.",
+      "remediation": "Select the deployment provider, implement one provider-backed signer in kernel infrastructure, wire it only in explicit production composition, and rehearse denied/unavailable operations."
     },
     {
       "id": "key_rotation_recovery",
       "title": "Key rotation and verification recovery is proven",
-      "observed": "FAIL",
-      "evidenceClass": "missing",
-      "evidence": ["packages/kernel/src/crypto.ts", "packages/accounting/src/service.ts"],
-      "reason": "Verification is tied to the currently configured signer; historical key resolution and rotation rehearsal are absent."
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "acceptedEvidenceClasses": ["repo-proof", "staging-real", "production-real"],
+      "evidence": [
+        "packages/kernel/src/crypto.ts",
+        "packages/kernel/tests/crypto.test.ts",
+        "packages/accounting/src/service.ts",
+        "packages/accounting/tests/accounting.test.ts"
+      ],
+      "reason": "PASS: signing and verification are separated; approval resolves the persisted signingKeyId through a historical keyring, and tests prove an old artifact remains approvable after the active signer rotates. Production custody and provider-specific rotation rehearsal remain separate gates.",
+      "failureCategory": "none",
+      "requiredEvidence": "The repository test proving old-key verification after signer rotation is sufficient for the key-resolution contract.",
+      "remediation": "Keep historical public verifiers available according to retention policy; add provider revocation and emergency-recovery evidence when a KMS/HSM is selected."
     },
     {
       "id": "operator_alerts",
       "title": "Critical failure conditions produce operator-visible alerts",
       "observed": "FAIL",
       "evidenceClass": "missing",
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
       "evidence": ["docs/operations/tigerbeetle-recovery.md"],
-      "reason": "Metrics are documented but no deployment metrics, alert rules, or failure-injection alert evidence is wired."
+      "reason": "FAIL: required metrics are documented, but no metrics exporter, versioned alert rules, notification route, delivery evidence, or operator acknowledgement is present.",
+      "failureCategory": "code",
+      "requiredEvidence": "Metrics for unknown outcomes, accepted-unreconciled age, backlog, manual recovery, replica health, disk, and latency, plus fired-and-delivered alert records from injected failures.",
+      "remediation": "Choose the deployment observability backend, instrument the existing durable states, define alert rules and runbook links, then inject each critical failure in staging."
     },
     {
       "id": "bounded_cohort",
       "title": "Bounded production-equivalent cohort completes successfully",
       "observed": "FAIL",
       "evidenceClass": "missing",
-      "evidence": ["docs/roadmap/financial-ledger-execution.md"],
-      "reason": "No scoped prepare/approve/activate/real-post/restart/rebuild/reconcile cohort ran on a production-equivalent deployment."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "docs/roadmap/financial-ledger-execution.md",
+        "docs/operations/tigerbeetle-recovery.md"
+      ],
+      "reason": "FAIL: no dedicated tenant/legal-entity cohort completed prepare, evidence collection, approval, activation, real posting, process restart, rebuild, restore, and reconciliation on production-equivalent infrastructure.",
+      "failureCategory": "environment",
+      "requiredEvidence": "A named owner, exact cohort, deployment revision, cluster identity, start/end timestamps, operation IDs, failure injections, SLO results, signed artifacts, and final zero-mismatch reconciliation.",
+      "remediation": "Provision a dedicated staging tenant and execute one controlled end-to-end rehearsal without enabling general production traffic."
     },
     {
       "id": "no_unresolved_p0",
       "title": "No unresolved P0 ledger, recovery, security, or operational blocker remains",
       "observed": "FAIL",
       "evidenceClass": "missing",
-      "evidence": ["docs/roadmap/financial-ledger-execution.md"],
-      "reason": "Real deployment kill/recovery, quorum, cross-store restore, global reconciliation, production signing, alerts, and cohort evidence remain open."
+      "acceptedEvidenceClasses": ["staging-real", "production-real"],
+      "evidence": [
+        "docs/roadmap/financial-ledger-execution.md",
+        "docs/operations/financial-readiness-evidence-2026-08-18.json"
+      ],
+      "reason": "FAIL: process-kill recovery, worker lease restart, quorum failure, paired restore, global reconciliation, production signing custody, operator alerts, and bounded cohort evidence remain unresolved.",
+      "failureCategory": "governance",
+      "requiredEvidence": "All other 15 gates must pass with their required evidence classes and have no open severity-P0 incident, mismatch, security exception, or ownerless remediation.",
+      "remediation": "Close gates 2, 3, 5, 7, 9, 12, 14, and 15 first; rerun the mechanical checker and obtain explicit release-owner approval."
     }
   ]
 }

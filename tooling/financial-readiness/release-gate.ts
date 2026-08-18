@@ -11,14 +11,23 @@ type Gate = {
   title: string
   observed: "PASS" | "FAIL"
   evidenceClass: EvidenceClass
+  acceptedEvidenceClasses: EvidenceClass[]
   evidence: string[]
   reason: string
+  failureCategory: "none" | "code" | "environment" | "evidence" | "governance"
+  requiredEvidence: string
+  remediation: string
 }
 
 type Manifest = {
   schemaVersion: number
   reviewedAt: string
   baselineCommit: string
+  summary: {
+    passed: number
+    failed: number
+    total: number
+  }
   gates: Gate[]
 }
 
@@ -78,22 +87,43 @@ if (
   )
 }
 
-const finalPassClasses = new Set<EvidenceClass>(["staging-real", "production-real"])
 let failed = 0
 
 for (const id of requiredIds) {
   const gate = gatesById.get(id)!
-  const passes = gate.observed === "PASS" && finalPassClasses.has(gate.evidenceClass)
+  if (gate.acceptedEvidenceClasses.length === 0) {
+    failClosed(`Gate ${gate.id} has no accepted evidence classes.`)
+  }
+  const passes = gate.observed === "PASS" &&
+    gate.acceptedEvidenceClasses.includes(gate.evidenceClass)
   if (!passes) failed += 1
   console.log(
     `${passes ? "PASS" : "FAIL"} ${gate.id} ` +
-      `[observed=${gate.observed}, evidence=${gate.evidenceClass}] ${gate.title}`,
+      `[observed=${gate.observed}, evidence=${gate.evidenceClass}, accepted=${
+        gate.acceptedEvidenceClasses.join("|")
+      }] ${gate.title}`,
   )
-  if (!passes) console.log(`  ${gate.reason}`)
+  console.log(`  ${gate.reason}`)
+  if (!passes) {
+    console.log(`  required: ${gate.requiredEvidence}`)
+    console.log(`  remediation: ${gate.remediation}`)
+  }
 }
 
+const passed = requiredIds.length - failed
+if (
+  manifest.summary.passed !== passed || manifest.summary.failed !== failed ||
+  manifest.summary.total !== requiredIds.length
+) {
+  failClosed(
+    `Manifest summary is stale; expected passed=${passed}, failed=${failed}, total=${requiredIds.length}.`,
+  )
+}
+
+console.log(`SUMMARY ${passed} PASS / ${failed} FAIL / ${requiredIds.length} TOTAL`)
+
 if (failed > 0) {
-  failClosed(`${failed} final production-readiness gate(s) lack production-equivalent evidence.`)
+  failClosed(`${failed} final production-readiness gate(s) remain unresolved.`)
 }
 
 console.log("GO — TigerBeetle is approved for controlled production activation.")
