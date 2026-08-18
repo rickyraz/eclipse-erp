@@ -46,6 +46,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 12. Accounting verification evidence versions stay within the PostgreSQL smallint range used by artifact persistence.
 13. Accounting verification evidence counts stay within the PostgreSQL integer range used by artifact persistence.
 14. Accounting cutover control unresolved-operation counts preserve the PostgreSQL non-negative integer invariant.
+15. Accounting financial-operation attempt counts preserve the PostgreSQL non-negative integer invariant.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -60,3 +61,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Verification artifacts persist schema and mapping versions as PostgreSQL `smallint`, so the public evidence contract must reject values above `32_767` before artifact writes.
 - Verification artifact counts persist as PostgreSQL `integer`, so public evidence must reject counts above `2_147_483_647` before artifact writes.
 - Cutover controls persist unresolved accepted-operation counts as non-negative PostgreSQL `integer` values, so the public control schema must reject negative and overflowing counts.
+- Financial operations persist retry attempts as non-negative PostgreSQL `integer` values, so the public operation schema must reject negative and overflowing attempts.

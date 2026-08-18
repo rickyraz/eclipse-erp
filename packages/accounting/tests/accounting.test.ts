@@ -19,6 +19,7 @@ import {
   CreateFinancialRevenueIntentInput,
   FinancialCutoverControl,
   FinancialEngineCutoverBlocked,
+  FinancialOperation,
   JournalEntry,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
@@ -388,6 +389,18 @@ describe("accounting contract", () => {
         Schema.decodeUnknownEffect(FinancialCutoverControl.fields.unresolvedAcceptedOperations)(
           2_147_483_648,
         ),
+      )
+      assert.strictEqual(overflow._tag, "SchemaError")
+    }))
+
+  it.effect("rejects financial operation attempts outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const negative = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation.fields.attempts)(-1),
+      )
+      assert.strictEqual(negative._tag, "SchemaError")
+      const overflow = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation.fields.attempts)(2_147_483_648),
       )
       assert.strictEqual(overflow._tag, "SchemaError")
     }))

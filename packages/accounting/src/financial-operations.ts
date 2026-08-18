@@ -56,6 +56,9 @@ const Uuid = Schema.String.check(Schema.isUUID())
 const PositiveInt = Schema.Int.check(
   Schema.isBetween({ minimum: 1, maximum: 0x7fffffff }),
 )
+const NonNegativeInt = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
+)
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 
@@ -129,7 +132,7 @@ export const FinancialOperation = Schema.Struct({
   currency: CurrencyCode,
   mappingVersion: PositiveInt,
   status: FinancialOperationStatus,
-  attempts: Schema.Int,
+  attempts: NonNegativeInt,
   scheduledAt: Schema.String,
   submittedAt: Schema.NullOr(Schema.String),
   engineAcceptedAt: Schema.NullOr(NonEmptyString),
