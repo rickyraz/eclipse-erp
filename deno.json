@@ -10,7 +10,7 @@
     "vendor/"
   ],
   "tasks": {
-    "dev": "deno run --watch --allow-env --allow-net apps/api/mod.ts",
+    "dev": "deno run --watch --allow-read --allow-env --allow-net apps/api/mod.ts",
     "worker": "deno run -A apps/worker/mod.ts",
     "migrate": "deno run --allow-read --allow-env --allow-net apps/migrate/mod.ts",
     "migrate:p0-backfill": "deno run --allow-read --allow-env --allow-net apps/migrate/p0-backfill.ts",
