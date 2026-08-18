@@ -39,5 +39,5 @@ export interface DurableJobEnqueuer {
 }
 
 export const DurableJobEnqueuer = Context.Service<DurableJobEnqueuer>(
-  "EclipseERP/DurableJobEnqueuer",
+  "RITSEI/DurableJobEnqueuer",
 )

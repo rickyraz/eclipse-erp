@@ -1,6 +1,6 @@
 id: no-internal-import
 valid:
-  - import { InventoryService } from "@eclipse/inventory"
+  - import { InventoryService } from "@ritsei/inventory"
   - import "./internal/helper.ts"
   - import "./bootstrap.ts"
 invalid:

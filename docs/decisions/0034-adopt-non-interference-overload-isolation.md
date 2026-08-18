@@ -36,17 +36,17 @@ Per-route requests-per-second limits are not a sufficient safety boundary:
 - long interactive queues amplify latency, timeouts, and retries;
 - adaptive concurrency cannot create capacity that was never physically reserved.
 
-EclipseERP needs a stronger, scoped objective:
+RITSEI needs a stronger, scoped objective:
 
 > A degradable workload has no architectural path to the resource reserve required by a protected
 > canonical workload.
 
-This is a testable non-interference claim for a named failure class, not a promise that EclipseERP
+This is a testable non-interference claim for a named failure class, not a promise that RITSEI
 can never experience an outage.
 
 ## Decision
 
-EclipseERP adopts **Non-Interference** as the target principle for overload isolation.
+RITSEI adopts **Non-Interference** as the target principle for overload isolation.
 
 For source workload `S`, protected workload `P`, and the resources named by the deployment claim:
 
@@ -146,7 +146,7 @@ WorkloadCell placement and hierarchical admission leave an unacceptable caller b
 This decision does not convert domain modules into microservices or weaken accepted transaction
 boundaries.
 
-- EclipseERP remains one modular-monolith application family.
+- RITSEI remains one modular-monolith application family.
 - PostgreSQL remains canonical for non-ledger business facts and control-plane state; the activated
   financial ledger profile follows ADR-0040.
 - Current cross-domain invariants that require one PostgreSQL transaction must remain colocated on a

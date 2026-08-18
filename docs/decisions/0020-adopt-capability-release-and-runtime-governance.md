@@ -16,7 +16,7 @@
 
 ## Context
 
-EclipseERP already has the critical semantic foundation:
+RITSEI already has the critical semantic foundation:
 
 ```text
 orthogonal semantics
@@ -41,7 +41,7 @@ object is blocked.
 
 ## Decision
 
-EclipseERP adopts explicit capability release and process runtime governance
+RITSEI adopts explicit capability release and process runtime governance
 around the existing orthogonal architecture.
 
 ### Capability Release Contract

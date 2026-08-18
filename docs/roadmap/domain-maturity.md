@@ -2,7 +2,7 @@
 
 > **Status:** Canonical roadmap subdocument
 >
-> **Owns:** readiness sequencing for EclipseERP packages that may publish process-facing commands
+> **Owns:** readiness sequencing for RITSEI packages that may publish process-facing commands
 > and events.
 >
 > **Detailed domain rules belong to:** each package’s public contract, schema, tests, and canonical

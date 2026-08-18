@@ -44,7 +44,7 @@ translation. Shared identifier vocabulary must not become a universal cross-doma
 
 ### Use the main external identifier as the primary key
 
-Rejected because identifier availability and lifecycle are controlled outside EclipseERP, and many
+Rejected because identifier availability and lifecycle are controlled outside RITSEI, and many
 entities have zero, one, or several external identifiers.
 
 ### Enforce every external identifier globally

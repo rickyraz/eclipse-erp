@@ -25,7 +25,7 @@
 
 ## Position
 
-TigerBeetle is the required target execution engine for EclipseERP financial movements. It is a
+TigerBeetle is the required target execution engine for RITSEI financial movements. It is a
 financial data plane, not an ERP database and not a reporting warehouse. PostgreSQL remains the
 control-plane and non-ledger transactional database.
 
@@ -198,13 +198,18 @@ delivery. Duplicate event delivery is handled independently from duplicate Tiger
 ## Identity and Mapping
 
 Every operation uses a stable, versioned identity. Account and transfer IDs are derived
-**deterministically** from EclipseERP identities and operation parts. The encoding, byte order,
+**deterministically** from RITSEI identities and operation parts. The encoding, byte order,
 namespace, and mapping version are explicit and covered by collision and replay tests. The current
 adapter's mapping version `v1` hashes the UTF-8 JSON tuple
-`["eclipse-erp/tigerbeetle", "v1", ...parts]` with SHA-256 and uses the first 16 bytes as a
+`["ritsei/tigerbeetle", "v1", ...parts]` with SHA-256 and uses the first 16 bytes as a
 big-endian unsigned 128-bit ID; the forbidden zero and maximum values are remapped to `1`. Account
 parts are `account, mappingVersion, tenantId, legalEntityId, accountId, currency`; transfer parts
 are `transfer, mappingVersion, tenantId, legalEntityId, operationId, position`.
+
+The namespace changed from the pre-brand product value to `ritsei/tigerbeetle` before production
+activation. This is an identity-mapping change, not a cosmetic text replacement: any pre-rename
+provider facts must be migrated or fenced rather than replayed under the new IDs. Production
+activation remains blocked until that evidence exists.
 
 The control-plane mapping records enough data to verify the complete operation:
 
@@ -220,7 +225,7 @@ Tenant + Legal Entity
 ```
 
 TigerBeetle linked-event execution does not replace this association record. The PostgreSQL mapping
-is the durable explanation of which transfers make up one EclipseERP journal; TigerBeetle remains
+is the durable explanation of which transfers make up one RITSEI journal; TigerBeetle remains
 the authority for whether those transfers were accepted.
 
 ## Journal and Projection Rules

@@ -308,7 +308,7 @@ export interface PartyService {
   >
 }
 
-export const PartyService = Context.Service<PartyService>("EclipseERP/PartyService")
+export const PartyService = Context.Service<PartyService>("RITSEI/PartyService")
 
 const partySelection = {
   id: parties.id,

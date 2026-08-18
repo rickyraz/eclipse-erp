@@ -1,4 +1,4 @@
-# EclipseERP Documentation
+# RITSEI Documentation
 
 > **Related documents**
 >

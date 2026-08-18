@@ -1,6 +1,6 @@
-# EclipseERP Architecture
+# RITSEI Architecture
 
-EclipseERP is an orthogonal modular monolith built around explicit
+RITSEI is an orthogonal modular monolith built around explicit
 domain ownership, PostgreSQL-enforced integrity, Effect-based application
 services, and independently deployable frontend infrastructure.
 

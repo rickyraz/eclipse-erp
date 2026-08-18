@@ -1,6 +1,6 @@
 ---
 name: add-api-endpoint
-description: "Use when exposing or changing EclipseERP HTTP behavior in apps/api, including an endpoint schema, handler, authentication middleware, error mapping, OpenAPI contract, or service layer wiring."
+description: "Use when exposing or changing RITSEI HTTP behavior in apps/api, including an endpoint schema, handler, authentication middleware, error mapping, OpenAPI contract, or service layer wiring."
 ---
 
 # Purpose

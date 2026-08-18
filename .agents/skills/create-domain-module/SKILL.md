@@ -5,7 +5,7 @@ description: "Use when adding a new packages/<domain> capability, assigning a ne
 
 # Purpose
 
-Create the smallest EclipseERP domain package with explicit semantic ownership, a public Effect contract, protected persistence, and enforceable boundaries.
+Create the smallest RITSEI domain package with explicit semantic ownership, a public Effect contract, protected persistence, and enforceable boundaries.
 
 # Use This Skill When
 

@@ -20,7 +20,7 @@
 
 ## Decision
 
-EclipseERP uses an API-first frontend with a separately deployed backend:
+RITSEI uses an API-first frontend with a separately deployed backend:
 
 ```text
 Vite
@@ -40,9 +40,9 @@ It may be introduced only when server rendering, a frontend-owned BFF,
 server-session management, server functions, or unified full-stack deployment
 becomes an explicit requirement.
 
-## Why an SPA Fits EclipseERP
+## Why an SPA Fits RITSEI
 
-EclipseERP is an authenticated, long-lived, interaction-heavy application.
+RITSEI is an authenticated, long-lived, interaction-heavy application.
 
 Its primary screens include:
 
@@ -80,7 +80,7 @@ Browser
   `-- session state
   |
   v
-EclipseERP Backend API
+RITSEI Backend API
   |
   v
 PostgreSQL
@@ -122,7 +122,7 @@ SolidJS ERP SPA
   |
   | HTTPS / JSON / approved RPC
   v
-EclipseERP API
+RITSEI API
   |
   | authentication
   | authorization
@@ -436,7 +436,7 @@ These belong to the backend domain or explicit shared contracts.
 
 The planned Process Designer, Process Monitor, and Task Inbox are frontend
 features over public Process Studio contracts. The designer serializes the
-canonical Eclipse Process IR, discovers actions and events from typed catalogs,
+canonical RITSEI Process IR, discovers actions and events from typed catalogs,
 and renders static validation results from the backend contract. It must not
 hard-code domain capabilities or execute process semantics in the browser.
 

@@ -14,7 +14,7 @@ const withPreviousMigrations = <A, E, R>(
 ) =>
   Effect.acquireUseRelease(
     Effect.promise(async () => {
-      const directory = await Deno.makeTempDir({ prefix: "eclipse-erp-migrations-" })
+      const directory = await Deno.makeTempDir({ prefix: "ritsei-migrations-" })
       for await (const entry of Deno.readDir("db/migrations")) {
         if (!entry.isDirectory || entry.name >= latestMigration) continue
         const source = `db/migrations/${entry.name}`

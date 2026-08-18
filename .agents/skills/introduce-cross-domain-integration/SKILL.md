@@ -1,6 +1,6 @@
 ---
 name: introduce-cross-domain-integration
-description: "Use when one EclipseERP domain must consume another domain’s data or behavior, such as letting accounting consume finalized sales invoices, or when an implementation would otherwise import another package’s src files or tables."
+description: "Use when one RITSEI domain must consume another domain’s data or behavior, such as letting accounting consume finalized sales invoices, or when an implementation would otherwise import another package’s src files or tables."
 ---
 
 # Purpose

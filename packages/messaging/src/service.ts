@@ -105,7 +105,7 @@ export interface MessagingService {
   ) => Effect.Effect<ConsumeOnceResult<A>, E | DatabaseFailure | Schema.SchemaError, R>
 }
 
-export const MessagingService = Context.Service<MessagingService>("EclipseERP/MessagingService")
+export const MessagingService = Context.Service<MessagingService>("RITSEI/MessagingService")
 
 const selectEvent = {
   eventId: eventOutbox.id,

@@ -28,7 +28,7 @@ export type DrizzleDatabase = PostgresJsDatabase<EmptyRelations>
 export type DrizzleTransaction = PostgresJsTransaction<AnyRelations>
 
 export const CurrentDatabaseTransaction = Context.Reference<DrizzleTransaction | undefined>(
-  "EclipseERP/CurrentDatabaseTransaction",
+  "RITSEI/CurrentDatabaseTransaction",
   { defaultValue: () => undefined },
 )
 
@@ -85,7 +85,7 @@ export interface DatabaseService {
   ) => Effect.Effect<A, E | DatabaseFailure, R>
 }
 
-export const Database = Context.Service<DatabaseService>("EclipseERP/Database")
+export const Database = Context.Service<DatabaseService>("RITSEI/Database")
 
 const makeVersionValidation = (
   client: PostgresClient,

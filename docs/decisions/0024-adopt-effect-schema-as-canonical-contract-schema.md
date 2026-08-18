@@ -31,7 +31,7 @@
 
 Odoo and SAP demonstrate a valid but different approach: the ERP framework owns a large data-model
 system that is closely integrated with its ORM, persistence, views, and validation mechanisms.
-EclipseERP is a TypeScript modular monolith with separate ownership for persistence, domain
+RITSEI is a TypeScript modular monolith with separate ownership for persistence, domain
 semantics, HTTP, frontend, plugins, and external integrations. It must therefore make the
 relationships between these schemas explicit instead of treating one ORM model as the whole ERP
 contract.
@@ -58,7 +58,7 @@ trust.
 
 ## Decision
 
-Effect Schema is the canonical runtime schema language for **EclipseERP-owned contracts**.
+Effect Schema is the canonical runtime schema language for **RITSEI-owned contracts**.
 
 ### Contract ownership by layer
 
@@ -73,7 +73,7 @@ Effect Schema is the canonical runtime schema language for **EclipseERP-owned co
 | Connector boundary     | Integration adapter with Effect Schema                   | Normalized `ExternalAction` and `ExternalEvent` contracts           |
 | External wire          | OpenAPI, JSON, CloudEvents, AsyncAPI, or provider format | Language-neutral transport representation                           |
 
-Effect Schema is the single source of truth for an EclipseERP-owned contract. Its inferred
+Effect Schema is the single source of truth for an RITSEI-owned contract. Its inferred
 TypeScript types are compile-time views of that schema, not a replacement for runtime decoding.
 
 ### Frontend
@@ -134,14 +134,14 @@ invariant.
 
 ### Odoo/SAP-style framework-owned universal model
 
-Rejected. EclipseERP needs separate semantic owners for persistence, domains, external
+Rejected. RITSEI needs separate semantic owners for persistence, domains, external
 representations, plugin capabilities, and Process Studio coordination. A universal model would blur
 ownership and make extension order or provider representation affect core invariants.
 
 ### Effect Schema for every consumer and plugin
 
 Rejected. External and sandboxed consumers need language-neutral contracts and must not be coupled
-to EclipseERP's internal runtime or Effect release cycle.
+to RITSEI's internal runtime or Effect release cycle.
 
 ### Effect Schema backend plus Valibot frontend with shared types only
 
@@ -180,7 +180,7 @@ plugin, file, or external event boundaries before domain code consumes them.
 
 ### Negative
 
-- Effect becomes a strategic dependency for EclipseERP-owned contract packages.
+- Effect becomes a strategic dependency for RITSEI-owned contract packages.
 - Effect Schema can add browser bundle weight compared with a frontend-only validator.
 - Teams must learn the distinction between schema validation and domain, database, authorization,
   and reliability invariants.

@@ -15,7 +15,7 @@
 
 ## Context
 
-EclipseERP needs extension without recreating an Odoo-style shared model
+RITSEI needs extension without recreating an Odoo-style shared model
 composition system in which extensions modify a core model, repository, or
 lifecycle through internal reachability. The existing tiered trust decision
 controls extension authority, but the contribution boundary also needs an
@@ -27,7 +27,7 @@ capabilities.
 
 ## Decision
 
-EclipseERP uses **extension by contribution**, not extension by in-place model
+RITSEI uses **extension by contribution**, not extension by in-place model
 modification.
 
 ### Contracts
@@ -48,7 +48,7 @@ modification.
 A plugin manifest declares at least:
 
 - stable identifier and semantic version;
-- plugin API version and compatible EclipseERP range;
+- plugin API version and compatible RITSEI range;
 - trust level and execution/deployment topology;
 - dependencies and entry point;
 - owned schema namespaces and migrations;

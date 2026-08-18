@@ -29,7 +29,7 @@ import {
   ApiUnauthorized,
   BearerAuth,
   CurrentPrincipal,
-  EclipseApi,
+  RitseiApi,
 } from "./api.ts"
 
 const tagOf = (error: unknown) =>
@@ -83,13 +83,13 @@ export const BearerAuthLive = Layer.effect(
 )
 
 export const HealthHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Health",
   (handlers) => handlers.handle("health", () => Effect.succeed({ status: "ok" as const })),
 )
 
 export const UserAccountHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "UserAccounts",
   (handlers) =>
     handlers
@@ -158,7 +158,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
 )
 
 export const PartyHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Parties",
   (handlers) =>
     handlers
@@ -208,7 +208,7 @@ export const PartyHandlers = HttpApiBuilder.group(
 )
 
 export const AuthorizationHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Authorization",
   (handlers) =>
     handlers
@@ -296,7 +296,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
         }))),
 )
 
-export const SalesHandlers = HttpApiBuilder.group(EclipseApi, "Sales", (handlers) =>
+export const SalesHandlers = HttpApiBuilder.group(RitseiApi, "Sales", (handlers) =>
   handlers
     .handle("createCustomer", ({ headers, payload }) =>
       apiEffect(Effect.gen(function* () {
@@ -333,7 +333,7 @@ export const SalesHandlers = HttpApiBuilder.group(EclipseApi, "Sales", (handlers
       }))))
 
 export const InventoryHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Inventory",
   (handlers) =>
     handlers
@@ -417,7 +417,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
 )
 
 export const ProcessHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Process",
   (handlers) =>
     handlers
@@ -459,7 +459,7 @@ export const ProcessHandlers = HttpApiBuilder.group(
 )
 
 export const AccountingHandlers = HttpApiBuilder.group(
-  EclipseApi,
+  RitseiApi,
   "Accounting",
   (handlers) =>
     handlers

@@ -11,4 +11,4 @@ rule:
     - pattern: import "$SOURCE"
 constraints:
   SOURCE:
-    regex: "(^|/)\\.\\.?/[^/]+/src(/|$)|^@eclipse/[^/]+/src(/|$)"
+    regex: "(^|/)\\.\\.?/[^/]+/src(/|$)|^@ritsei/[^/]+/src(/|$)"

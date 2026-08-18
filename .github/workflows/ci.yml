@@ -36,7 +36,7 @@ jobs:
 
       - name: Drizzle migration graph
         env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/eclipse
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ritsei
         run: deno task db:check
 
       - name: Agent skills

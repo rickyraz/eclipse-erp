@@ -115,7 +115,7 @@ the ownership model is incomplete and must be resolved before implementation.
 ## Where `celld` fits
 
 `celld` is not a fifth queue, event bus, or workflow engine. The **Stateful Entity Runtime** itself
-is a first-class, vendor-neutral EclipseERP execution capability, but its use is optional per entity
+is a first-class, vendor-neutral RITSEI execution capability, but its use is optional per entity
 category and the default remains direct PostgreSQL execution. `celld` is only a candidate adapter
 for that capability: one named active entity, one logical owner, entity-local serialization,
 activation, alarms, and recovery.
@@ -149,7 +149,7 @@ workflow_runs + process.jobs + celld workflow state
 
 That creates competing orchestration state. `celld` state must remain rebuildable, runtime-durable,
 or ephemeral according to the approved state classification; PostgreSQL remains canonical for
-EclipseERP business facts. The `celld` adapter is proposed and experimental, not a production
+RITSEI business facts. The `celld` adapter is proposed and experimental, not a production
 dependency.
 
 If an entity category declares runtime execution as required, every command crossing that category's
@@ -172,7 +172,7 @@ A `celld` cell may run inside a WorkloadCell, but those are separate concepts. A
 routing input, not authorization, tenant scope, or business ownership.
 
 `celld` must not leak into domain packages, public DTOs, events, Process IR, or persistence schemas.
-Domain commands, authorization, transaction boundaries, and reconciliation remain EclipseERP-owned.
+Domain commands, authorization, transaction boundaries, and reconciliation remain RITSEI-owned.
 
 ## Four different state machines
 

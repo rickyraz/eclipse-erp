@@ -27,7 +27,7 @@
 
 ## Position
 
-EclipseERP treats overload isolation as a non-interference problem, not only a throughput or
+RITSEI treats overload isolation as a non-interference problem, not only a throughput or
 recovery problem.
 
 The target for projection-safe dashboard, search, and reporting traffic is:
@@ -42,7 +42,7 @@ R(S) intersection R_reserved(P) = empty
 ```
 
 This guarantee is scoped. It applies only to named workloads, named resources, and a deployment that
-proves the separation. It is not a universal claim that EclipseERP cannot experience an outage.
+proves the separation. It is not a universal claim that RITSEI cannot experience an outage.
 
 The architecture preserves the existing authority model:
 
@@ -136,7 +136,7 @@ A WorkloadCell is not:
 
 A `celld` cell is one named stateful Durable Object with an active owner and private SQLite state;
 its bucket durability belongs to that runtime's own state model. A WorkloadCell instead contains
-workload resources and fault boundaries. Neither concept transfers EclipseERP business authority
+workload resources and fault boundaries. Neither concept transfers RITSEI business authority
 from PostgreSQL.
 
 The full term `WorkloadCell` must be used in architecture documents when ambiguity is possible.

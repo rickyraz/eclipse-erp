@@ -17,7 +17,7 @@
 
 ## Decision
 
-EclipseERP uses different primitives for different semantics:
+RITSEI uses different primitives for different semantics:
 
 ```text
 Direct PostgreSQL transaction

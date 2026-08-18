@@ -354,7 +354,7 @@ export interface InventoryService {
   >
 }
 
-export const InventoryService = Context.Service<InventoryService>("EclipseERP/InventoryService")
+export const InventoryService = Context.Service<InventoryService>("RITSEI/InventoryService")
 
 const referenceFailure = (tenantId: string, warehouseId: string, itemId: string) =>
   new InventoryReferenceNotFound({ tenantId, warehouseId, itemId })

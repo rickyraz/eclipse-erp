@@ -22,7 +22,7 @@
 
 ## Position
 
-EclipseERP separates durable business truth from active business-state ownership.
+RITSEI separates durable business truth from active business-state ownership.
 
 ```text
 PostgreSQL
@@ -47,7 +47,7 @@ Three independent boundaries use similar language and must not be conflated:
 
 ```text
 StatefulEntity
--> EclipseERP aggregate-level serialization and active-state boundary
+-> RITSEI aggregate-level serialization and active-state boundary
 
 celld cell
 -> one adapter-owned named Durable Object with one active owner and private SQLite state
@@ -59,7 +59,7 @@ WorkloadCell
 A `WorkloadCell` is governed by [`workload-isolation.md`](./workload-isolation.md). It is not a
 stateful entity, aggregate boundary, or authorization grant. A `celld` cell is an adapter
 implementation term, not an AWS-style workload cell. `celld` bucket durability does not make its
-SQLite state canonical for EclipseERP; runtime fields still follow the state classification and the
+SQLite state canonical for RITSEI; runtime fields still follow the state classification and the
 canonical anchor required by [`state-and-consistency.md`](./state-and-consistency.md) and
 [`financial-ledger.md`](./financial-ledger.md) for financial operations. Runtime entity addressing,
 WorkloadCell placement, and database placement remain separate concerns.
@@ -101,7 +101,7 @@ their existing semantics.
 
 ## Runtime Contract
 
-The eventual EclipseERP-owned contract should remain minimal. Required concepts are:
+The eventual RITSEI-owned contract should remain minimal. Required concepts are:
 
 ```text
 EntityType
@@ -232,7 +232,7 @@ typed service calls; they do not use loopback HTTP merely because a distributed 
 
 ## Category Execution Contract
 
-Runtime adoption is optional for EclipseERP as a whole. An approved entity category may nevertheless
+Runtime adoption is optional for RITSEI as a whole. An approved entity category may nevertheless
 declare entity-serialized execution as required for its consistency boundary. Once it does, runtime
 semantics are mandatory for that category even though the adapter remains replaceable:
 

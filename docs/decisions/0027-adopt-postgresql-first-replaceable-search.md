@@ -31,13 +31,13 @@ ERP search combines several different workloads:
 
 Starting with an external search cluster would add another execution environment, duplicated data,
 projection delivery, reconciliation, credentials, backups, upgrades, and failure modes before
-EclipseERP has measured a need for independent search scaling.
+RITSEI has measured a need for independent search scaling.
 
 PostgreSQL-native ranked and vector search may reduce that complexity while preserving relational
 filters and tenant-aware access. The implementation choices are not yet equally mature for the
 project's PostgreSQL 19 floor. As of 2026-08-06, `pg_textsearch` documents PostgreSQL 17 and 18
 support and requires `shared_preload_libraries`; PostgreSQL 19 compatibility is not established for
-EclipseERP. Vector extensions and embedding pipelines require their own compatibility, privacy,
+RITSEI. Vector extensions and embedding pipelines require their own compatibility, privacy,
 recovery, and workload evidence.
 
 Current upstream references:
@@ -49,7 +49,7 @@ Current upstream references:
 
 ## Decision
 
-EclipseERP adopts a **PostgreSQL-first, replaceable search architecture**.
+RITSEI adopts a **PostgreSQL-first, replaceable search architecture**.
 
 The default progression is:
 
@@ -159,7 +159,7 @@ benefits are measured.
 ### Require `pg_textsearch` immediately
 
 Rejected. Its model is promising, but the current documented PostgreSQL version range does not meet
-the EclipseERP PostgreSQL 19 floor. Requiring `shared_preload_libraries` would also exclude
+the RITSEI PostgreSQL 19 floor. Requiring `shared_preload_libraries` would also exclude
 deployment profiles that cannot install it.
 
 ### Use vector search for every ERP record

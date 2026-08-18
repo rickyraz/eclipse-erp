@@ -1,11 +1,11 @@
-# Hard-Isolation Patterns for EclipseERP
+# Hard-Isolation Patterns for RITSEI
 
 > **Status:** Reference
 >
 > **Owns:** Comparative background for cell architecture, shuffle sharding, overload control,
 > concurrency partitioning, bounded queues, and their possible application to ERP workloads.
 >
-> **Must not own:** Binding EclipseERP workload-isolation, routing, admission, projection, or
+> **Must not own:** Binding RITSEI workload-isolation, routing, admission, projection, or
 > deployment rules.
 >
 > **Related documents**
@@ -20,14 +20,14 @@
 ## Purpose
 
 This document compares four external reliability patterns and translates their useful parts into
-EclipseERP terminology:
+RITSEI terminology:
 
 - AWS cell and bulkhead architecture;
 - AWS shuffle sharding and recursive shuffle sharding;
 - Google SRE overload control and load shedding;
 - Netflix adaptive concurrency and traffic partitioning.
 
-The sources describe large distributed services, not ERP domain semantics. EclipseERP adopts only
+The sources describe large distributed services, not ERP domain semantics. RITSEI adopts only
 the parts that preserve its modular monolith, PostgreSQL canonical truth, typed owner-controlled
 contracts, rebuildable projections, and explicit authorization model.
 
@@ -84,9 +84,9 @@ partition key
 -> one cell
 ```
 
-### EclipseERP adaptation
+### RITSEI adaptation
 
-EclipseERP uses `WorkloadCell` to avoid confusion with a Stateful Entity Runtime entity or a `celld`
+RITSEI uses `WorkloadCell` to avoid confusion with a Stateful Entity Runtime entity or a `celld`
 runtime cell.
 
 The initial natural partition key is `tenantId`, because tenant scope is present in authorization
@@ -133,7 +133,7 @@ user C -> {E3, E7, E12}
 
 One caller may damage its assigned subset, but cannot directly exercise every executor.
 
-### EclipseERP adaptation
+### RITSEI adaptation
 
 The useful recursive order is not a universal domain hierarchy. It is an infrastructure routing
 sequence:
@@ -146,15 +146,15 @@ deployment or region
 -> bounded executor subset
 ```
 
-This respects EclipseERP's identity model: one `UserAccount` may participate in several tenants, so
+This respects RITSEI's identity model: one `UserAccount` may participate in several tenants, so
 `tenantId + userAccountId` is the relevant admission key.
 
 Shuffle-shard membership remains private. It must not enter capability IDs, entity addresses, event
 schemas, URLs, Process IR, or database primary keys.
 
-### What EclipseERP does not copy
+### What RITSEI does not copy
 
-- DNS-based customer routing is an AWS implementation example, not an EclipseERP requirement.
+- DNS-based customer routing is an AWS implementation example, not an RITSEI requirement.
 - Retry across every shard member is not automatically safe for commands; command IDs and
   idempotency remain mandatory.
 - A shuffle shard does not grant authorization or create canonical ownership.
@@ -189,7 +189,7 @@ generate a seven-year consolidated report
 for several legal entities with currency conversion
 ```
 
-EclipseERP therefore treats static request cost as versioned operational metadata and calibrates it
+RITSEI therefore treats static request cost as versioned operational metadata and calibrates it
 against measured CPU, memory, connection hold time, database I/O, WAL, locks, and projection-store
 cost.
 
@@ -260,16 +260,16 @@ with:
 adaptive ceiling <= hard physical ceiling
 ```
 
-### EclipseERP adaptation
+### RITSEI adaptation
 
 Adaptive control is subordinate to a physical command reserve. It may lower query, async, or command
 admission when latency rises, but it may not raise total concurrency above the tested hard ceiling
 or lend protected command resources to dashboard traffic.
 
 Traffic classification comes from trusted route and contract metadata, not a client-provided header.
-The tenant, principal, capability, and route are derived from authenticated EclipseERP context.
+The tenant, principal, capability, and route are derived from authenticated RITSEI context.
 
-### What EclipseERP does not copy
+### What RITSEI does not copy
 
 - The Java library is a reference, not a selected dependency.
 - A latency algorithm does not replace hard container/process limits or database pool maxima.
@@ -282,7 +282,7 @@ The tenant, principal, capability, and route are derived from authenticated Ecli
 
 The patterns complement rather than replace one another:
 
-| Pattern                    | Primary contribution                                  | EclipseERP use                                                         |
+| Pattern                    | Primary contribution                                  | RITSEI use                                                         |
 | -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
 | Cell/bulkhead architecture | Bounded fault domains and thin routing                | Tenant-group WorkloadCells with explicit shared dependencies           |
 | Shuffle sharding           | Limits one caller to a subset of contended resources  | Tenant-scoped user or service-principal executor subsets               |
@@ -302,9 +302,9 @@ thin router
 -> fail fast instead of long interactive queues
 ```
 
-## EclipseERP-Specific Corrections
+## RITSEI-Specific Corrections
 
-A direct copy of hyperscale service patterns would violate current EclipseERP decisions. The
+A direct copy of hyperscale service patterns would violate current RITSEI decisions. The
 adaptation therefore preserves these constraints.
 
 ### PostgreSQL remains canonical
@@ -361,7 +361,7 @@ infrastructure resources for a workload subset. A `celld` cell is a named statef
 with private SQLite state and one active owner. They must not be conflated.
 
 `celld`'s bucket is durable authority for its own SQLite state; that is not automatically canonical
-business authority in EclipseERP. Under ADR-0003, PostgreSQL remains canonical for business facts.
+business authority in RITSEI. Under ADR-0003, PostgreSQL remains canonical for business facts.
 Therefore `celld` supports entity-level coordination and recovery, while WorkloadCells, workload
 planes, and ResourceLeases protect command resources from degradable workload traffic.
 

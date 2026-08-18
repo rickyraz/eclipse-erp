@@ -35,7 +35,7 @@ import {
   makeProcessService,
   ProcessService,
 } from "../../packages/process/mod.ts"
-import { EclipseApi } from "./api.ts"
+import { RitseiApi } from "./api.ts"
 import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 
 export const serviceLayers = (
@@ -120,9 +120,9 @@ export const makeApiLayer = (client: Sql, port = 8000) => {
     Layer.provide(services),
   )
 
-  return HttpApiBuilder.layer(EclipseApi).pipe(
+  return HttpApiBuilder.layer(RitseiApi).pipe(
     Layer.provide(handlers),
-    Layer.provide(HttpApiScalar.layer(EclipseApi)),
+    Layer.provide(HttpApiScalar.layer(RitseiApi)),
     HttpRouter.serve,
     Layer.provide(DenoHttpServer.layer({ port })),
     Layer.provide(services),

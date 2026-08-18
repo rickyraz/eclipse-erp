@@ -185,7 +185,7 @@ const isValidConfig = (config: TigerBeetleFinancialLedgerConfig) =>
 const digestId = (parts: readonly string[]) =>
   Effect.promise(async () => {
     const data = new TextEncoder().encode(
-      JSON.stringify(["eclipse-erp/tigerbeetle", "v1", ...parts]),
+      JSON.stringify(["ritsei/tigerbeetle", "v1", ...parts]),
     )
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
     let value = 0n

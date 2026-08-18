@@ -42,7 +42,7 @@ export const analyzePackageDependencies = (
     for (const specifier of extractModuleSpecifiers(file.source)) {
       let targetPackage: string | undefined
       let targetPath: string | undefined
-      const alias = specifier.match(/^@eclipse\/([^/]+)(?:\/(.+))?$/)
+      const alias = specifier.match(/^@ritsei\/([^/]+)(?:\/(.+))?$/)
 
       if (alias !== null) {
         targetPackage = alias[1]

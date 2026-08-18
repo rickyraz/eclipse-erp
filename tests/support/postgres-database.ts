@@ -5,7 +5,7 @@ export const withTemporaryDatabase = <A, E, R>(
   databaseUrl: string,
   use: (client: Sql) => Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | unknown, R> => {
-  const databaseName = `eclipse_test_${crypto.randomUUID().replaceAll("-", "")}`
+  const databaseName = `ritsei_test_${crypto.randomUUID().replaceAll("-", "")}`
   const targetUrl = new URL(databaseUrl)
   targetUrl.pathname = `/${databaseName}`
 

@@ -23,7 +23,7 @@ third-party runtime are post-version-1 concerns.
 
 ## Contribution Model
 
-EclipseERP uses **extension by contribution**, not in-place extension of a core
+RITSEI uses **extension by contribution**, not in-place extension of a core
 model, table, repository, or domain implementation.
 
 - **Public contracts** serve ordinary domain consumers through supported
@@ -43,7 +43,7 @@ Detailed rationale is owned by
 
 ### Core Module
 
-Compiled and released with EclipseERP. It may participate in core transactions and owns a domain
+Compiled and released with RITSEI. It may participate in core transactions and owns a domain
 schema.
 
 ### Trusted Server Plugin
@@ -122,7 +122,7 @@ A plugin manifest must define:
 - semantic version;
 - plugin API version;
 - trust level;
-- compatible EclipseERP range;
+- compatible RITSEI range;
 - dependencies;
 - entry point;
 - owned schema;
@@ -143,7 +143,7 @@ Shared primitive cores remain jurisdiction-neutral. Jurisdiction-specific policy
 codes, evidence formats, reporting formats, and authority integrations belong to explicit
 localization boundaries.
 
-A localization may be a core module released with EclipseERP or a trusted server plugin installed by
+A localization may be a core module released with RITSEI or a trusted server plugin installed by
 an operator. Both use public domain contracts or explicit contributor contracts and must not mutate
 another module's tables, redefine its invariants, or patch jurisdiction-specific behavior into
 shared primitives.

@@ -97,7 +97,7 @@ export interface FinancialOperationFailpointService {
 export const FinancialOperationFailpointService = Context.Service<
   FinancialOperationFailpointService
 >(
-  "EclipseERP/Accounting/FinancialOperationFailpoint",
+  "RITSEI/Accounting/FinancialOperationFailpoint",
 )
 
 export const makeFinancialOperationFailpointLayer = (
@@ -501,7 +501,7 @@ export interface FinancialOperationService {
 }
 
 export const FinancialOperationService = Context.Service<FinancialOperationService>(
-  "EclipseERP/Accounting/FinancialOperationService",
+  "RITSEI/Accounting/FinancialOperationService",
 )
 
 const operationSelection = {

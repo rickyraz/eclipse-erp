@@ -1,9 +1,9 @@
-# EclipseERP Engineering Lineage
+# RITSEI Engineering Lineage
 
 > **Status:** Reference
 >
 > This document records comparative engineering influences and useful reading. It is not an adoption
-> statement, implementation specification, or new architectural decision. EclipseERP's source of
+> statement, implementation specification, or new architectural decision. RITSEI's source of
 > truth remains its accepted ADRs and canonical architecture documents.
 >
 > **Related documents**
@@ -21,8 +21,8 @@
 
 ## Why this document exists
 
-EclipseERP does not claim to follow one external book, company architecture, or framework. Its
-architecture is a synthesis of several engineering traditions, constrained by EclipseERP's own
+RITSEI does not claim to follow one external book, company architecture, or framework. Its
+architecture is a synthesis of several engineering traditions, constrained by RITSEI's own
 ownership, PostgreSQL, transaction, authorization, and recovery decisions.
 
 The references below answer:
@@ -33,18 +33,18 @@ The references below answer:
 - which rule is actually binding in this repository.
 
 A resemblance is not an adoption. The accepted ADR or canonical architecture document is always the
-binding source for EclipseERP behavior.
+binding source for RITSEI behavior.
 
 ## Comparative lineage
 
-| EclipseERP concern                                                      | Closest engineering lineage                       | EclipseERP interpretation                                                                                                                |
+| RITSEI concern                                                      | Closest engineering lineage                       | RITSEI interpretation                                                                                                                |
 | ----------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Semantic ownership, bounded domains, aggregate boundaries               | Domain-Driven Design                              | One semantic owner per invariant; domains expose public contracts and do not write another domain's tables.                              |
 | PostgreSQL as canonical transactional truth                             | Data-intensive systems design                     | Transactions, constraints, idempotency, reconciliation, and explicit consistency trade-offs remain central.                              |
 | Commands, events, correlation, durable subscribers, competing consumers | Enterprise Integration Patterns                   | Commands request work; events describe committed facts; delivery is at-least-once and consumers are idempotent.                          |
 | `messaging.event_outbox`                                                | Transactional Outbox pattern                      | Event intent commits with the owning mutation before a delivery adapter accepts it.                                                      |
 | `process.jobs`                                                          | Leased work, competing consumers, scheduled retry | Process-owned imperative work has one worker-oriented lifecycle and does not become a general event bus.                                 |
-| `workflow_runs`                                                         | Durable orchestration and workflow engines        | Process state and result are durable, but EclipseERP keeps workflow state, leased work, events, and delivery separate.                   |
+| `workflow_runs`                                                         | Durable orchestration and workflow engines        | Process state and result are durable, but RITSEI keeps workflow state, leased work, events, and delivery separate.                   |
 | Stateful Entity Runtime                                                 | Virtual actors / addressed active objects         | Stable entity address, active ownership, serialized turns, activation, fencing, and recovery are optional runtime semantics.             |
 | Fencing, ownership loss, recovery, operational gates                    | Distributed-systems reliability and SRE           | Runtime ownership never removes PostgreSQL correctness; failure injection, telemetry, reconciliation, and measured benefit are required. |
 | WorkloadCell and resource isolation                                     | Bulkheads and failure-domain isolation            | Deployment/resource containment is separate from entity ownership, authorization, and business state.                                    |
@@ -54,14 +54,14 @@ binding source for EclipseERP behavior.
 ### Domain-Driven Design
 
 Eric Evans's _Domain-Driven Design: Tackling Complexity in the Heart of Software_ is the closest
-lineage for EclipseERP's bounded-domain vocabulary and semantic ownership. Fowler's overview of
+lineage for RITSEI's bounded-domain vocabulary and semantic ownership. Fowler's overview of
 bounded contexts is a concise supporting reference:
 
 - Eric Evans, _Domain-Driven Design: Tackling Complexity in the Heart of Software_, Addison-Wesley,
   2003.
 - [Martin Fowler — Bounded Context](https://www.martinfowler.com/bliki/BoundedContext.html)
 
-In EclipseERP, this lineage is narrowed into explicit repository rules:
+In RITSEI, this lineage is narrowed into explicit repository rules:
 
 ```text
 Sales       owns order invariants
@@ -82,7 +82,7 @@ trade-offs between storage and messaging mechanisms:
 
 - [Martin Kleppmann — Designing Data-Intensive Applications](https://martin.kleppmann.com/2017/03/27/designing-data-intensive-applications.html)
 
-EclipseERP applies that lens without treating the book as a blueprint. PostgreSQL remains the
+RITSEI applies that lens without treating the book as a blueprint. PostgreSQL remains the
 canonical business-fact store; runtime, queue, projection, and delivery state must not silently
 replace it.
 
@@ -102,7 +102,7 @@ transactional relational query.
 
 ### Enterprise Integration Patterns
 
-Hohpe and Woolf provide the vocabulary closest to EclipseERP's command/event and delivery model:
+Hohpe and Woolf provide the vocabulary closest to RITSEI's command/event and delivery model:
 
 - [Message](https://www.enterpriseintegrationpatterns.com/patterns/messaging/Message.html)
 - [Durable Subscriber](https://www.enterpriseintegrationpatterns.com/patterns/messaging/DurableSubscription.html)
@@ -110,7 +110,7 @@ Hohpe and Woolf provide the vocabulary closest to EclipseERP's command/event and
 
 Relevant concepts include command messages, event messages, correlation identifiers, publish/
 subscribe, competing consumers, durable subscribers, guaranteed delivery, and idempotent receivers.
-EclipseERP adapts these ideas to a PostgreSQL transaction-aware outbox and public Effect service
+RITSEI adapts these ideas to a PostgreSQL transaction-aware outbox and public Effect service
 contracts; it does not claim exactly-once external delivery.
 
 ### Google SRE and reliability engineering
@@ -121,9 +121,9 @@ ownership/fencing concerns, observability, and proving recovery rather than assu
 - [Managing Critical State](https://sre.google/sre-book/managing-critical-state/)
 - [Operational Simplicity](https://sre.google/sre-book/simplicity/)
 
-The comparison is about engineering method, not infrastructure imitation. EclipseERP's runtime
+The comparison is about engineering method, not infrastructure imitation. RITSEI's runtime
 maturity gates, failure injection, reconciliation, pressure/fallback behavior, and performance
-thresholds remain EclipseERP-specific.
+thresholds remain RITSEI-specific.
 
 ### Virtual actors and the Stateful Entity Runtime
 
@@ -141,7 +141,7 @@ activation/deactivation or hibernation
 recovery and reactivation
 ```
 
-EclipseERP deliberately changes the authority model:
+RITSEI deliberately changes the authority model:
 
 ```text
 PostgreSQL              = canonical business facts
@@ -153,7 +153,7 @@ required only for an approved entity category whose execution contract says so.
 
 ### `celld`
 
-`celld` is the currently evaluated distributed adapter for the EclipseERP-owned runtime contract:
+`celld` is the currently evaluated distributed adapter for the RITSEI-owned runtime contract:
 
 - [`celld` repository](https://github.com/denoland/celld)
 - [`celld` fencing documentation](https://github.com/denoland/celld/blob/main/docs/fencing.md)
@@ -168,10 +168,10 @@ local/direct adapter must remain possible.
 The dependency direction is:
 
 ```text
-EclipseERP domain
+RITSEI domain
         |
         v
-EclipseERP StatefulEntityRuntime contract
+RITSEI StatefulEntityRuntime contract
         |
         +--> local/direct-compatible adapter
         |
@@ -181,7 +181,7 @@ EclipseERP StatefulEntityRuntime contract
 It is not:
 
 ```text
-EclipseERP domain -> celld
+RITSEI domain -> celld
 ```
 
 ## Comparative systems, not architectural parents
@@ -192,7 +192,7 @@ Netflix Conductor is a useful comparison for durable workflow orchestration and 
 
 - [Netflix Conductor repository](https://github.com/netflix/conductor)
 
-The comparison applies primarily to `workflow_runs` and durable process execution. EclipseERP does
+The comparison applies primarily to `workflow_runs` and durable process execution. RITSEI does
 not adopt Conductor as its architecture and does not collapse workflow state, internal jobs, event
 outbox, and event fan-out into one generic orchestration engine.
 
@@ -228,11 +228,11 @@ DDD ownership
 + evidence-based operational gates
 ```
 
-That combination is a synthesis, not a claim that EclipseERP follows one external blueprint.
+That combination is a synthesis, not a claim that RITSEI follows one external blueprint.
 
 ## What these references do not authorize
 
-These references must not be used to justify any of the following without an accepted EclipseERP
+These references must not be used to justify any of the following without an accepted RITSEI
 decision:
 
 - making `celld` mandatory;
@@ -245,4 +245,4 @@ decision:
 - importing vendor runtime types into domain packages; or
 - adding a second source of truth for workflow, job, event, or business state.
 
-When an external analogy and an EclipseERP ADR disagree, the EclipseERP ADR wins.
+When an external analogy and an RITSEI ADR disagree, the RITSEI ADR wins.

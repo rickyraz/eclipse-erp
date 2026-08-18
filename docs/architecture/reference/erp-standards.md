@@ -33,7 +33,7 @@ derecognition, measurement, presentation, and disclosure. It does not prescribe 
 
 ```text
 external standard -> shared accounting semantics
-EclipseERP        -> domain model, posting policy, and storage design
+RITSEI        -> domain model, posting policy, and storage design
 ```
 
 ### Identifiers and Code Lists
@@ -53,7 +53,7 @@ External identifiers must remain distinct from internal identity:
 resource_id = internal UUID
 GTIN        = external trade-item identifier
 supplierSku = identifier assigned by a supplier
-internalSku = identifier assigned by EclipseERP or its tenant
+internalSku = identifier assigned by RITSEI or its tenant
 ```
 
 An external identifier can be unavailable, reassigned under its governing rules, scoped to a
@@ -86,7 +86,7 @@ activity and information models, and exchange boundaries between enterprise and
 manufacturing-control functions.
 
 These standards improve communication and interoperability. They do not by themselves determine
-EclipseERP package ownership or bounded contexts.
+RITSEI package ownership or bounded contexts.
 
 ### Reporting and Regulatory Output
 
@@ -214,7 +214,7 @@ business event
 ```
 
 The ledger owns balanced financial facts. External accounting and reporting standards supply
-semantic and output requirements, while the internal engine and storage boundary remain EclipseERP
+semantic and output requirements, while the internal engine and storage boundary remain RITSEI
 decisions.
 
 ### Manufacturing

@@ -30,13 +30,13 @@ uses TigerBeetle for accepted transfers and balances through the boundary in
 
 ## Application Shape
 
-EclipseERP is a modular monolith with multiple executables:
+RITSEI is a modular monolith with multiple executables:
 
 ```text
-eclipse-api
-eclipse-worker
-eclipse-migrate
-eclipse-event-relay
+ritsei-api
+ritsei-worker
+ritsei-migrate
+ritsei-event-relay
 ```
 
 They share domain packages and one PostgreSQL ownership model.

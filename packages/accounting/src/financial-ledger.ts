@@ -166,7 +166,7 @@ export interface FinancialLedgerPort {
 }
 
 export const FinancialLedgerPort = Context.Service<FinancialLedgerPort>(
-  "EclipseERP/FinancialLedgerPort",
+  "RITSEI/FinancialLedgerPort",
 )
 
 type TestAdapterOptions = Readonly<{

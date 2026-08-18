@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file defines how coding agents must work in the EclipseERP repository.
+This file defines how coding agents must work in the RITSEI repository.
 
 > **Related documents**
 >
@@ -376,7 +376,7 @@ control, deployment cells, or shuffle sharding, read
   documented address, state class, version, idempotency, recovery, reconciliation,
   observability, and fallback path.
 - Domain packages must not import `celld`, Cloudflare Durable Object, fleet,
-  bucket, or ownership-protocol APIs; adapters stay behind EclipseERP-owned
+  bucket, or ownership-protocol APIs; adapters stay behind RITSEI-owned
   runtime contracts.
 - Do not activate `celld` for production until ADR-0026's maturity gates pass and
   a later accepted ADR approves production use.

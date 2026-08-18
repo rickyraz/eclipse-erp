@@ -71,7 +71,7 @@ import {
   InventoryService,
   StockUnavailable,
   ReserveStock,
-} from "@eclipse/inventory"
+} from "@ritsei/inventory"
 ```
 
 ## Module Integration Tests

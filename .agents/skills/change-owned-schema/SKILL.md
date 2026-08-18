@@ -5,7 +5,7 @@ description: "Use when adding, removing, or renaming PostgreSQL tables, columns,
 
 # Purpose
 
-Change EclipseERP persistence through the owning domain, the Drizzle schema graph, reviewed migrations, and database-level invariant checks.
+Change RITSEI persistence through the owning domain, the Drizzle schema graph, reviewed migrations, and database-level invariant checks.
 
 # Use This Skill When
 

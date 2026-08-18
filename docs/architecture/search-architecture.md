@@ -21,7 +21,7 @@
 
 ## Position
 
-EclipseERP uses PostgreSQL-first search and preserves a measured path to replicas or external search
+RITSEI uses PostgreSQL-first search and preserves a measured path to replicas or external search
 projections. Search improves discovery; it does not acquire business authority.
 
 ```text
@@ -198,7 +198,7 @@ The candidate must remain optional because it requires PostgreSQL extension inst
 Use `pgvector`, `pgvectorscale`, or another approved provider only after PostgreSQL 19
 compatibility, search-quality improvement, privacy review, and operational benefit are demonstrated.
 
-Embedding generation runs through an EclipseERP-owned job and integration boundary. The database may
+Embedding generation runs through an RITSEI-owned job and integration boundary. The database may
 store embeddings, but domain writes do not depend on an embedding provider being available.
 
 ### Stage 4: replica or external search plane

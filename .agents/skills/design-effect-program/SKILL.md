@@ -1,11 +1,11 @@
 ---
 name: design-effect-program
-description: "Use when designing, explaining, reviewing, or changing an EclipseERP Effect program's success flow, typed failures, service requirements, boundary decoding, resource scope, or production/test call graph."
+description: "Use when designing, explaining, reviewing, or changing an RITSEI Effect program's success flow, typed failures, service requirements, boundary decoding, resource scope, or production/test call graph."
 ---
 
 # Purpose
 
-Turn an EclipseERP operation into a readable Effect v4 program whose success path, failures,
+Turn an RITSEI operation into a readable Effect v4 program whose success path, failures,
 requirements, trust boundaries, and test substitutions match the real call graph.
 
 # Use This Skill When

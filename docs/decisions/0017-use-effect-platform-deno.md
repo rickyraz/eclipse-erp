@@ -13,7 +13,7 @@
 
 ## Context
 
-EclipseERP runs on Deno, but its Effect HTTP server previously crossed through
+RITSEI runs on Deno, but its Effect HTTP server previously crossed through
 `@effect/platform-node` and `node:http`. The canonical Effect repository now contains
 `@effect/platform-deno` with native `DenoHttpServer` and `DenoRuntime` implementations.
 

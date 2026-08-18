@@ -1,4 +1,4 @@
-# Autoresearch: Close EclipseERP P3 and ADR-0033 runtime gaps
+# Autoresearch: Close RITSEI P3 and ADR-0033 runtime gaps
 
 ## Objective
 After completing the initial P0-P3 decision portfolio, finish the remaining executable gaps before calling P3 and the bounded ADR-0033 order lifecycle ready: owner-controlled transaction-aware event publication, distinct command/correlation/idempotency metadata, durable duplicate-safe consumer completion, and cancellation/fulfillment coordination.

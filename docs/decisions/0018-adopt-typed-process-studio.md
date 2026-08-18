@@ -21,7 +21,7 @@
 
 ## Context
 
-EclipseERP needs to support business-process composition by business users without allowing process
+RITSEI needs to support business-process composition by business users without allowing process
 definitions to bypass domain ownership, authorization, tenant isolation, transactional invariants,
 audit, or durable execution rules.
 
@@ -52,7 +52,7 @@ framework.
 
 ## Decision
 
-EclipseERP will build a typed, domain-aware Process Studio in catalog-first and runtime-first stages
+RITSEI will build a typed, domain-aware Process Studio in catalog-first and runtime-first stages
 before delivering the visual designer.
 
 ### Typed Action Catalog
@@ -85,9 +85,9 @@ The existence of a compensation command does not automatically activate it. A pu
 definition must declare its compensation policy. Operations with no compensation enter explicit
 manual recovery when later failure requires intervention.
 
-### Eclipse Process IR
+### RITSEI Process IR
 
-Eclipse Process IR is the authoritative executable representation. It is small, typed,
+RITSEI Process IR is the authoritative executable representation. It is small, typed,
 deterministic, versioned, and limited initially to Start, Domain Command, Human Task, Decision, Wait
 for Event, Timer, Parallel Branch, and End.
 

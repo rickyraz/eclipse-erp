@@ -217,7 +217,7 @@ Only after the contract and test adapter gates pass:
 2. Install/update `deno.lock` through the repository dependency workflow.
 3. Implement the client lifecycle and provider-error mapping in kernel/infrastructure.
 4. Enforce the trusted network and credential boundary.
-5. Map EclipseERP accounts to TigerBeetle accounts with deterministic IDs.
+5. Map RITSEI accounts to TigerBeetle accounts with deterministic IDs.
 6. Compile balanced journals into transfers and linked chains.
 7. Validate batching, ordering, balance constraints, and duplicate submission against an isolated
    TigerBeetle environment.

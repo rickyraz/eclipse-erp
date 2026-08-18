@@ -2,7 +2,7 @@
 
 > **Status:** Canonical target architecture
 >
-> **Owns:** Process design-time semantics, typed action and event catalogs, Eclipse Process IR,
+> **Owns:** Process design-time semantics, typed action and event catalogs, RITSEI Process IR,
 > static process validation, definition governance, compensation metadata, and the staged Process
 > Studio roadmap.
 >
@@ -32,12 +32,12 @@
 
 ## Purpose
 
-EclipseERP will provide a governed, typed, domain-aware Process Studio for modeling, publishing,
+RITSEI will provide a governed, typed, domain-aware Process Studio for modeling, publishing,
 executing, monitoring, and improving business processes. Business users compose approved ERP
 capabilities; they do not write arbitrary SQL, scripts, or mutations against domain state.
 
 The target is not a generic low-code platform or a clone of another process product. The
-distinguishing property is that the designer and runtime understand EclipseERP's public domain
+distinguishing property is that the designer and runtime understand RITSEI's public domain
 contracts, capabilities, tenant scopes, typed failures, state transitions, events, and compensation
 semantics.
 
@@ -241,7 +241,7 @@ contracts from the connector layer. These are distinct from `DomainAction` and
 
 ```text
 DomainAction
-  -> public command owned by an EclipseERP domain
+  -> public command owned by an RITSEI domain
 
 ExternalAction
   -> connector operation owned by an external provider adapter
@@ -549,10 +549,10 @@ Static validation must prove that:
 Event delivery remains at-least-once unless the owning messaging contract says otherwise. Resume
 operations and event consumers must therefore be idempotent.
 
-## Eclipse Process IR
+## RITSEI Process IR
 
-Eclipse Process IR is the internal source of truth for process definitions. It is deliberately
-smaller than BPMN, typed, versioned, deterministic, and aligned with EclipseERP runtime semantics.
+RITSEI Process IR is the internal source of truth for process definitions. It is deliberately
+smaller than BPMN, typed, versioned, deterministic, and aligned with RITSEI runtime semantics.
 
 Initial node kinds are limited to:
 
@@ -579,20 +579,20 @@ BPMN import
 validated translator
     |
     v
-Eclipse Process IR
+RITSEI Process IR
 ```
 
 and later:
 
 ```text
-Eclipse Process IR
+RITSEI Process IR
     |
     v
 BPMN exporter
 ```
 
 BPMN and DMN are interoperability targets. Their full execution semantics do not automatically
-become EclipseERP runtime semantics.
+become RITSEI runtime semantics.
 
 The IR must support:
 
@@ -637,7 +637,7 @@ into the decision input. Time-sensitive decisions receive an explicit timestamp 
 
 Pure decisions enable reproducible simulation, deterministic retries, versioned decision tables, and
 explainable branch selection. Decision tables may become DMN-compatible progressively, but the 1.0
-runtime uses the bounded Eclipse decision model.
+runtime uses the bounded RITSEI decision model.
 
 ## Static Process Validation
 
@@ -1324,7 +1324,7 @@ Exit criteria:
 ### 0.85 — Minimal Headless Runtime
 
 ```text
-Eclipse Process IR
+RITSEI Process IR
 Process definitions
 Process instances
 Domain command execution

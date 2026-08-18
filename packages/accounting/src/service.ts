@@ -477,7 +477,7 @@ export interface AccountingService {
 }
 
 export const AccountingService = Context.Service<AccountingService>(
-  "EclipseERP/AccountingService",
+  "RITSEI/AccountingService",
 )
 
 const toMinor = (value: string) => {

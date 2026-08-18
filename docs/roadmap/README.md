@@ -1,4 +1,4 @@
-# EclipseERP Roadmap
+# RITSEI Roadmap
 
 > **Status:** Canonical roadmap index
 >
@@ -19,7 +19,7 @@
 
 ## Purpose
 
-EclipseERP must decide and stabilize its ERP primitives before Process Studio
+RITSEI must decide and stabilize its ERP primitives before Process Studio
 becomes a large durable runtime. The roadmap is therefore dependency-first, not
 feature-count-first.
 

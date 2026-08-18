@@ -24,7 +24,7 @@
 
 ## Context
 
-EclipseERP keeps canonical writes and invariant-sensitive reads on PostgreSQL while allowing bounded
+RITSEI keeps canonical writes and invariant-sensitive reads on PostgreSQL while allowing bounded
 query workloads to use replicas or rebuildable projections. Some future routes will need a stronger
 contract than eventual or bounded-stale reads without returning every post-command read to the
 primary.
@@ -53,7 +53,7 @@ does not activate it for production.
 
 ## Decision
 
-EclipseERP selects PostgreSQL 19 `WAIT FOR` as the planned infrastructure mechanism for
+RITSEI selects PostgreSQL 19 `WAIT FOR` as the planned infrastructure mechanism for
 replica-backed read-your-writes consistency.
 
 The decision is accepted, but implementation and production activation are deferred. Activation is
@@ -175,7 +175,7 @@ authorization, timeout, or no-fallback behavior.
 ### Poll replica replay functions in application code
 
 Rejected as the selected PostgreSQL 19 mechanism. `WAIT FOR` provides the database-owned wait
-operation, timeout, and status semantics, while EclipseERP still owns token validation and route
+operation, timeout, and status semantics, while RITSEI still owns token validation and route
 policy.
 
 ## Consequences

@@ -43,7 +43,7 @@ export interface WorkerFailpointService {
   readonly hit: (point: WorkerFailpointName) => Effect.Effect<void, WorkerInjectedFailure>
 }
 export const WorkerFailpointService = Context.Service<WorkerFailpointService>(
-  "EclipseERP/WorkerFailpoint",
+  "RITSEI/WorkerFailpoint",
 )
 export const makeWorkerFailpointLayer = (points: Iterable<WorkerFailpointName>) => {
   const remaining = new Set(points)

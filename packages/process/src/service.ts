@@ -441,7 +441,7 @@ export interface ProcessService {
   >
 }
 
-export const ProcessService = Context.Service<ProcessService>("EclipseERP/ProcessService")
+export const ProcessService = Context.Service<ProcessService>("RITSEI/ProcessService")
 
 export const makeProcessJobEnqueuer = Effect.gen(function* () {
   const database = yield* Database

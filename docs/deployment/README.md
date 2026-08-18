@@ -28,7 +28,7 @@
 
 ## Topology Posture
 
-EclipseERP does not lock operators into one deployment topology. A small installation may colocate
+RITSEI does not lock operators into one deployment topology. A small installation may colocate
 logical roles and use PostgreSQL directly. A larger installation may replicate, partition, shard, or
 independently scale approved runtime components.
 
@@ -202,7 +202,7 @@ the platform operator owns topology decisions. Plugins and business users cannot
 architectural boundaries or select arbitrary infrastructure through domain inputs.
 
 Products such as `celld`, PgQue, `pg_durable`, Redis, ClickHouse, a pooler, or a search engine are not
-granted business authority merely because they are deployed. EclipseERP depends on the minimum
+granted business authority merely because they are deployed. RITSEI depends on the minimum
 architectural semantics assigned to each layer and keeps product-specific topology behind
 infrastructure adapters or composition roots.
 

@@ -15,7 +15,7 @@
 
 ## Context
 
-EclipseERP needs a financial ledger capable of preserving accounting
+RITSEI needs a financial ledger capable of preserving accounting
 correctness, immutable movements, auditability, and reliable balance invariants.
 The storage or execution engine for that ledger is an infrastructure decision,
 not an orthogonal domain primitive.
@@ -42,7 +42,7 @@ engine is specialized.
 
 ## Decision
 
-EclipseERP will initially use PostgreSQL as the authoritative financial ledger
+RITSEI will initially use PostgreSQL as the authoritative financial ledger
 store and transaction boundary, consistent with ADR-0003.
 
 TigerBeetle is **not adopted initially**. It remains an evaluated alternative
@@ -90,7 +90,7 @@ as:
 
 Those engine primitives do not automatically constitute the complete ERP
 accounting domain. Metadata, policy, reporting, fiscal periods, and business
-relationships remain EclipseERP-owned concepts.
+relationships remain RITSEI-owned concepts.
 
 ## Evaluation Options
 

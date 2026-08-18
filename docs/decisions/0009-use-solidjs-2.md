@@ -14,14 +14,14 @@
 
 ## Context
 
-EclipseERP needs a typed frontend with predictable fine-grained reactivity,
+RITSEI needs a typed frontend with predictable fine-grained reactivity,
 clear feature boundaries, and low accidental recomputation. The previous
 architecture summary selected React but did not establish a dedicated frontend
 architecture.
 
 ## Decision
 
-Use TypeScript strict with SolidJS 2.0 for the EclipseERP frontend. Shared public
+Use TypeScript strict with SolidJS 2.0 for the RITSEI frontend. Shared public
 contracts use Effect Schema. SolidJS-specific implementation rules are owned by
 `../architecture/frontend.md`.
 
@@ -30,7 +30,7 @@ contracts use Effect Schema. SolidJS-specific implementation rules are owned by
 ### React
 
 React was the previous selection. It is no longer the active frontend framework
-for EclipseERP.
+for RITSEI.
 
 ### Framework-Agnostic Frontend
 

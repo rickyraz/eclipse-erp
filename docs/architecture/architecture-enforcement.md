@@ -88,7 +88,7 @@ import { stockPosition } from "../inventory/src/internal/tables.ts"
 and allow imports such as:
 
 ```ts
-import { InventoryService } from "@eclipse/inventory"
+import { InventoryService } from "@ritsei/inventory"
 ```
 
 The current scaffold enforces these checks with:

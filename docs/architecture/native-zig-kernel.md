@@ -10,7 +10,7 @@
 
 ## Position
 
-If EclipseERP adopts Zig, it should be used for bounded deterministic compute,
+If RITSEI adopts Zig, it should be used for bounded deterministic compute,
 not for the HTTP API, ORM, or transaction manager.
 
 ## Strong Candidates

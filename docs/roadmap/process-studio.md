@@ -104,7 +104,7 @@ Exit gate:
 Only after the 0.8 catalog gate:
 
 ```text
-Eclipse Process IR
+RITSEI Process IR
 process definitions and instances
 domain command execution
 pure decisions

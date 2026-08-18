@@ -1,4 +1,4 @@
-# EclipseERP Architecture Specification v4
+# RITSEI Architecture Specification v4
 
 > **Status:** Canonical and active
 >
@@ -55,7 +55,7 @@
 
 ## Decision
 
-EclipseERP remains a modular monolith. This specification defines the application runtime and
+RITSEI remains a modular monolith. This specification defines the application runtime and
 cross-cutting boundaries; financial ledger authority is governed by the dedicated subsystem
 architecture and ADR-0040 without weakening domain ownership, audit, or transactional-integrity
 principles.
@@ -131,7 +131,7 @@ Deno-specific configuration.
 ## Repository Shape
 
 ```text
-eclipse-erp/
+ritsei/
 ├── apps/
 │   ├── api/
 │   ├── worker/
@@ -153,7 +153,7 @@ eclipse-erp/
 │   ├── process/
 │   ├── billing/
 │   └── integrations/
-├── native/eclipse-calc/
+├── native/ritsei-calc/
 ├── db/
 │   ├── schema/
 │   ├── migrations/
@@ -314,7 +314,7 @@ and validation rules are owned by [`workload-isolation.md`](./workload-isolation
 
 ## Stateful Entity Runtime Contract
 
-EclipseERP may route selected, approved aggregate categories through a
+RITSEI may route selected, approved aggregate categories through a
 vendor-neutral Stateful Entity Runtime for explicit active ownership,
 identity-local serialization, hot state, or object-local coordination.
 Stateless Effect services and direct PostgreSQL transactions remain the default.
@@ -347,7 +347,7 @@ domain owns, such as durable progress, retry, or compensation status.
 
 ## Process Studio Contract
 
-EclipseERP's planned Process Studio composes versioned, typed domain actions and events through a
+RITSEI's planned Process Studio composes versioned, typed domain actions and events through a
 small deterministic Process IR. It does not expose arbitrary SQL, scripts, private repositories, or
 cross-domain table mutation. Actions execute through authorized public domain contracts; decisions
 are pure; released definitions are immutable, deployments are explicit, and running instances remain

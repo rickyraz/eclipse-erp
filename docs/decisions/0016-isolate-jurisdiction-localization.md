@@ -22,7 +22,7 @@ and authority integrations. Embedding every country's rules in shared primitives
 primitives unstable, contradictory, and difficult to reuse.
 
 Localization also has varying trust and deployment requirements. Some localizations are maintained
-and released with EclipseERP, while others may be installed separately by an operator.
+and released with RITSEI, while others may be installed separately by an operator.
 
 ## Decision
 
@@ -33,7 +33,7 @@ codes, filing formats, authority endpoints, or policy details.
 Jurisdiction-specific rules are implemented in explicit localization boundaries. A localization may
 be either:
 
-- a core module compiled and released with EclipseERP; or
+- a core module compiled and released with RITSEI; or
 - a trusted server plugin installed by an operator.
 
 Both forms use public domain contracts or explicit contributor contracts. A localization must not

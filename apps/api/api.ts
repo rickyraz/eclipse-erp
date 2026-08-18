@@ -52,7 +52,7 @@ import {
 import { TenantMembership } from "../../packages/authorization/mod.ts"
 
 export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principal>()(
-  "EclipseERP/Http/CurrentPrincipal",
+  "RITSEI/Http/CurrentPrincipal",
 ) {}
 
 export class ApiUnauthorized extends Schema.TaggedErrorClass<ApiUnauthorized>()("ApiUnauthorized", {
@@ -74,7 +74,7 @@ export class ApiServiceUnavailable
 
 export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth, {
   provides: CurrentPrincipal
-}>()("EclipseERP/Http/BearerAuth", {
+}>()("RITSEI/Http/BearerAuth", {
   error: [ApiUnauthorized, ApiServiceUnavailable],
   security: { bearer: HttpApiSecurity.bearer },
 }) {}
@@ -477,8 +477,8 @@ const Accounting = HttpApiGroup.make("Accounting").add(
   ).middleware(BearerAuth),
 )
 
-export const EclipseApi = HttpApi.make("EclipseERP")
+export const RitseiApi = HttpApi.make("RITSEI")
   .add(Health, UserAccounts, Parties, Authorization, Sales, Inventory, Accounting, Process)
-  .annotate(OpenApi.Title, "EclipseERP API")
+  .annotate(OpenApi.Title, "RITSEI API")
   .annotate(OpenApi.Version, "0.1.0")
   .annotate(OpenApi.Description, "Typed modular-monolith ERP API")

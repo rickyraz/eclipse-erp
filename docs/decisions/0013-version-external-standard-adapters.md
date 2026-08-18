@@ -17,9 +17,9 @@
 
 ## Context
 
-EclipseERP must interoperate with external standards such as UBL, ISO 20022, EPCIS, XBRL, and
+RITSEI must interoperate with external standards such as UBL, ISO 20022, EPCIS, XBRL, and
 jurisdiction-specific reporting formats. These contracts have independent versions, profiles, broad
-optional schemas, and cross-organization semantics that do not necessarily match EclipseERP domain
+optional schemas, and cross-organization semantics that do not necessarily match RITSEI domain
 models.
 
 Using an external schema directly as a domain entity or persistence model would couple internal
@@ -27,7 +27,7 @@ invariants and storage to that standard's representation and release cycle.
 
 ## Decision
 
-External standards enter and leave EclipseERP only through versioned adapters in
+External standards enter and leave RITSEI only through versioned adapters in
 `packages/integrations`.
 
 Each adapter contract must identify the applicable standard, version, and profile or message type.

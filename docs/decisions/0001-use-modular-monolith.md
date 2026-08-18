@@ -19,7 +19,7 @@ scaling is proven.
 
 ## Decision
 
-EclipseERP will use orthogonal domain modules inside a modular monolith. API,
+RITSEI will use orthogonal domain modules inside a modular monolith. API,
 worker, relay, and migrator may run as separate processes but remain one
 application family and share PostgreSQL transaction boundaries.
 

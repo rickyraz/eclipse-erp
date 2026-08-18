@@ -76,7 +76,7 @@ export interface UserAccountService {
 }
 
 export const UserAccountService = Context.Service<UserAccountService>(
-  "EclipseERP/UserAccountService",
+  "RITSEI/UserAccountService",
 )
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()

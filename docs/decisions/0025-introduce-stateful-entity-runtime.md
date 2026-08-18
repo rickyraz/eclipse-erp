@@ -27,7 +27,7 @@
 
 ## Context
 
-EclipseERP already assigns each business invariant to one semantic owner and uses PostgreSQL as the
+RITSEI already assigns each business invariant to one semantic owner and uses PostgreSQL as the
 canonical transactional source of truth. Most commands should continue to execute through stateless
 Effect services and PostgreSQL transactions.
 
@@ -41,13 +41,13 @@ Database sharding changes where durable data is placed. A queue controls accepte
 Neither primitive by itself defines who currently owns the right to evaluate the next transition for
 one logical object.
 
-EclipseERP needs an optional execution primitive for selected aggregates where explicit active
+RITSEI needs an optional execution primitive for selected aggregates where explicit active
 ownership is simpler or measurably better than repeatedly reconstructing ownership with row locks,
 advisory locks, optimistic retries, or queue partition conventions.
 
 ## Decision
 
-EclipseERP introduces a **Stateful Entity Runtime** as an optional, vendor-neutral execution
+RITSEI introduces a **Stateful Entity Runtime** as an optional, vendor-neutral execution
 primitive.
 
 The runtime provides, for approved entity categories:
@@ -79,7 +79,7 @@ authorization system.
 
 ### Domain boundary
 
-Domain packages depend only on EclipseERP-owned runtime contracts. They must not import `celld`,
+Domain packages depend only on RITSEI-owned runtime contracts. They must not import `celld`,
 Cloudflare Durable Object, or another vendor runtime API.
 
 A public domain contract remains the only command boundary. Authentication, authorization, tenant
@@ -172,7 +172,7 @@ contracts.
 
 ### Negative
 
-- EclipseERP gains another execution and observability model.
+- RITSEI gains another execution and observability model.
 - Runtime-state schemas, activation, reconciliation, and failure recovery require explicit design.
 - Multi-entity operations remain distributed-system problems.
 - Poor entity granularity can create bottlenecks or a distributed object graph.

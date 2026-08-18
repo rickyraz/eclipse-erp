@@ -31,13 +31,13 @@ Authentication integrations may include OIDC, SAML, SCIM, LDAP, Active
 Directory, MFA, and passkeys. Authentication does not replace authorization.
 
 Search rank, projection membership, cached results, embeddings, and external search ACLs do not grant
-EclipseERP capabilities. Search returns candidates; current visibility and every business action are
+RITSEI capabilities. Search returns candidates; current visibility and every business action are
 revalidated by the owning domain. Detailed search behavior is owned by
 [`search-architecture.md`](./search-architecture.md).
 
 ## Model
 
-EclipseERP combines:
+RITSEI combines:
 
 ```text
 RBAC

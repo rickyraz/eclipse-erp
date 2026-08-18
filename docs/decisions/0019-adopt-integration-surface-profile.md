@@ -16,9 +16,9 @@
 
 ## Context
 
-EclipseERP should be integration-aware without turning Process Studio into a
+RITSEI should be integration-aware without turning Process Studio into a
 generic low-code or broker-management product. External developers need a
-familiar public interface, while EclipseERP must preserve domain ownership,
+familiar public interface, while RITSEI must preserve domain ownership,
 typed contracts, tenant isolation, authorization, idempotency, audit, and
 compensation.
 
@@ -27,7 +27,7 @@ must remain in domain packages and public Process Studio catalogs.
 
 ## Decision
 
-EclipseERP adopts this default external integration profile:
+RITSEI adopts this default external integration profile:
 
 ```text
 Actions:
@@ -92,7 +92,7 @@ protocol; it remains an interoperability format for Process IR.
 ### Authorization
 
 OAuth scope authorizes a connector to call an external integration surface.
-Domain capabilities authorize the tenant or principal to perform an EclipseERP
+Domain capabilities authorize the tenant or principal to perform an RITSEI
 business action. One must never be silently converted into the other.
 
 Machine-to-machine connectors use OAuth 2.0 Client Credentials with explicit
@@ -132,7 +132,7 @@ workflow, or ownership semantics.
 ### BPMN as the Integration Protocol
 
 Rejected. BPMN is a process interoperability format, not a transport or
-provider contract. Eclipse Process IR remains runtime truth.
+provider contract. RITSEI Process IR remains runtime truth.
 
 ### Generic Action Namespace
 
@@ -140,7 +140,7 @@ Rejected. Treating `Inventory.ReserveStock` and `Midtrans.CreatePayment` as one
 unqualified action kind would blur domain ownership, connector failures,
 authorization, and compensation.
 
-### Proprietary EclipseERP SDK
+### Proprietary RITSEI SDK
 
 Rejected as a prerequisite. SDKs may be generated later from OpenAPI and
 catalogs, but external developers must be able to integrate with standard HTTP,

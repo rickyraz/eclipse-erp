@@ -87,7 +87,7 @@ export interface AuthService {
   ) => Effect.Effect<void, InvalidSessionToken | DatabaseFailure>
 }
 
-export const AuthService = Context.Service<AuthService>("EclipseERP/AuthService")
+export const AuthService = Context.Service<AuthService>("RITSEI/AuthService")
 
 const encodeToken = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")

@@ -63,7 +63,7 @@ const memberName = /^([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/
 const normalizePath = (path: string) => path.replaceAll("\\", "/")
 
 const packageFromSpecifier = (file: string, specifier: string): string | undefined => {
-  const alias = specifier.match(/^@eclipse\/([^/]+)$/)
+  const alias = specifier.match(/^@ritsei\/([^/]+)$/)
   if (alias !== null) return alias[1]
 
   if (!specifier.startsWith(".")) return undefined

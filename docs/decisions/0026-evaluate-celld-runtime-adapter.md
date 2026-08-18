@@ -21,7 +21,7 @@
 
 ## Context
 
-ADR-0025 accepts explicit state ownership as an EclipseERP primitive without selecting a mandatory
+ADR-0025 accepts explicit state ownership as an RITSEI primitive without selecting a mandatory
 implementation.
 
 [`celld`](https://github.com/denoland/celld) is an open-source, self-hosted distributed Durable
@@ -34,7 +34,7 @@ treats that bucket as the durable source of truth for its cell database state.
 The fit is promising but not sufficient for production adoption. As of August 10, 2026, upstream
 says its runtime and compatibility surface are still evolving; a fleet runs one application
 deployment; and peer HTTP requires a trusted private network or encrypted overlay because it does
-not terminate TLS. EclipseERP must continue to treat bucket access and credentials as
+not terminate TLS. RITSEI must continue to treat bucket access and credentials as
 fleet-administrator access.
 
 Current upstream references:
@@ -64,17 +64,17 @@ A `celld` cell may execute inside a WorkloadCell command plane, but neither one 
 A `celld` cell does not prove that projection traffic cannot consume reserved command capacity. A
 WorkloadCell does not establish one active owner for a business entity.
 
-`celld`'s bucket durability is a runtime property, not a transfer of EclipseERP business authority.
+`celld`'s bucket durability is a runtime property, not a transfer of RITSEI business authority.
 PostgreSQL remains canonical for non-ledger business facts and control-plane state; financial
 transfer, balance, and transfer-history authority follows
 [ADR-0040](./0040-adopt-tigerbeetle-financial-ledger.md) when that profile is activated. A selected
 runtime field must therefore follow the canonical, rebuildable, runtime-durable, or ephemeral
 classification in [`state-and-consistency.md`](../architecture/state-and-consistency.md). A later
-ADR would be required to make a `celld` SQLite fact canonical for EclipseERP.
+ADR would be required to make a `celld` SQLite fact canonical for RITSEI.
 
 ## Proposal
 
-Evaluate `celld` as the first distributed adapter behind EclipseERP-owned Stateful Entity Runtime
+Evaluate `celld` as the first distributed adapter behind RITSEI-owned Stateful Entity Runtime
 contracts.
 
 This ADR does **not**:
@@ -94,7 +94,7 @@ workload.
 
 The candidate is unusually close to the accepted runtime semantics:
 
-| EclipseERP requirement        | Documented `celld` capability                               |
+| RITSEI requirement        | Documented `celld` capability                               |
 | ----------------------------- | ----------------------------------------------------------- |
 | Deterministic entity identity | Names as cell addresses                                     |
 | One logical active writer     | One owning node and ownership epoch per cell                |
@@ -105,12 +105,12 @@ The candidate is unusually close to the accepted runtime semantics:
 | Node replacement              | Replication to and restoration from an S3-compatible bucket |
 | Self-hosted operation         | Operator-owned nodes, network, and bucket                   |
 
-This is an implementation fit, not a transfer of architectural ownership. EclipseERP contracts
+This is an implementation fit, not a transfer of architectural ownership. RITSEI contracts
 remain authoritative.
 
 ## Experimental Boundary
 
-The first adapter must live below an EclipseERP infrastructure boundary. Domain packages must not
+The first adapter must live below an RITSEI infrastructure boundary. Domain packages must not
 import:
 
 ```text
@@ -127,7 +127,7 @@ No `celld` identifier, deployment topology, node address, ownership epoch, or bu
 in public domain DTOs, events, Process IR, or persistence schemas except in infrastructure
 observability records.
 
-The initial fleet is one trusted EclipseERP application deployment. EclipseERP tenancy remains
+The initial fleet is one trusted RITSEI application deployment. RITSEI tenancy remains
 enforced by authentication, authorization, tenant-aware public contracts, PostgreSQL composite scope
 constraints, and application ingress.
 
@@ -137,7 +137,7 @@ constraints, and application ingress.
 
 ### 1. Contract and compatibility
 
-- Implement the minimal EclipseERP runtime contract without vendor leakage.
+- Implement the minimal RITSEI runtime contract without vendor leakage.
 - Pin and test a specific `celld` release and compatibility date.
 - Prove supported RPC, SQLite, alarm, activation, and hibernation behavior.
 - Fail startup or deployment on unsupported required capabilities.
@@ -212,12 +212,12 @@ Forbidden first candidates:
 
 ## Exit Strategy
 
-EclipseERP must be able to stop using `celld` without losing canonical business state.
+RITSEI must be able to stop using `celld` without losing canonical business state.
 
 The adapter must preserve these exit properties:
 
 - PostgreSQL remains sufficient to rebuild every enabled cell category.
-- Stable entity addresses are EclipseERP-defined, not `celld`-defined.
+- Stable entity addresses are RITSEI-defined, not `celld`-defined.
 - Runtime snapshots have an explicit portable schema or are disposable.
 - Domain commands can route through a local/direct-PostgreSQL adapter.
 - Adapter selection is composition-root configuration, not domain policy.
@@ -233,7 +233,7 @@ Exit triggers include:
 - inability to upgrade or roll back safely;
 - no measurable workload benefit;
 - operating cost or complexity exceeding the benefit;
-- a better adapter satisfying the same EclipseERP contracts.
+- a better adapter satisfying the same RITSEI contracts.
 
 ## Alternatives Considered
 
@@ -244,10 +244,10 @@ consistency boundary require experimental proof first.
 
 ### Use Cloudflare Durable Objects directly
 
-Not selected as the initial self-hosted adapter because EclipseERP requires a self-hosted deployment
-path. The EclipseERP abstraction must nevertheless avoid preventing a future Cloudflare adapter.
+Not selected as the initial self-hosted adapter because RITSEI requires a self-hosted deployment
+path. The RITSEI abstraction must nevertheless avoid preventing a future Cloudflare adapter.
 
-### Build a distributed runtime in EclipseERP
+### Build a distributed runtime in RITSEI
 
 Rejected. Ownership, routing, replication, fencing, activation, and hibernation are not ERP
 differentiators and would create a large infrastructure project.

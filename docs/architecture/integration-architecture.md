@@ -22,11 +22,11 @@
 
 ## Purpose
 
-EclipseERP is integration-aware without turning Process Studio into a generic
+RITSEI is integration-aware without turning Process Studio into a generic
 integration canvas or exposing transport internals to business users.
 
 External developers receive familiar, machine-readable HTTP and event contracts.
-EclipseERP normalizes those contracts through a connector layer before Process
+RITSEI normalizes those contracts through a connector layer before Process
 Studio can compose them.
 
 External embedding, reranking, and model APIs are connector providers. Their credentials, data
@@ -220,7 +220,7 @@ compensation command and its authorization; Process Studio never guesses one.
 
 ## External Events
 
-External systems may deliver events to EclipseERP over HTTPS. The preferred
+External systems may deliver events to RITSEI over HTTPS. The preferred
 wire envelope is CloudEvents 1.0.x.
 
 ```json
@@ -294,7 +294,7 @@ External event delivery must provide:
 ## AsyncAPI Role
 
 AsyncAPI is a machine-readable catalog and contract for message-driven
-integrations. It is not a transport and does not force EclipseERP to expose a
+integrations. It is not a transport and does not force RITSEI to expose a
 broker.
 
 ```text
@@ -392,7 +392,7 @@ Problem Details at the transport boundary:
 
 ```json
 {
-  "type": "https://eclipse.example/problems/external-payment-declined",
+  "type": "https://ritsei.example/problems/external-payment-declined",
   "title": "External payment declined",
   "status": 409,
   "detail": "The payment provider rejected the payment.",
@@ -517,10 +517,10 @@ Domain packages own business meaning and invariants.
 ## Non-Goals
 
 - Kafka, gRPC, AMQP, or GraphQL as the universal external interface;
-- a proprietary EclipseERP SDK as a prerequisite for integration;
+- a proprietary RITSEI SDK as a prerequisite for integration;
 - exposing connector protocol details as Process Studio nodes;
 - treating external schemas as internal domain models;
-- allowing external systems to define EclipseERP invariants;
+- allowing external systems to define RITSEI invariants;
 - automatic compensation inferred from provider operation names;
 - arbitrary scripts, SQL, or unrestricted HTTP actions;
 - replacing domain actions with generic integration actions.

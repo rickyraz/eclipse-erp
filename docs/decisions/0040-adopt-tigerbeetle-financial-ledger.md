@@ -19,14 +19,14 @@
 
 ## Context
 
-EclipseERP needs financial correctness that does not depend only on service conventions:
+RITSEI needs financial correctness that does not depend only on service conventions:
 immutable movements, atomic double-entry execution, deterministic retries, balance constraints,
 and strict ordering. TigerBeetle provides these financial transaction primitives while PostgreSQL
 remains the right home for ERP metadata, policy, authorization, workflow state, and reporting
 projections.
 
 The earlier ledger decision selected PostgreSQL first and treated TigerBeetle as a future
-optimization. That no longer matches the correctness-first target for EclipseERP. The change is not
+optimization. That no longer matches the correctness-first target for RITSEI. The change is not
 a request to move the ERP into TigerBeetle or to add an unreviewed second write path. It is a change
 in financial execution authority and therefore changes transaction and recovery semantics.
 
@@ -41,7 +41,7 @@ control-plane database such as PostgreSQL:
 
 ## Decision
 
-EclipseERP adopts TigerBeetle as the **required financial-ledger execution engine**. This is an
+RITSEI adopts TigerBeetle as the **required financial-ledger execution engine**. This is an
 architectural correctness requirement, not an optional performance accelerator. Production
 activation remains gated by the execution roadmap; accepting this ADR does not silently switch the
 current PostgreSQL implementation or authorize a live dual-write.
@@ -93,7 +93,7 @@ transfer-history authority is the explicit exception defined here.
 ### Semantic boundary
 
 Accounting remains the semantic owner of posting, reversal, account meaning, fiscal policy, and
-business authorization. The financial execution contract is expressed in EclipseERP vocabulary,
+business authorization. The financial execution contract is expressed in RITSEI vocabulary,
 not in TigerBeetle request flags:
 
 ```text
@@ -120,7 +120,7 @@ financial contract and stable capability-level failures.
 TigerBeetle does not participate in a PostgreSQL transaction. An activated financial operation uses
 this protocol:
 
-1. Authenticate, decode, authorize, and evaluate Accounting policy in EclipseERP.
+1. Authenticate, decode, authorize, and evaluate Accounting policy in RITSEI.
 2. In a PostgreSQL transaction, persist the operation intent, deterministic operation identity,
    expected mapping, and durable submission/recovery work.
 3. Submit the same deterministic account and transfer IDs to TigerBeetle through the trusted adapter.
@@ -161,12 +161,12 @@ pending, compensation, or manual-recovery contract.
 ### Identity and association
 
 Every logical financial operation has a stable, versioned identity. Account and transfer IDs sent to
-TigerBeetle are deterministically derived from EclipseERP identities and operation parts, with a
+TigerBeetle are deterministically derived from RITSEI identities and operation parts, with a
 fixed encoding and collision tests. Retries reuse the same IDs. The mapping records at least the
 Tenant, Legal Entity, domain operation, journal/reference, transfer group, account mapping, ledger,
 amount, and mapping version.
 
-Linked transfer relationships are not assumed to be recoverable from TigerBeetle alone. EclipseERP
+Linked transfer relationships are not assumed to be recoverable from TigerBeetle alone. RITSEI
 stores the journal-to-transfer association and any required user-data pointer in PostgreSQL, then
 verifies the complete chain during reconciliation.
 
@@ -186,7 +186,7 @@ The following remain separate decisions and implementation gates:
 - migration of the existing atomic Sales + Inventory + Accounting workflow.
 
 TigerBeetle primitives may support those capabilities later, but their existence does not create
-EclipseERP business contracts or authorize them for Process Studio.
+RITSEI business contracts or authorize them for Process Studio.
 
 ## Alternatives Considered
 

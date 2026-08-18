@@ -20,7 +20,7 @@ export interface FinancialVerificationSignerService {
 }
 
 export const FinancialVerificationSigner = Context.Service<FinancialVerificationSignerService>(
-  "EclipseERP/FinancialVerificationSigner",
+  "RITSEI/FinancialVerificationSigner",
 )
 
 const ed25519 = { name: "Ed25519" } as AlgorithmIdentifier

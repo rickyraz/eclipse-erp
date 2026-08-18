@@ -4,7 +4,7 @@
 >
 > **Owns:** Comparative background for ERP state ownership and coordination.
 >
-> **Must not own:** Binding EclipseERP runtime or consistency rules.
+> **Must not own:** Binding RITSEI runtime or consistency rules.
 >
 > **Related documents**
 >
@@ -22,11 +22,11 @@ This document compares three broad coordination styles:
 
 - Odoo's shared ORM model graph;
 - SAP's application-level enqueue locks and queued RFC mechanisms;
-- EclipseERP's target separation of domain ownership, active entity ownership, canonical PostgreSQL
+- RITSEI's target separation of domain ownership, active entity ownership, canonical PostgreSQL
   state, and durable asynchronous work.
 
 The comparison is approximate. Odoo and SAP are mature systems with broader capabilities and
-different histories. The purpose is to clarify EclipseERP's chosen boundaries, not to rank the
+different histories. The purpose is to clarify RITSEI's chosen boundaries, not to rank the
 products.
 
 ## Odoo: Shared ORM Model Graph
@@ -64,17 +64,17 @@ PostgreSQL
 - Familiar persistence model for CRUD-heavy business applications.
 - Computed fields and inheritance can reduce local implementation effort.
 
-### Risks from the EclipseERP perspective
+### Risks from the RITSEI perspective
 
 The same flexibility can make mutation authority and dependency closure harder to identify as
 extensions accumulate. A relation or inherited method makes a record reachable; it does not by
 itself establish which capability owns the business invariant.
 
-EclipseERP therefore does not use a shared ORM graph as its public business contract. Drizzle
+RITSEI therefore does not use a shared ORM graph as its public business contract. Drizzle
 remains persistence infrastructure, and domain behavior is exposed through typed owner-controlled
 services. Cross-domain table writes and private implementation imports are forbidden.
 
-This is not a claim that relational fields or inheritance are inherently wrong. EclipseERP also uses
+This is not a claim that relational fields or inheritance are inherently wrong. RITSEI also uses
 relational data. The difference is that persistence reachability does not grant mutation authority.
 
 ## SAP: Enqueue and qRFC
@@ -119,7 +119,7 @@ ordered processing
 ### Architectural lesson
 
 Application-level business coordination and database transaction locking are related but distinct.
-Ordered asynchronous work is also a separate concern. This precedent supports EclipseERP's decision
+Ordered asynchronous work is also a separate concern. This precedent supports RITSEI's decision
 not to force PostgreSQL to be the only coordination abstraction.
 
 ### Difference from a stateful entity runtime
@@ -137,12 +137,12 @@ identity
 + recovery
 ```
 
-The analogy is conceptual, not an API or implementation mapping. EclipseERP does not attempt to
+The analogy is conceptual, not an API or implementation mapping. RITSEI does not attempt to
 reproduce SAP Enqueue or qRFC.
 
-## EclipseERP: Explicit Stateful Ownership
+## RITSEI: Explicit Stateful Ownership
 
-EclipseERP's target model is:
+RITSEI's target model is:
 
 ```text
 Public Domain Contract
@@ -165,7 +165,7 @@ canonical truth         delivery and durable work
 
 The model separates four authorities:
 
-| Concern                               | EclipseERP owner                             |
+| Concern                               | RITSEI owner                             |
 | ------------------------------------- | -------------------------------------------- |
 | Business invariant and command        | Owning domain capability                     |
 | Active identity-local serialization   | Stateful Entity Runtime, when enabled        |
@@ -184,7 +184,7 @@ The model separates four authorities:
 
 ## Approximate Comparison
 
-| Dimension                        | Odoo shared ORM graph                               | SAP enqueue/qRFC                          | EclipseERP target                            |
+| Dimension                        | Odoo shared ORM graph                               | SAP enqueue/qRFC                          | RITSEI target                            |
 | -------------------------------- | --------------------------------------------------- | ----------------------------------------- | -------------------------------------------- |
 | Primary extension boundary       | Model and view extension                            | ABAP application/runtime mechanisms       | Typed public domain contracts                |
 | Persistence model                | PostgreSQL-backed ORM models                        | HANA or supported database                | PostgreSQL-owned domain schemas              |
@@ -204,7 +204,7 @@ traverse arbitrary remote references:
 A -> B -> C -> D -> E
 ```
 
-EclipseERP therefore treats an entity reference as an execution address, not a remote
+RITSEI therefore treats an entity reference as an execution address, not a remote
 object-navigation capability.
 
 Preferred interaction:
@@ -236,7 +236,7 @@ fault and resource boundary. They are orthogonal:
 | Routing key             | Tenant and principal workload placement                  | Entity/object address                                             |
 | Main protection         | Query/async starvation and noisy-neighbor spread         | Concurrent transitions for one coordination atom                  |
 | State                   | May host pools and projection infrastructure             | Private SQLite state replicated to its bucket                     |
-| Authority in EclipseERP | Never domain authority                                   | Runtime state only unless a later ADR changes canonical ownership |
+| Authority in RITSEI | Never domain authority                                   | Runtime state only unless a later ADR changes canonical ownership |
 
 A command can first enter a WorkloadCell command plane and then route to a `celld` object for
 entity-local serialization. This does not make `celld` a substitute for resource leases, command
@@ -249,7 +249,7 @@ names as addresses, private SQLite state, RPC methods, alarms, and hibernatable 
 fleet uses an S3-compatible bucket for durable cell state and ownership coordination; upstream
 treats the bucket as the durable source of truth for its SQLite state.
 
-That storage authority is `celld` runtime semantics. EclipseERP's separate decision is that
+That storage authority is `celld` runtime semantics. RITSEI's separate decision is that
 PostgreSQL remains canonical for business facts, so an enabled adapter must classify and reconcile
 its runtime fields under [`state-and-consistency.md`](../state-and-consistency.md).
 
@@ -260,7 +260,7 @@ Primary references:
 - [Cloudflare Durable Objects glossary](https://developers.cloudflare.com/durable-objects/reference/glossary/)
 - [Cloudflare SQLite-backed Durable Object storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
 
-The implementation remains experimental for EclipseERP. The comparison explains why the model is
+The implementation remains experimental for RITSEI. The comparison explains why the model is
 attractive; ADR-0026 owns maturity, security, operations, and exit gates.
 
 ## Conclusion
@@ -270,7 +270,7 @@ The useful lessons are narrow:
 - Odoo demonstrates the power and coupling potential of a shared extensible ORM graph.
 - SAP demonstrates that application-level logical coordination and ordered asynchronous work need
   not be identical to database locking.
-- EclipseERP combines explicit domain ownership with an optional richer active entity owner while
+- RITSEI combines explicit domain ownership with an optional richer active entity owner while
   preserving PostgreSQL as canonical truth and separate durable-work primitives.
 
 The target is not remotely accessible object-oriented programming. It is explicit, replaceable,

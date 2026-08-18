@@ -23,57 +23,57 @@ No normal runtime process should connect as a superuser or schema owner.
 Recommended login and group roles:
 
 ```text
-eclipse_migrator
-eclipse_api
-eclipse_worker
-eclipse_event_relay
-eclipse_reporting
-eclipse_observer
-eclipse_break_glass
+ritsei_migrator
+ritsei_api
+ritsei_worker
+ritsei_event_relay
+ritsei_reporting
+ritsei_observer
+ritsei_break_glass
 ```
 
 A hard-isolated deployment additionally uses distinct login identities such as:
 
 ```text
-eclipse_command
-eclipse_projection_query
-eclipse_query_authorizer
-eclipse_async_worker
+ritsei_command
+ritsei_projection_query
+ritsei_query_authorizer
+ritsei_async_worker
 ```
 
 These names describe deployment responsibility, not business capability ownership. A minimal
-colocated profile may retain `eclipse_api` and `eclipse_worker`, but it cannot claim the same physical
+colocated profile may retain `ritsei_api` and `ritsei_worker`, but it cannot claim the same physical
 resource separation.
 
 Additional non-login ownership roles may exist per schema:
 
 ```text
-eclipse_owner_identity
-eclipse_owner_auth
-eclipse_owner_sales
-eclipse_owner_inventory
-eclipse_owner_accounting
-eclipse_owner_billing
-eclipse_owner_workflow
-eclipse_owner_integration
-eclipse_owner_audit
+ritsei_owner_identity
+ritsei_owner_auth
+ritsei_owner_sales
+ritsei_owner_inventory
+ritsei_owner_accounting
+ritsei_owner_billing
+ritsei_owner_workflow
+ritsei_owner_integration
+ritsei_owner_audit
 ```
 
 ## Hard-Isolation Role Boundaries
 
-`eclipse_command` connects to the PostgreSQL primary through the command pool and may execute the
+`ritsei_command` connects to the PostgreSQL primary through the command pool and may execute the
 approved domain transactions required by public commands. It is used by command-capable API and
 worker composition roots and receives the command resource reserve.
 
-`eclipse_projection_query` connects only to the approved projection store or isolated read path. It
+`ritsei_projection_query` connects only to the approved projection store or isolated read path. It
 must not:
 
 - possess a PostgreSQL-primary credential;
-- inherit `eclipse_api` or schema-owner privileges;
+- inherit `ritsei_api` or schema-owner privileges;
 - open command transactions;
 - use a configuration fallback to the command pool or primary.
 
-`eclipse_query_authorizer` is optional when sensitive projection reads require current
+`ritsei_query_authorizer` is optional when sensitive projection reads require current
 owner-controlled authorization. It uses a separate, bounded, read-only primary pool and may invoke
 only approved owner-controlled authorization-check contracts or functions, including the current
 scope, relationship, and SoD checks those owners require. If the required owner state is unavailable
@@ -81,11 +81,11 @@ through that bounded path, the request is authoritative rather than hard-isolate
 use the command pool, mutate grants, or read arbitrary domain payloads. Saturation fails the query
 path closed.
 
-`eclipse_async_worker` uses an async-specific pool and only the privileges required by registered
+`ritsei_async_worker` uses an async-specific pool and only the privileges required by registered
 PgQue consumers, job lifecycle, projection builders, workflow orchestration, and integration
 delivery. It must not receive broad mutation rights to core domain schemas. When async orchestration
 initiates a canonical business command, it uses the existing job or workflow durability semantics to
-hand work to a command-capable worker using the `eclipse_command` path. Domain services are invoked
+hand work to a command-capable worker using the `ritsei_command` path. Domain services are invoked
 locally rather than through loopback HTTP. Its maximum connections must not consume the command
 reserve.
 
@@ -97,10 +97,10 @@ are physically independent.
 
 A PostgreSQL 19 deployment may use `reserved_connections` as the server-level mechanism for the
 reviewed command connection reserve. Grant the predefined `pg_use_reserved_connections` role only
-to `eclipse_command`; query, reporting, and async lifecycle roles must not inherit it.
+to `ritsei_command`; query, reporting, and async lifecycle roles must not inherit it.
 
 ```sql
-GRANT pg_use_reserved_connections TO eclipse_command;
+GRANT pg_use_reserved_connections TO ritsei_command;
 ```
 
 Budget available ordinary slots as:
@@ -130,7 +130,7 @@ shared.
 
 ## Migrator Role
 
-`eclipse_migrator` may:
+`ritsei_migrator` may:
 
 - execute reviewed migrations;
 - create or alter approved schemas;
@@ -141,7 +141,7 @@ It must not be used by API, worker, relay, or reporting processes.
 
 ## API Role
 
-`eclipse_api` may:
+`ritsei_api` may:
 
 - connect to the application database;
 - use approved schemas and public functions;
@@ -159,7 +159,7 @@ It must not:
 
 ## Worker Role
 
-`eclipse_worker` may:
+`ritsei_worker` may:
 
 - execute approved background jobs;
 - access domain operations required by those jobs;
@@ -172,7 +172,7 @@ Grant only what registered worker capabilities require.
 
 ## Event Relay Role
 
-`eclipse_event_relay` may:
+`ritsei_event_relay` may:
 
 - read approved PgQue streams;
 - access integration outbox state;
@@ -184,7 +184,7 @@ or authorization tables.
 
 ## Reporting Role
 
-`eclipse_reporting` is read-only and may access:
+`ritsei_reporting` is read-only and may access:
 
 - approved reporting views;
 - safe projections;
@@ -195,14 +195,14 @@ classification explicitly allow it.
 
 ## Observer Role
 
-`eclipse_observer` may read operational metadata required for monitoring, such
+`ritsei_observer` may read operational metadata required for monitoring, such
 as approved statistics, health views, and migration state.
 
 It must not read business payloads by default.
 
 ## Break-Glass Role
 
-`eclipse_break_glass` is reserved for exceptional administration.
+`ritsei_break_glass` is reserved for exceptional administration.
 
 Requirements:
 
@@ -221,9 +221,9 @@ Objects should be owned by non-login owner roles, not by runtime login roles.
 Example:
 
 ```sql
-CREATE ROLE eclipse_owner_inventory NOLOGIN;
-CREATE ROLE eclipse_api LOGIN;
-CREATE ROLE eclipse_worker LOGIN;
+CREATE ROLE ritsei_owner_inventory NOLOGIN;
+CREATE ROLE ritsei_api LOGIN;
+CREATE ROLE ritsei_worker LOGIN;
 ```
 
 The migrator may assume an owner role under controlled deployment procedures.
@@ -238,7 +238,7 @@ Review at least:
 
 ```sql
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-REVOKE ALL ON DATABASE eclipse FROM PUBLIC;
+REVOKE ALL ON DATABASE ritsei FROM PUBLIC;
 ```
 
 Grant `USAGE`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and function execution

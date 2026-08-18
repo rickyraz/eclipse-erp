@@ -1,6 +1,6 @@
 id: no-frontend-backend-import
 valid:
-  - import { invoiceQueries } from "@eclipse/sales"
+  - import { invoiceQueries } from "@ritsei/sales"
 invalid:
   - import { users } from "../../db/schema/users.ts"
   - import postgres from "postgres"

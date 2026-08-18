@@ -25,7 +25,7 @@ const skillHeadings = [
 
 const validSkill = `---
 name: example-workflow
-description: "Use when an EclipseERP change needs a repository-native example workflow."
+description: "Use when an RITSEI change needs a repository-native example workflow."
 ---
 
 ${skillHeadings.join("\n\n")}

@@ -39,7 +39,7 @@ financial scope.
 
 ### Documents and correction
 
-- Documents remain owner-local aggregates. EclipseERP does not add a shared mutable `documents`
+- Documents remain owner-local aggregates. RITSEI does not add a shared mutable `documents`
   table or a generic document domain.
 - Public document identifiers are opaque internal IDs. Cross-document links use typed owner-local
   references to the source document ID and contract version; display numbers and provider references

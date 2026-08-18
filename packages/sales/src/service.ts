@@ -164,7 +164,7 @@ export interface SalesService {
   ) => Effect.Effect<string, SalesOrderInvalidState | SalesOrderNotFound | CommonFailure>
 }
 
-export const SalesService = Context.Service<SalesService>("EclipseERP/SalesService")
+export const SalesService = Context.Service<SalesService>("RITSEI/SalesService")
 
 const customerSelection = {
   id: customers.id,

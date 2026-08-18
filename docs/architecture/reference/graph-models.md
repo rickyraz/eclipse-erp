@@ -1,4 +1,4 @@
-# Graph Models in EclipseERP
+# Graph Models in RITSEI
 
 > **Status:** Reference
 >
@@ -8,7 +8,7 @@
 > - SQL/PGQ use cases: [`./sql-pgq-use-cases.md`](./sql-pgq-use-cases.md)
 > - Orthogonal areas: [`./orthogonal-erp-areas.md`](./orthogonal-erp-areas.md)
 
-EclipseERP can be understood as several typed directed graphs rather than one
+RITSEI can be understood as several typed directed graphs rather than one
 universal graph.
 
 ## Graph Types

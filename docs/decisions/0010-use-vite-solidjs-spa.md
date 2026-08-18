@@ -15,7 +15,7 @@
 
 ## Context
 
-EclipseERP has a separate transactional backend and an authenticated,
+RITSEI has a separate transactional backend and an authenticated,
 interaction-heavy frontend. Its primary workflows use tables, forms, filters,
 permissions, dashboards, and long-lived sessions.
 
@@ -23,7 +23,7 @@ Public SEO and content-first rendering are not core requirements.
 
 Making SolidStart the default would introduce server functions, SSR conventions,
 request handlers, deployment adapters, and full-stack primitives that overlap
-with responsibilities already owned by the EclipseERP backend.
+with responsibilities already owned by the RITSEI backend.
 
 SolidJS 2.0 also moves more capability into lower-level Solid, router, compiler,
 and Vite primitives. The architecture should depend on those primitives rather
@@ -72,7 +72,7 @@ change based on concrete BFF, server-session, SSR, or unified-deployment needs.
 
 ### SolidStart as the Default
 
-Rejected as the default because EclipseERP already has a separate backend and
+Rejected as the default because RITSEI already has a separate backend and
 does not currently require SSR, server functions, or frontend-owned server
 routing.
 
