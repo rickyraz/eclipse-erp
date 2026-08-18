@@ -63,6 +63,16 @@ describe("financial readiness proofs", () => {
       assert.strictEqual(schemaVersionFailure._tag, "SchemaError")
     }))
 
+  it.effect("rejects verification counts above PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationEvidence.fields.accountCount)(
+          2_147_483_648,
+        ),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
   it.effect("rebuilds the same cross-store facts to the same hash", () =>
     Effect.gen(function* () {
       const source = {

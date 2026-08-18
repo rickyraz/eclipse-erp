@@ -251,7 +251,9 @@ export type OpeningBalanceMismatch = Readonly<{
 
 const Hash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9][0-9]*)$/))
-const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const Count = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
+)
 const PositiveSmallInt = Schema.Int.check(
   Schema.isBetween({ minimum: 1, maximum: 0x7fff }),
 )
