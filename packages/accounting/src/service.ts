@@ -42,6 +42,9 @@ import {
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
+const NonNegativeInt = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
+)
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
 const FinancialEngine = Schema.Literals(["postgresql", "tigerbeetle"])
@@ -129,7 +132,7 @@ export const FinancialCutoverControl = Schema.Struct({
   reconciliationHealthy: Schema.Boolean,
   backupRecoveryVerified: Schema.Boolean,
   evidenceArtifactId: Schema.NullOr(Uuid),
-  unresolvedAcceptedOperations: Schema.Int,
+  unresolvedAcceptedOperations: NonNegativeInt,
   approvedBy: Schema.NullOr(NonEmptyString),
   approvedAt: Schema.NullOr(Schema.String),
   activatedBy: Schema.NullOr(NonEmptyString),

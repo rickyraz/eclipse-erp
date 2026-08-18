@@ -17,6 +17,7 @@ import {
   AccountingService,
   AccountNotFound,
   CreateFinancialRevenueIntentInput,
+  FinancialCutoverControl,
   FinancialEngineCutoverBlocked,
   JournalEntry,
   JournalIdempotencyConflict,
@@ -373,6 +374,22 @@ describe("accounting contract", () => {
         ),
       )
       assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects unresolved cutover operation counts outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const negative = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl.fields.unresolvedAcceptedOperations)(
+          -1,
+        ),
+      )
+      assert.strictEqual(negative._tag, "SchemaError")
+      const overflow = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl.fields.unresolvedAcceptedOperations)(
+          2_147_483_648,
+        ),
+      )
+      assert.strictEqual(overflow._tag, "SchemaError")
     }))
 
   it.effect("accepts revenue posting without a caller amount", () =>
