@@ -65,11 +65,12 @@ Not yet implemented as a runtime package:
 
 The P0-P3 bounded primitive baseline is ready for the selected internal slices. Inventory
 `stock.adjust` v1 and Sales `order.confirm` v1 are Level 3 action slices with owner-published events.
-Accounting contributes the PUBLIC `revenue.posted` v1 event, while direct `revenue.post` catalog
-release remains gated until its amount can be derived or verified from a Sales-owned fact rather than
-supplied as action input. `procurement` and `billing` must not be advertised as Process Studio action
-providers until their public contracts and invariant tests exist. PgQue, external connectors, and the
-broad workflow runtime remain gated.
+Accounting publishes the PUBLIC `revenue.posted` v1 event and the PUBLIC `revenue.post` v1 action;
+its amount is derived and verified from a Sales-owned confirmed-order fact rather than supplied as
+an accounting fact by the caller. Accounting’s separate financial-operation intent slice follows
+ADR-0040’s non-activated TigerBeetle execution boundary. `procurement` and `billing` must not be
+advertised as Process Studio action providers until their public contracts and invariant tests exist.
+PgQue, external connectors, and the broad workflow runtime remain gated.
 
 ## Roadmap Tracks
 

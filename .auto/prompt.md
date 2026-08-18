@@ -1,7 +1,7 @@
-# Autoresearch: Close RITSEI P3 and ADR-0033 runtime gaps
+# Autoresearch: Harden RITSEI P3 against current ADRs
 
 ## Objective
-After completing the initial P0-P3 decision portfolio, finish the remaining executable gaps before calling P3 and the bounded ADR-0033 order lifecycle ready: owner-controlled transaction-aware event publication, distinct command/correlation/idempotency metadata, durable duplicate-safe consumer completion, and cancellation/fulfillment coordination.
+Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline truthful after the latest committed RITSEI changes. Reconcile executable evidence and canonical summaries with ADR-0037, ADR-0038, ADR-0033, and the newer ADR-0040 financial-ledger boundary without rewriting committed history or activating gated infrastructure.
 
 ## Metrics
 - **Primary**: `p3_ready_gates` (unitless, higher is better).
@@ -20,6 +20,7 @@ After completing the initial P0-P3 decision portfolio, finish the remaining exec
 - PgQue activation, external connectors, Process IR/runtime/designer, production deployment, secrets.
 - Rewriting applied migrations or accepted ADR history.
 - Claiming exactly-once external delivery.
+- Migrating the existing PostgreSQL order workflow to TigerBeetle; ADR-0040 requires a separate consistency decision.
 
 ## Constraints
 - Domains publish only their own event declarations through a transaction-aware public messaging port.
@@ -28,19 +29,20 @@ After completing the initial P0-P3 decision portfolio, finish the remaining exec
 - Event identity is `(eventType,eventVersion)`; command ID, correlation ID, causation ID, and idempotency key remain distinct.
 - Preserve public Effect Schema, authorization, tenant scope, idempotency, rollback, and package acyclicity.
 - No direct cross-domain table imports/writes; no raw SQL in domain implementations.
-- Do not weaken tests or gates to improve metrics.
+- Do not weaken tests or gates to improve metrics; update stale evidence checks only when the latest accepted contract changed.
 
 ## Readiness Gates
 1. Messaging package/schema owns the current outbox contract and transaction-aware append service.
-2. Process lifecycle event is Process-owned and carries distinct command/correlation/causation/idempotency metadata through Messaging.
+2. Process lifecycle events are Process-owned and carry distinct command/correlation/causation/idempotency metadata through Messaging.
 3. Inventory stock-corrected event is PUBLIC and atomically emitted by `adjustStock`.
 4. Accounting revenue-posted event is PUBLIC and atomically emitted by `postRevenueForOrder`.
 5. Durable completed consumer receipts suppress duplicate PostgreSQL-local effects and roll back with failed effects.
 6. ADR-0033 cancellation and fulfillment commands coordinate Sales, Inventory, Accounting, events, jobs, idempotency, and invalid states.
-7. P3/domain maturity/roadmap evidence is reconciled and the full repository validation portfolio passes.
+7. P3/domain maturity/roadmap evidence is reconciled with the latest accepted ADRs and the full repository validation portfolio passes.
 
-## What's Been Tried
-- Initial P0-P3 portfolio reached 10/10 acceptance gates.
-- ADR-0037 and catalog contracts exist, but Inventory and Accounting events remain EXPERIMENTAL because owner publication is absent.
-- The old coordinator event was renamed `process.order_confirmation.completed`; it still uses the legacy Process-owned outbox and conflates correlation with idempotency.
-- ADR-0033 confirmation is implemented, but cancellation and fulfillment remain missing.
+## Current status
+- The bounded P3 implementation gates above are present in the current tree.
+- ADR-0038 makes `messaging.event_outbox` the active internal delivery owner; the historical Process wording remains history.
+- Inventory, Sales, and Accounting provide the selected PUBLIC Level 3 slices; Accounting revenue derives its amount from the confirmed Sales fact.
+- ADR-0040 selects TigerBeetle for the future financial execution boundary, but its production and cross-domain migration gates remain intentionally open.
+- The latest committed tree also includes the public financial-operation catalog slice, so benchmark assertions must not require the older single-entry Accounting catalog shape.
