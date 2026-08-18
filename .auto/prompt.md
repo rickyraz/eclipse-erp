@@ -41,6 +41,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 7. P3/domain maturity/roadmap evidence is reconciled with the latest accepted ADRs and the full repository validation portfolio passes.
 8. Accounting financial-operation reconciliation events preserve distinct command, correlation, causation, and idempotency metadata through Messaging.
 9. Accounting financial-operation event payloads preserve the positive mapping-version invariant at the public catalog boundary.
+10. Accounting financial-operation event mapping versions stay within the PostgreSQL integer range.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -50,3 +51,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - The latest committed tree also includes the public financial-operation catalog slice, so benchmark assertions must not require the older single-entry Accounting catalog shape.
 - The financial-operation event path is the next hardening target: ADR-0038/0040 require distinct envelope identities, including for reconciliation and projection rebuild replay.
 - Financial operation persistence requires positive mapping versions, so the PUBLIC reconciled event must reject impossible versions before catalog consumers see them.
+- The persisted mapping version is PostgreSQL `integer`; the public event must reject values above `2_147_483_647` as well as non-positive values.

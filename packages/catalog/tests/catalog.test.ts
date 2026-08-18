@@ -255,6 +255,14 @@ describe("catalog compatibility", () => {
         }),
       )
       assert.strictEqual(invalidFinancialEvent._tag, "SchemaError")
+      const overflowingFinancialEvent = yield* Effect.flip(
+        Schema.decodeUnknownEffect(AccountingFinancialOperationReconciledEvent.payloadSchema)({
+          operationId: "financial-operation-1",
+          journalId: "00000000-0000-4000-8000-000000000004",
+          mappingVersion: 2_147_483_648,
+        }),
+      )
+      assert.strictEqual(overflowingFinancialEvent._tag, "SchemaError")
       yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)({
         orderId: "00000000-0000-4000-8000-000000000006",
         total: "10.00",
