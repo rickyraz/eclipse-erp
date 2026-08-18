@@ -16,6 +16,7 @@ import {
   AccountingPeriodNotOpen,
   AccountingService,
   AccountNotFound,
+  CreateFinancialRevenueIntentInput,
   FinancialEngineCutoverBlocked,
   JournalEntry,
   JournalIdempotencyConflict,
@@ -360,6 +361,16 @@ describe("accounting contract", () => {
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
         Schema.decodeUnknownEffect(PostRevenueForOrderInput.fields.orderId)("not-a-uuid"),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects financial operation mapping versions outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(CreateFinancialRevenueIntentInput.fields.mappingVersion)(
+          2_147_483_648,
+        ),
       )
       assert.strictEqual(failure._tag, "SchemaError")
     }))

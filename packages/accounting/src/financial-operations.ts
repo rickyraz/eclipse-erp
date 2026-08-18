@@ -53,7 +53,9 @@ import {
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
-const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
+const PositiveInt = Schema.Int.check(
+  Schema.isBetween({ minimum: 1, maximum: 0x7fffffff }),
+)
 const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 
