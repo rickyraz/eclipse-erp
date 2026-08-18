@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=200
+total=201
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -189,6 +189,7 @@ gate bash -c '! grep -Fq "readonly cancelOrder" packages/sales/src/service.ts &&
 gate bash -c 'grep -Fq "const confirmedTotal = yield* database.withTransaction" packages/sales/tests/sales.postgres.test.ts && grep -Fq "confirmed_total.lookup" packages/sales/src/service.ts && grep -Fq ".for(\"update\")" packages/sales/src/service.ts'
 gate bash -c 'grep -Fq "AccountingFinancialOperationPostAction," packages/accounting/src/catalog.ts && grep -Fq "AccountingRevenuePostAction," packages/accounting/src/catalog.ts && grep -Fq "AccountingTypedActionCatalog = [" packages/accounting/src/catalog.ts && grep -Fq "three Level 3 action slices" docs/roadmap/domain-maturity.md && grep -Fq "server-derived amount" docs/roadmap/domain-maturity.md'
 gate bash -c 'grep -Fq "const financialOperationEventMetadata" packages/accounting/src/financial-operations.ts && grep -Fq "...financialOperationEventMetadata(operationId)" packages/accounting/src/financial-operations.ts && grep -Fq "assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.correlation_id)" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "assert.notStrictEqual(reconciledEvent?.causation_id, reconciledEvent?.idempotency_key)" packages/accounting/tests/financial-operations.postgres.test.ts'
+gate bash -c 'grep -Fq "const PositiveInt" packages/accounting/src/events.ts && grep -Fq "mappingVersion: PositiveInt" packages/accounting/src/events.ts && grep -Fq "invalidFinancialEvent" packages/catalog/tests/catalog.test.ts && grep -Fq "mappingVersion: 0" packages/catalog/tests/catalog.test.ts'
 gate bash -c 'grep -Fq "sales_order_confirmed" packages/catalog/mod.ts && grep -Fq "sales_order_confirmed" packages/accounting/src/catalog.ts'
 gate bash -c 'grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "replayedWithTamperedAmount" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "const salesFacts" packages/accounting/tests/accounting.test.ts && grep -Fq "amount: \"99.99\"" packages/accounting/tests/accounting.test.ts && grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "Layer.succeed(SalesService" apps/api/bootstrap.test.ts'

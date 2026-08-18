@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 
 import {
   AccountingFinancialOperationPostAction,
+  AccountingFinancialOperationReconciledEvent,
   AccountingRevenuePostAction,
   AccountingRevenuePostedEvent,
   AccountingTypedActionCatalog,
@@ -241,6 +242,19 @@ describe("catalog compatibility", () => {
         legalEntityId: "00000000-0000-4000-8000-000000000005",
         orderId: "00000000-0000-4000-8000-000000000006",
       })
+      yield* Schema.decodeUnknownEffect(AccountingFinancialOperationReconciledEvent.payloadSchema)({
+        operationId: "financial-operation-1",
+        journalId: "00000000-0000-4000-8000-000000000004",
+        mappingVersion: 1,
+      })
+      const invalidFinancialEvent = yield* Effect.flip(
+        Schema.decodeUnknownEffect(AccountingFinancialOperationReconciledEvent.payloadSchema)({
+          operationId: "financial-operation-1",
+          journalId: "00000000-0000-4000-8000-000000000004",
+          mappingVersion: 0,
+        }),
+      )
+      assert.strictEqual(invalidFinancialEvent._tag, "SchemaError")
       yield* Schema.decodeUnknownEffect(SalesOrderConfirmedEvent.payloadSchema)({
         orderId: "00000000-0000-4000-8000-000000000006",
         total: "10.00",

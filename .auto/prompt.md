@@ -40,6 +40,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 6. ADR-0033 cancellation and fulfillment commands coordinate Sales, Inventory, Accounting, events, jobs, idempotency, and invalid states.
 7. P3/domain maturity/roadmap evidence is reconciled with the latest accepted ADRs and the full repository validation portfolio passes.
 8. Accounting financial-operation reconciliation events preserve distinct command, correlation, causation, and idempotency metadata through Messaging.
+9. Accounting financial-operation event payloads preserve the positive mapping-version invariant at the public catalog boundary.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -48,3 +49,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - ADR-0040 selects TigerBeetle for the future financial execution boundary, but its production and cross-domain migration gates remain intentionally open.
 - The latest committed tree also includes the public financial-operation catalog slice, so benchmark assertions must not require the older single-entry Accounting catalog shape.
 - The financial-operation event path is the next hardening target: ADR-0038/0040 require distinct envelope identities, including for reconciliation and projection rebuild replay.
+- Financial operation persistence requires positive mapping versions, so the PUBLIC reconciled event must reject impossible versions before catalog consumers see them.

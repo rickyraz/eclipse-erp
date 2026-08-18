@@ -4,6 +4,7 @@ import { defineEventCatalogEntry } from "../../catalog/mod.ts"
 
 const Uuid = Schema.String.check(Schema.isUUID())
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
+const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 
 export const RevenuePostedEventPayload = Schema.Struct({
   journalId: Uuid,
@@ -23,7 +24,7 @@ export const AccountingFinancialOperationReconciledEvent = defineEventCatalogEnt
   payloadSchema: Schema.Struct({
     operationId: NonEmptyString,
     journalId: Uuid,
-    mappingVersion: Schema.Int,
+    mappingVersion: PositiveInt,
   }),
   scope: ["tenant"],
   aggregateType: "financial_operation",
