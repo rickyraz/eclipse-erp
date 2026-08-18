@@ -388,6 +388,10 @@ historical/opening-balance verification, dan (5) bounded cutover rehearsal denga
 approval, serta bukti observability. Local one-replica integration test yang lulus hanya membuktikan
 adapter compatibility; tidak membuktikan quorum, production recovery, atau restore readiness.
 
+Rehearsal evidence and the fail-closed mechanical decision are recorded in
+[`docs/operations/financial-readiness-evidence-2026-08-18.json`](../operations/financial-readiness-evidence-2026-08-18.json)
+and evaluated by `deno task financial:gate`.
+
 ## Explicit Non-Goals
 
 This roadmap does not implement a generic TigerBeetle API, a financial reporting warehouse,

@@ -255,3 +255,35 @@ The following must be exposed by the deployment metrics/logging layer before app
 
 Logs must contain operation IDs, stable reason tags, and correlation IDs, but not credentials or
 unnecessary financial payloads.
+
+## 8. Executed readiness rehearsal — August 18, 2026
+
+The machine-readable gate record is [`financial-readiness-evidence-2026-08-18.json`](./financial-readiness-evidence-2026-08-18.json). The final checker is:
+
+```sh
+deno task financial:gate
+```
+
+It accepts only `staging-real` or `production-real` evidence for the final decision. Repository
+proof and local-real evidence remain visible but cannot produce `GO`.
+
+Executed evidence:
+
+- Repository contract, financial-readiness, ledger, kernel, and worker tests passed: 24 tests.
+- A real TigerBeetle `0.17.9` one-replica development process was formatted, started, terminated
+  with `SIGTERM`, restarted from the same replica file, and passed the live adapter integration
+  test before and after restart.
+- PostgreSQL `19beta3` was dumped with the matching `pg_dump`, restored into an independent local
+  database, and reopened successfully. This was not a production cohort and had no corresponding
+  TigerBeetle restore.
+- API and worker process rehearsal did not reach a running service. The pinned raw Deno adapter
+  failed to resolve Effect subpaths in this checkout before database startup, so OS-kill,
+  worker-lease, and durable financial-operation evidence could not be collected.
+- No multi-replica TigerBeetle cluster, quorum-loss rehearsal, production KMS/HSM signer, alert
+  pipeline, global transfer scan, or bounded production-equivalent cohort was available.
+
+The mechanically evaluated result is therefore:
+
+```text
+NO-GO — PostgreSQL remains the default financial engine.
+```

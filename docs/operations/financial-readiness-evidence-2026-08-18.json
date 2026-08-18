@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-18",
+  "baselineCommit": "056828250526",
+  "repositoryHeadAtRun": "af2e11fb333ea3012689a2b9c7b6b85c5ffe15d5",
+  "decision": "NO-GO — PostgreSQL remains the default financial engine.",
+  "evidencePolicy": {
+    "finalPassEvidenceClasses": ["staging-real", "production-real"],
+    "repoProofAndLocalRealDoNotSubstituteForDeploymentEvidence": true
+  },
+  "observations": [
+    {
+      "id": "repository_validation",
+      "evidenceClass": "repo-proof",
+      "status": "PASS",
+      "commands": [
+        "deno task test packages/accounting/tests/financial-readiness.test.ts packages/accounting/tests/financial-ledger.test.ts packages/kernel/tests/tigerbeetle.test.ts apps/worker/worker.test.ts"
+      ],
+      "outcome": "4 files, 24 tests passed. This is repository proof, not process-kill or deployment proof."
+    },
+    {
+      "id": "local_tigerbeetle_process_restart",
+      "evidenceClass": "local-real",
+      "status": "PASS",
+      "commands": [
+        "tigerbeetle format --development --cluster=0 --replica=0 --replica-count=1 /tmp/ritsei-tb.JHPgDB/0_0.tigerbeetle",
+        "tigerbeetle start --development --addresses=127.0.0.1:3000 /tmp/ritsei-tb.JHPgDB/0_0.tigerbeetle",
+        "TIGERBEETLE_INTEGRATION=1 ... deno task test packages/kernel/tests/tigerbeetle.integration.test.ts",
+        "kill -TERM <tigerbeetle-pid>; restart the same replica; rerun the integration test"
+      ],
+      "outcome": "The real one-replica development process was terminated and restarted; the adapter integration test passed before and after restart.",
+      "limits": "Cluster 0, one replica, --development, no quorum, no production credentials, no economic cohort."
+    },
+    {
+      "id": "local_postgresql_backup_restore",
+      "evidenceClass": "local-real",
+      "status": "PASS",
+      "commands": [
+        "/usr/lib/postgresql/19/bin/pg_dump --dbname=postgresql://postgres:postgres@127.0.0.1:5433/ritsei --file=/tmp/ritsei-pg-backup-19.sql",
+        "/usr/lib/postgresql/19/bin/psql ... -c 'drop database if exists ritsei_restore_20260818' -c 'create database ritsei_restore_20260818'",
+        "/usr/lib/postgresql/19/bin/psql --dbname=.../ritsei_restore_20260818 -f /tmp/ritsei-pg-backup-19.sql"
+      ],
+      "outcome": "A PostgreSQL 19beta3 dump restored successfully into an independent local database.",
+      "limits": "The local source contained no production cohort and no corresponding TigerBeetle restore; dump re-export differs only by PostgreSQL's generated restrict token."
+    },
+    {
+      "id": "api_worker_process_start",
+      "evidenceClass": "missing",
+      "status": "FAIL",
+      "commands": [
+        "DATABASE_URL=... deno task dev",
+        "deno task worker"
+      ],
+      "outcome": "Entrypoints did not reach a running API/worker: the pinned raw Deno adapter could not resolve Effect subpaths such as effect/unstable/socket/Socket and effect/Runtime in this Deno process.",
+      "limits": "No real API/worker process-kill, lease-expiry, or durable financial cohort could be executed from this checkout."
+    },
+    {
+      "id": "tigerbeetle_deployment",
+      "evidenceClass": "missing",
+      "status": "FAIL",
+      "commands": [
+        "ss -ltn",
+        "tigerbeetle --help"
+      ],
+      "outcome": "No production-style multi-replica cluster, supervisor, backup mechanism, or quorum topology is present."
+    }
+  ],
+  "gates": [
+    {
+      "id": "controlled_activation",
+      "title": "Controlled activation cannot be bypassed",
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "evidence": ["packages/accounting/tests/financial-cutover.postgres.test.ts", "db/schema/accounting.ts"],
+      "reason": "Activation and direct-route protections are tested, but no staging deployment rehearsal proves the operational path."
+    },
+    {
+      "id": "process_kill_no_double_posting",
+      "title": "Real process kill cannot create economic double-posting",
+      "observed": "FAIL",
+      "evidenceClass": "mock-only",
+      "evidence": ["packages/accounting/tests/financial-readiness.test.ts", "apps/worker/worker.test.ts"],
+      "reason": "Failure-point adapters are not OS process-kill evidence; no financial operation was run through a real API/worker deployment."
+    },
+    {
+      "id": "worker_adapter_restart",
+      "title": "Worker and adapter restart is deterministic",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/operations/tigerbeetle-recovery.md"],
+      "reason": "Only the local TigerBeetle adapter process was restarted; the real worker could not boot and lease recovery was not observed."
+    },
+    {
+      "id": "tigerbeetle_outage_fail_closed",
+      "title": "TigerBeetle outage fails closed",
+      "observed": "PASS",
+      "evidenceClass": "mock-only",
+      "evidence": ["packages/accounting/tests/financial-readiness.test.ts", "packages/kernel/tests/tigerbeetle.test.ts"],
+      "reason": "The code path is fail-closed in test/fault-injection evidence, but no real outage and recovery budget were rehearsed."
+    },
+    {
+      "id": "replica_quorum_failure",
+      "title": "Replica and quorum failure behavior is proven",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/operations/tigerbeetle-recovery.md"],
+      "reason": "The only live run used one development replica; quorum, state sync, and replica recovery were not exercised."
+    },
+    {
+      "id": "postgresql_not_financial_authority",
+      "title": "PostgreSQL never becomes silent financial authority after activation",
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "evidence": ["docs/architecture/financial-ledger.md", "packages/accounting/src/service.ts"],
+      "reason": "The route and fallback policy are encoded and tested, but no activated staging cohort proves it under outage."
+    },
+    {
+      "id": "independent_backup_restore",
+      "title": "Independent PostgreSQL and TigerBeetle backup/restore is proven",
+      "observed": "FAIL",
+      "evidenceClass": "local-real",
+      "evidence": ["docs/operations/financial-readiness-evidence-2026-08-18.json"],
+      "reason": "Only an empty/local PostgreSQL dump was restored; no independent TigerBeetle restore or cross-store comparison exists."
+    },
+    {
+      "id": "recovery_watermark",
+      "title": "Recovery watermark is exact and auditable",
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "evidence": ["packages/accounting/src/financial-readiness.ts", "db/schema/accounting.ts"],
+      "reason": "Checkpoint fields and exact comparisons are tested, but no restored pair has produced a verified production watermark."
+    },
+    {
+      "id": "global_reconciliation",
+      "title": "Global reconciliation has zero unexplained mismatch",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/architecture/financial-ledger.md"],
+      "reason": "The current implementation is explicitly operation-scoped and does not provide a global TigerBeetle transfer/orphan scan."
+    },
+    {
+      "id": "projection_rebuild",
+      "title": "Projection and report rebuild is reproducible",
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "evidence": ["packages/accounting/tests/financial-operations.postgres.test.ts"],
+      "reason": "Operation projection rebuild is tested, but complete independent report/balance rebuild evidence is not available."
+    },
+    {
+      "id": "artifact_integrity",
+      "title": "Verification artifacts remain immutable and cryptographically valid",
+      "observed": "PASS",
+      "evidenceClass": "repo-proof",
+      "evidence": ["packages/accounting/tests/financial-cutover.postgres.test.ts", "packages/kernel/tests/crypto.test.ts"],
+      "reason": "Signed artifact, immutability, forgery, and hash verification tests pass; the signer is still an in-process test key."
+    },
+    {
+      "id": "production_signing_custody",
+      "title": "Production-grade signing and key custody is proven",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["packages/kernel/src/crypto.ts", "apps/api/mod.ts"],
+      "reason": "No KMS/HSM/provider implementation, production composition, audit identity, or unavailable-provider rehearsal exists."
+    },
+    {
+      "id": "key_rotation_recovery",
+      "title": "Key rotation and verification recovery is proven",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["packages/kernel/src/crypto.ts", "packages/accounting/src/service.ts"],
+      "reason": "Verification is tied to the currently configured signer; historical key resolution and rotation rehearsal are absent."
+    },
+    {
+      "id": "operator_alerts",
+      "title": "Critical failure conditions produce operator-visible alerts",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/operations/tigerbeetle-recovery.md"],
+      "reason": "Metrics are documented but no deployment metrics, alert rules, or failure-injection alert evidence is wired."
+    },
+    {
+      "id": "bounded_cohort",
+      "title": "Bounded production-equivalent cohort completes successfully",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/roadmap/financial-ledger-execution.md"],
+      "reason": "No scoped prepare/approve/activate/real-post/restart/rebuild/reconcile cohort ran on a production-equivalent deployment."
+    },
+    {
+      "id": "no_unresolved_p0",
+      "title": "No unresolved P0 ledger, recovery, security, or operational blocker remains",
+      "observed": "FAIL",
+      "evidenceClass": "missing",
+      "evidence": ["docs/roadmap/financial-ledger-execution.md"],
+      "reason": "Real deployment kill/recovery, quorum, cross-store restore, global reconciliation, production signing, alerts, and cohort evidence remain open."
+    }
+  ]
+}
