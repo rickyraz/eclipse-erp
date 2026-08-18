@@ -4,7 +4,12 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
-import { DatabaseFailure } from "../../kernel/mod.ts"
+import {
+  DatabaseFailure,
+  FinancialVerificationSigner,
+  generateEd25519FinancialVerificationSigner,
+  makeFinancialVerificationKeyring,
+} from "../../kernel/mod.ts"
 import { SalesService } from "../../sales/mod.ts"
 import {
   type EventEnvelope,
@@ -12,6 +17,7 @@ import {
   MessagingService,
 } from "../../messaging/mod.ts"
 import {
+  AccountingCapabilities,
   AccountingConfigurationAlreadyExists,
   AccountingPeriodNotOpen,
   AccountingService,
@@ -603,4 +609,101 @@ describe("accounting contract", () => {
       }))
       assert.instanceOf(error, UnbalancedJournal)
     })))
+
+  it.effect("approves an artifact after its signing key rotates", () =>
+    Effect.gen(function* () {
+      const oldKey = yield* generateEd25519FinancialVerificationSigner("old-key")
+      const currentKey = yield* generateEd25519FinancialVerificationSigner("current-key")
+      let signer = oldKey.signer
+      const rotatingSigner = {
+        get algorithm() {
+          return signer.algorithm
+        },
+        get keyId() {
+          return signer.keyId
+        },
+        sign: (payload: string) => signer.sign(payload),
+        verify: (payload: string, signature: string) => signer.verify(payload, signature),
+      }
+      const legalEntityId = "00000000-0000-4000-8000-000000000003"
+      const authorization = makeAuthorizationTestLayer([
+        AccountingCapabilities.legalEntityConfigure,
+        AccountingCapabilities.financialEngineActivate,
+        AccountingCapabilities.financialEvidenceRecord,
+      ].map((capability) => ({
+        userAccountId: principal.userAccountId,
+        tenantId,
+        capability,
+      })))
+      const accounting = yield* Effect.provide(
+        Effect.service(AccountingService),
+        makeAccountingTestLayer().pipe(
+          Layer.provide(Layer.mergeAll(
+            authorization,
+            makeMessagingTestLayer(),
+            Layer.succeed(SalesService, salesFacts),
+            Layer.succeed(FinancialVerificationSigner, rotatingSigner),
+            makeFinancialVerificationKeyring([{
+              algorithm: oldKey.signer.algorithm,
+              keyId: oldKey.signer.keyId,
+              verify: oldKey.signer.verify,
+            }]),
+          )),
+        ),
+      )
+      yield* accounting.configureLegalEntity({
+        principal,
+        tenantId,
+        legalEntityId,
+        baseCurrency: "USD",
+        precision: 2,
+        fiscalYearStartMonth: 1,
+        postingEnabled: true,
+      })
+      yield* accounting.prepareTigerBeetleCutover({ principal, tenantId, legalEntityId })
+      const artifact = yield* accounting.recordFinancialVerificationArtifact({
+        principal,
+        tenantId,
+        evidence: {
+          tenantId,
+          legalEntityId,
+          kind: "cutover_rehearsal",
+          completeness: "bounded",
+          scope: `tenant:${tenantId}/legal-entity:${legalEntityId}`,
+          schemaVersion: 1,
+          mappingVersion: 1,
+          currency: "USD",
+          sourceWatermark: "postgres:1",
+          targetWatermark: "tigerbeetle:1",
+          sourceSnapshotRef: "postgres:snapshot",
+          targetSnapshotRef: "tigerbeetle:snapshot",
+          operationSetHash: "0".repeat(64),
+          accountBalanceHash: "1".repeat(64),
+          transferSetHash: "2".repeat(64),
+          projectionHash: "3".repeat(64),
+          sourceDebitMinor: "100",
+          sourceCreditMinor: "100",
+          targetDebitMinor: "100",
+          targetCreditMinor: "100",
+          accountCount: 1,
+          operationCount: 1,
+          transferCount: 1,
+          mismatchCount: 0,
+          startedAt: "2026-08-18T00:00:00.000Z",
+          completedAt: "2026-08-18T00:01:00.000Z",
+        },
+      })
+
+      signer = currentKey.signer
+      const approved = yield* accounting.approveTigerBeetleCutover({
+        principal,
+        tenantId,
+        legalEntityId,
+        evidenceArtifactId: artifact.id,
+      })
+
+      assert.strictEqual(artifact.signingKeyId, "old-key")
+      assert.strictEqual(rotatingSigner.keyId, "current-key")
+      assert.strictEqual(approved.status, "approved")
+    }))
 })

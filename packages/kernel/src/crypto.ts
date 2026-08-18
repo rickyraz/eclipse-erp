@@ -3,6 +3,7 @@ import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as PlatformError from "effect/PlatformError"
+import * as Schema from "effect/Schema"
 
 const randomBytes = (size: number) => {
   const bytes = new Uint8Array(size)
@@ -12,15 +13,36 @@ const randomBytes = (size: number) => {
   return bytes
 }
 
-export interface FinancialVerificationSignerService {
+export interface FinancialVerificationVerifierService {
   readonly algorithm: "Ed25519"
   readonly keyId: string
-  readonly sign: (payload: string) => Promise<string>
   readonly verify: (payload: string, signature: string) => Promise<boolean>
+}
+
+export interface FinancialVerificationSignerService extends FinancialVerificationVerifierService {
+  readonly sign: (payload: string) => Promise<string>
+}
+
+export class FinancialVerificationKeyNotFound
+  extends Schema.TaggedErrorClass<FinancialVerificationKeyNotFound>()(
+    "FinancialVerificationKeyNotFound",
+    { keyId: Schema.String },
+  ) {}
+
+export interface FinancialVerificationKeyringService {
+  readonly verify: (
+    keyId: string,
+    payload: string,
+    signature: string,
+  ) => Effect.Effect<boolean, FinancialVerificationKeyNotFound>
 }
 
 export const FinancialVerificationSigner = Context.Service<FinancialVerificationSignerService>(
   "RITSEI/FinancialVerificationSigner",
+)
+
+export const FinancialVerificationKeyring = Context.Service<FinancialVerificationKeyringService>(
+  "RITSEI/FinancialVerificationKeyring",
 )
 
 const ed25519 = { name: "Ed25519" } as AlgorithmIdentifier
@@ -63,13 +85,36 @@ const makeEd25519FinancialVerificationSignerService = (
   },
 })
 
+export const makeFinancialVerificationKeyring = (
+  verifiers: readonly FinancialVerificationVerifierService[],
+) => {
+  const byKeyId = new Map(verifiers.map((verifier) => [verifier.keyId, verifier]))
+  return Layer.succeed(FinancialVerificationKeyring, {
+    verify: (keyId, payload, signature) => {
+      const verifier = byKeyId.get(keyId)
+      if (verifier === undefined) {
+        return Effect.fail(new FinancialVerificationKeyNotFound({ keyId }))
+      }
+      return Effect.tryPromise({
+        try: () => verifier.verify(payload, signature),
+        catch: () => false,
+      }).pipe(Effect.catch(() => Effect.succeed(false)))
+    },
+  })
+}
+
+const makeFinancialVerificationSignerLayer = (signer: FinancialVerificationSignerService) =>
+  Layer.mergeAll(
+    Layer.succeed(FinancialVerificationSigner, signer),
+    makeFinancialVerificationKeyring([signer]),
+  )
+
 export const makeEd25519FinancialVerificationSigner = (
   keyId: string,
   privateKey: CryptoKey,
   publicKey: CryptoKey,
 ) =>
-  Layer.succeed(
-    FinancialVerificationSigner,
+  makeFinancialVerificationSignerLayer(
     makeEd25519FinancialVerificationSignerService(keyId, privateKey, publicKey),
   )
 
@@ -88,7 +133,7 @@ export const generateEd25519FinancialVerificationSigner = (keyId: string) =>
     return {
       pair,
       signer,
-      layer: Layer.succeed(FinancialVerificationSigner, signer),
+      layer: makeFinancialVerificationSignerLayer(signer),
     }
   })
 

@@ -24,6 +24,7 @@ import { AccountingCapabilities } from "./capabilities.ts"
 import {
   Database,
   DatabaseFailure,
+  FinancialVerificationKeyring,
   FinancialVerificationSigner,
   isDatabaseConstraint,
 } from "../../kernel/mod.ts"
@@ -537,6 +538,7 @@ export const makeAccountingService = Effect.gen(function* () {
   const clock = yield* Clock.Clock
   const ledgerOption = yield* Effect.serviceOption(FinancialLedgerPort)
   const signerOption = yield* Effect.serviceOption(FinancialVerificationSigner)
+  const keyringOption = yield* Effect.serviceOption(FinancialVerificationKeyring)
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   const toCutoverControl = (row: {
     readonly tenantId: string
@@ -998,21 +1000,15 @@ export const makeAccountingService = Effect.gen(function* () {
                 }),
               )
             }
-            if (Option.isNone(signerOption)) {
+            if (
+              Option.isNone(keyringOption) &&
+              (Option.isNone(signerOption) || artifact.signingKeyId !== signerOption.value.keyId)
+            ) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactInvalid({
                   tenantId: decoded.tenantId,
                   legalEntityId: decoded.legalEntityId,
-                  reason: "unsigned",
-                }),
-              )
-            }
-            if (artifact.signingKeyId !== signerOption.value.keyId) {
-              return yield* Effect.fail(
-                new FinancialVerificationArtifactInvalid({
-                  tenantId: decoded.tenantId,
-                  legalEntityId: decoded.legalEntityId,
-                  reason: "stale",
+                  reason: Option.isNone(signerOption) ? "unsigned" : "stale",
                 }),
               )
             }
@@ -1026,15 +1022,33 @@ export const makeAccountingService = Effect.gen(function* () {
                 }),
               )
             }
-            const signatureValid = yield* Effect.tryPromise({
-              try: () => signerOption.value.verify(artifact.artifactHash, artifact.signature),
-              catch: () =>
-                new FinancialVerificationArtifactInvalid({
-                  tenantId: decoded.tenantId,
-                  legalEntityId: decoded.legalEntityId,
-                  reason: "unsigned",
-                }),
-            })
+            const signatureValid = yield* Option.isSome(keyringOption)
+              ? keyringOption.value.verify(
+                artifact.signingKeyId,
+                artifact.artifactHash,
+                artifact.signature,
+              ).pipe(
+                Effect.mapError(() =>
+                  new FinancialVerificationArtifactInvalid({
+                    tenantId: decoded.tenantId,
+                    legalEntityId: decoded.legalEntityId,
+                    reason: "stale",
+                  })
+                ),
+              )
+              : Effect.tryPromise({
+                try: () =>
+                  Option.getOrThrow(signerOption).verify(
+                    artifact.artifactHash,
+                    artifact.signature,
+                  ),
+                catch: () =>
+                  new FinancialVerificationArtifactInvalid({
+                    tenantId: decoded.tenantId,
+                    legalEntityId: decoded.legalEntityId,
+                    reason: "unsigned",
+                  }),
+              })
             if (!signatureValid) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactInvalid({
@@ -2155,6 +2169,7 @@ export const makeAccountingTestLayer = () =>
       const sales = yield* SalesService
       const clock = yield* Clock.Clock
       const signerOption = yield* Effect.serviceOption(FinancialVerificationSigner)
+      const keyringOption = yield* Effect.serviceOption(FinancialVerificationKeyring)
       const configurations = new Map<string, AccountingConfiguration>()
       const profiles = new Map<string, RevenuePostingProfile>()
       const periods = new Map<string, AccountingPeriod>()
@@ -2335,21 +2350,15 @@ export const makeAccountingTestLayer = () =>
                 }),
               )
             }
-            if (Option.isNone(signerOption)) {
+            if (
+              Option.isNone(keyringOption) &&
+              (Option.isNone(signerOption) || artifact.signingKeyId !== signerOption.value.keyId)
+            ) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactInvalid({
                   tenantId: decoded.tenantId,
                   legalEntityId: decoded.legalEntityId,
-                  reason: "unsigned",
-                }),
-              )
-            }
-            if (artifact.signingKeyId !== signerOption.value.keyId) {
-              return yield* Effect.fail(
-                new FinancialVerificationArtifactInvalid({
-                  tenantId: decoded.tenantId,
-                  legalEntityId: decoded.legalEntityId,
-                  reason: "stale",
+                  reason: Option.isNone(signerOption) ? "unsigned" : "stale",
                 }),
               )
             }
@@ -2363,15 +2372,33 @@ export const makeAccountingTestLayer = () =>
                 }),
               )
             }
-            const signatureValid = yield* Effect.tryPromise({
-              try: () => signerOption.value.verify(artifact.artifactHash, artifact.signature),
-              catch: () =>
-                new FinancialVerificationArtifactInvalid({
-                  tenantId: decoded.tenantId,
-                  legalEntityId: decoded.legalEntityId,
-                  reason: "unsigned",
-                }),
-            })
+            const signatureValid = yield* Option.isSome(keyringOption)
+              ? keyringOption.value.verify(
+                artifact.signingKeyId,
+                artifact.artifactHash,
+                artifact.signature,
+              ).pipe(
+                Effect.mapError(() =>
+                  new FinancialVerificationArtifactInvalid({
+                    tenantId: decoded.tenantId,
+                    legalEntityId: decoded.legalEntityId,
+                    reason: "stale",
+                  })
+                ),
+              )
+              : Effect.tryPromise({
+                try: () =>
+                  Option.getOrThrow(signerOption).verify(
+                    artifact.artifactHash,
+                    artifact.signature,
+                  ),
+                catch: () =>
+                  new FinancialVerificationArtifactInvalid({
+                    tenantId: decoded.tenantId,
+                    legalEntityId: decoded.legalEntityId,
+                    reason: "unsigned",
+                  }),
+              })
             if (!signatureValid) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactInvalid({

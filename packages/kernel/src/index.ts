@@ -9,12 +9,19 @@ export {
   validatePostgresVersion,
 } from "./database.ts"
 export {
+  FinancialVerificationKeyNotFound,
+  FinancialVerificationKeyring,
   FinancialVerificationSigner,
   generateEd25519FinancialVerificationSigner,
   makeEd25519FinancialVerificationSigner,
+  makeFinancialVerificationKeyring,
   WebCryptoLive,
 } from "./crypto.ts"
-export type { FinancialVerificationSignerService } from "./crypto.ts"
+export type {
+  FinancialVerificationKeyringService,
+  FinancialVerificationSignerService,
+  FinancialVerificationVerifierService,
+} from "./crypto.ts"
 export { MigrationFailure, runMigrations } from "./migrations.ts"
 export { DurableJob, DurableJobEnqueuer, DurableJobInput } from "./jobs.ts"
 export { makeTigerBeetleFinancialLedger, TigerBeetleConfigurationFailure } from "./tigerbeetle.ts"
