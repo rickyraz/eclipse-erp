@@ -246,6 +246,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: revenue.operationId,
           })
           assert.strictEqual(postedRevenue.status, "reconciled")
+          const [reconciledEvent] = yield* Effect.promise(() =>
+            client<{
+              command_id: string
+              correlation_id: string
+              causation_id: string
+              idempotency_key: string
+            }[]>`
+              select command_id, correlation_id, causation_id, idempotency_key
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+            `
+          )
+          assert.isDefined(reconciledEvent)
+          assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.correlation_id)
+          assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.causation_id)
+          assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.idempotency_key)
+          assert.notStrictEqual(reconciledEvent?.correlation_id, reconciledEvent?.causation_id)
+          assert.notStrictEqual(reconciledEvent?.correlation_id, reconciledEvent?.idempotency_key)
+          assert.notStrictEqual(reconciledEvent?.causation_id, reconciledEvent?.idempotency_key)
 
           yield* Effect.promise(() =>
             client`

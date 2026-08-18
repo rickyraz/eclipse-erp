@@ -788,6 +788,12 @@ const pairMinorTransfers = (
 const submitJobType = "accounting.financial_operation.submit"
 const reconcileJobType = "accounting.financial_operation.reconcile"
 const currentTime = () => new Date(Date.now())
+const financialOperationEventMetadata = (operationId: string) => ({
+  commandId: `accounting.financial_operation.reconcile:${operationId}`,
+  correlationId: `accounting.financial_operation:${operationId}`,
+  causationId: `accounting.financial_operation.submit:${operationId}`,
+  idempotencyKey: `accounting.financial_operation.reconciled:${operationId}`,
+})
 
 const balanceConstraintForAccountType = (
   type: "asset" | "liability" | "equity" | "revenue" | "expense",
@@ -893,10 +899,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           eventVersion: AccountingFinancialOperationReconciledEvent.version,
           aggregateType: AccountingFinancialOperationReconciledEvent.aggregateType,
           aggregateId: current.id,
-          commandId: operationId,
-          correlationId: operationId,
-          causationId: operationId,
-          idempotencyKey: operationId,
+          ...financialOperationEventMetadata(operationId),
           actorPrincipalId: current.actorPrincipalId,
           occurredAt: now.toISOString(),
           payload: {
@@ -1185,10 +1188,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           eventVersion: AccountingFinancialOperationReconciledEvent.version,
           aggregateType: AccountingFinancialOperationReconciledEvent.aggregateType,
           aggregateId: current.id,
-          commandId: operationId,
-          correlationId: operationId,
-          causationId: operationId,
-          idempotencyKey: operationId,
+          ...financialOperationEventMetadata(operationId),
           actorPrincipalId: current.actorPrincipalId,
           occurredAt: (current.reconciledAt ?? now).toISOString(),
           payload: {
