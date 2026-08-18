@@ -12,7 +12,15 @@ import {
 import { serviceLayers } from "../api/mod.ts"
 import { FinancialWorkerInput, runFinancialOperationOnce } from "./runner.ts"
 
-export { FinancialWorkerInput, FinancialWorkerRun, runFinancialOperationOnce } from "./runner.ts"
+export {
+  FinancialWorkerInput,
+  FinancialWorkerRun,
+  makeWorkerFailpointLayer,
+  runFinancialOperationOnce,
+  WorkerFailpointName,
+  WorkerFailpointService,
+  WorkerInjectedFailure,
+} from "./runner.ts"
 
 const requiredEnv = (name: string) => {
   const value = Deno.env.get(name)?.trim()

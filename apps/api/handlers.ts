@@ -474,6 +474,17 @@ export const AccountingHandlers = HttpApiBuilder.group(
             })
           )
         })))
+      .handle("recordFinancialVerificationArtifact", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* AccountingService.use((service) =>
+            service.recordFinancialVerificationArtifact({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              evidence: payload,
+            })
+          )
+        })))
       .handle("approveTigerBeetleCutover", ({ headers, params, payload }) =>
         apiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
@@ -536,6 +547,17 @@ export const AccountingHandlers = HttpApiBuilder.group(
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.rebuildFinancialProjections({
+              principal,
+              tenantId: headers["x-tenant-id"],
+              ...payload,
+            })
+          )
+        })))
+      .handle("reconcileFinancialCheckpoint", ({ headers, payload }) =>
+        apiEffect(Effect.gen(function* () {
+          const principal = yield* CurrentPrincipal
+          return yield* FinancialOperationService.use((service) =>
+            service.reconcileFinancialCheckpoint({
               principal,
               tenantId: headers["x-tenant-id"],
               ...payload,

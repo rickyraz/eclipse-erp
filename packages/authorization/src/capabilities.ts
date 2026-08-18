@@ -39,6 +39,8 @@ export const CapabilityIds = [
   "inventory.stock_transfer.complete",
   "accounting.legal_entity.configure",
   "accounting.financial_engine.activate",
+  "accounting.financial_evidence.record",
+  "accounting.financial_reconciliation.checkpoint",
   "accounting.financial_projection.rebuild",
   "accounting.account.create",
   "accounting.journal.post",
@@ -232,6 +234,13 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
   definition("inventory.stock_transfer.complete", "inventory", "stock_transfer", "complete"),
   definition("accounting.legal_entity.configure", "accounting", "legal_entity", "configure"),
   definition("accounting.financial_engine.activate", "accounting", "financial_engine", "activate"),
+  definition("accounting.financial_evidence.record", "accounting", "financial_evidence", "record"),
+  definition(
+    "accounting.financial_reconciliation.checkpoint",
+    "accounting",
+    "financial_reconciliation",
+    "checkpoint",
+  ),
   definition(
     "accounting.financial_projection.rebuild",
     "accounting",

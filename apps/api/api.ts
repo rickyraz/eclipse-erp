@@ -43,6 +43,9 @@ import {
   FinancialCutoverControl,
   FinancialOperation,
   FinancialProjectionRebuildResult,
+  FinancialReconciliationCheckpoint,
+  FinancialVerificationArtifact,
+  FinancialVerificationEvidence,
   JournalEntry,
   JournalLine,
 } from "../../packages/accounting/mod.ts"
@@ -93,6 +96,9 @@ const CreatedAccountingConfiguration = AccountingConfiguration.pipe(HttpApiSchem
 const CreatedAccount = Account.pipe(HttpApiSchema.status(201))
 const CreatedJournal = JournalEntry.pipe(HttpApiSchema.status(201))
 const CreatedFinancialOperation = FinancialOperation.pipe(HttpApiSchema.status(201))
+const CreatedFinancialVerificationArtifact = FinancialVerificationArtifact.pipe(
+  HttpApiSchema.status(201),
+)
 const CreatedTenantMembership = TenantMembership.pipe(HttpApiSchema.status(201))
 const CreatedOrderConfirmation = OrderConfirmationResult.pipe(HttpApiSchema.status(201))
 const CreatedOrderCancellation = OrderCancellationResult.pipe(HttpApiSchema.status(201))
@@ -340,19 +346,22 @@ const Accounting = HttpApiGroup.make("Accounting").add(
     },
   ).middleware(BearerAuth),
   HttpApiEndpoint.post(
+    "recordFinancialVerificationArtifact",
+    "/accounting/financial-verification-artifacts",
+    {
+      headers: tenantHeaders,
+      payload: FinancialVerificationEvidence,
+      success: CreatedFinancialVerificationArtifact,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
+  HttpApiEndpoint.post(
     "approveTigerBeetleCutover",
     "/accounting/legal-entities/:id/tigerbeetle/approve",
     {
       params: { id: Schema.String },
       headers: tenantHeaders,
-      payload: Schema.Struct({
-        cutoverWatermark: Schema.String,
-        verificationHash: Schema.String,
-        openingBalanceVerified: Schema.Boolean,
-        historicalBoundaryVerified: Schema.Boolean,
-        reconciliationHealthy: Schema.Boolean,
-        backupRecoveryVerified: Schema.Boolean,
-      }),
+      payload: Schema.Struct({ evidenceArtifactId: Schema.String }),
       success: FinancialCutoverControl,
       error: errors,
     },
@@ -402,6 +411,24 @@ const Accounting = HttpApiGroup.make("Accounting").add(
     success: FinancialProjectionRebuildResult,
     error: errors,
   }).middleware(BearerAuth),
+  HttpApiEndpoint.post(
+    "reconcileFinancialCheckpoint",
+    "/accounting/financial-reconciliation/checkpoints",
+    {
+      headers: tenantHeaders,
+      payload: Schema.Struct({
+        legalEntityId: Schema.String,
+        recoveryWatermark: Schema.String,
+        sourceWatermark: Schema.String,
+        targetWatermark: Schema.String,
+        sourceSnapshotRef: Schema.String,
+        targetSnapshotRef: Schema.String,
+        evidenceArtifactId: Schema.NullOr(Schema.String),
+      }),
+      success: FinancialReconciliationCheckpoint,
+      error: errors,
+    },
+  ).middleware(BearerAuth),
   HttpApiEndpoint.post("createFinancialJournalIntent", "/accounting/financial-operations", {
     headers: tenantHeaders,
     payload: Schema.Struct({

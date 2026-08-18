@@ -85,13 +85,35 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )
+          const [evidenceArtifact] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.financial_verification_artifacts (
+                tenant_id, legal_entity_id, kind, status, completeness, scope,
+                schema_version, mapping_version, currency, source_watermark, target_watermark,
+                source_snapshot_ref, target_snapshot_ref, artifact_hash, signature_algorithm,
+                signing_key_id, signature, operation_set_hash, account_balance_hash,
+                transfer_set_hash, source_debit_minor, source_credit_minor, target_debit_minor,
+                target_credit_minor, account_count, operation_count, transfer_count,
+                mismatch_count, producer_principal_id, started_at, completed_at
+              ) values (
+                ${tenant!.id}, ${
+              legalEntity!.id
+            }, 'cutover_rehearsal', 'verified', 'bounded', 'test',
+                1, 1, 'USD', 'test-watermark', 'test-watermark', 'test-source', 'test-target',
+                repeat('0', 64), 'Ed25519', 'test-key', 'test-signature', repeat('0', 64),
+                repeat('1', 64), repeat('2', 64), '0', '0', '0', '0', 0, 0, 0, 0,
+                'test-operator', now(), now()
+              ) returning id
+            `
+          )
           yield* Effect.promise(() =>
             client`
               update accounting.financial_cutover_controls
               set status = 'approved', cutover_watermark = 'test-watermark',
                 verification_hash = 'test-hash', opening_balance_verified = true,
                 historical_boundary_verified = true, reconciliation_healthy = true,
-                backup_recovery_verified = true, approved_by = 'test-operator', approved_at = now()
+                backup_recovery_verified = true, evidence_artifact_id = ${evidenceArtifact!.id},
+                approved_by = 'test-operator', approved_at = now()
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )

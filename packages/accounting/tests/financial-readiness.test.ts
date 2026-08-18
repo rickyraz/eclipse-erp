@@ -1,6 +1,14 @@
 import { assert, describe, it } from "@effect/vitest"
+import * as Effect from "effect/Effect"
 
-import { financialFailureMatrix, verifyOpeningBalances } from "../mod.ts"
+import {
+  buildFinancialVerificationEvidence,
+  compareFinancialFactSnapshots,
+  financialFailureExecutionMatrix,
+  financialFailureMatrix,
+  hashFinancialFactSnapshot,
+  verifyOpeningBalances,
+} from "../mod.ts"
 
 describe("financial readiness proofs", () => {
   it("defines a deterministic action for every crash-matrix point", () => {
@@ -23,6 +31,15 @@ describe("financial readiness proofs", () => {
         "M_postgresql_unavailable",
       ],
     )
+    assert.strictEqual(financialFailureExecutionMatrix.length, 13)
+    assert.strictEqual(
+      new Set(financialFailureExecutionMatrix.map((row) => row.point)).size,
+      13,
+    )
+    for (const row of financialFailureExecutionMatrix) {
+      assert.isNotEmpty(row.hook)
+      assert.isNotEmpty(row.recovery)
+    }
     for (const row of financialFailureMatrix) {
       assert.isNotEmpty(row.expectedPostgresState)
       assert.isNotEmpty(row.expectedTigerBeetleState)
@@ -31,6 +48,77 @@ describe("financial readiness proofs", () => {
       assert.isNotEmpty(row.terminalCondition)
     }
   })
+
+  it.effect("rebuilds the same cross-store facts to the same hash", () =>
+    Effect.gen(function* () {
+      const source = {
+        operations: [{
+          operationId: "op-1",
+          status: "reconciled" as const,
+          currency: "USD",
+          mappingVersion: 1,
+        }],
+        transfers: [{
+          operationId: "op-1",
+          position: 0,
+          transferId: "transfer-1",
+          debitAccountId: "cash",
+          creditAccountId: "revenue",
+          amountMinor: "100",
+          currency: "USD",
+          mappingVersion: 1,
+        }],
+        balances: [{
+          accountId: "cash",
+          currency: "USD",
+          mappingVersion: 1,
+          debitsPostedMinor: "100",
+          creditsPostedMinor: "0",
+        }],
+        projections: [{
+          operationId: "op-1",
+          journalStatus: "posted" as const,
+          transferIds: ["transfer-1"],
+        }],
+      }
+      const target = {
+        operations: [...source.operations],
+        transfers: [...source.transfers],
+        balances: [...source.balances],
+        projections: [...source.projections],
+      }
+      const comparison = compareFinancialFactSnapshots(source, target)
+      assert.isTrue(comparison.ok)
+      assert.deepStrictEqual(comparison.mismatches, [])
+      const sourceHash = yield* hashFinancialFactSnapshot(source)
+      const targetHash = yield* hashFinancialFactSnapshot(target)
+      assert.strictEqual(sourceHash, targetHash)
+      const evidence = yield* buildFinancialVerificationEvidence({
+        tenantId: "00000000-0000-4000-8000-000000000001",
+        legalEntityId: "00000000-0000-4000-8000-000000000002",
+        kind: "cutover_rehearsal",
+        completeness: "bounded",
+        scope: "test",
+        mappingVersion: 1,
+        currency: "USD",
+        sourceWatermark: "source-1",
+        targetWatermark: "target-1",
+        sourceSnapshotRef: "source-snapshot",
+        targetSnapshotRef: "target-snapshot",
+        source,
+        target,
+        startedAt: "2026-08-18T00:00:00.000Z",
+        completedAt: "2026-08-18T00:01:00.000Z",
+      })
+      assert.strictEqual(evidence.mismatchCount, 0)
+      assert.strictEqual(evidence.sourceDebitMinor, "100")
+      const mismatch = compareFinancialFactSnapshots(source, {
+        ...target,
+        transfers: [{ ...target.transfers[0]!, transferId: "unexpected-transfer" }],
+      })
+      assert.isFalse(mismatch.ok)
+      assert.strictEqual(mismatch.mismatches[0]!.kind, "transfer_mismatch")
+    }))
 
   it("requires exact account-level opening-balance equality", () => {
     const source = [

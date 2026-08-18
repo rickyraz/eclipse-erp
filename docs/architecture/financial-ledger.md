@@ -2,19 +2,26 @@
 
 > **Status:** Canonical
 >
-> **Owns:** financial authority, the financial execution boundary, cross-store outcome
-> semantics, identity mapping, and reconciliation for the activated ledger profile.
+> **Owns:** financial authority, the financial execution boundary, cross-store outcome semantics,
+> identity mapping, and reconciliation for the activated ledger profile.
 >
 > **Related documents**
 >
-> - Ledger decision: [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
-> - Previous ledger decision: [`../decisions/0011-financial-ledger-engine.md`](../decisions/0011-financial-ledger-engine.md)
+> - Ledger decision:
+>   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
+> - Previous ledger decision:
+>   [`../decisions/0011-financial-ledger-engine.md`](../decisions/0011-financial-ledger-engine.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
-> - P2 financial baseline: [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
-> > - Execution roadmap: [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
-> - Recovery and cutover runbook: [`../operations/tigerbeetle-recovery.md`](../operations/tigerbeetle-recovery.md)
+> - P2 financial baseline:
+>   [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
+>
+>> - Execution roadmap:
+>>   [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
+>
+> - Recovery and cutover runbook:
+>   [`../operations/tigerbeetle-recovery.md`](../operations/tigerbeetle-recovery.md)
 
 ## Position
 
@@ -33,25 +40,25 @@ A Legal Entity selects its route explicitly with `financial_engine`, which defau
 until the controlled cutover gates are approved and `financial_cutover_controls` reaches
 `tigerbeetle`. Durable financial operations persist their deterministic transfer identities before
 submission. Historical rows are marked `engine_verified = false` during migration rather than being
-treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations
-are fenced into manual recovery. Once any Legal Entity for a tenant is routed to TigerBeetle, the
-legacy tenant-scoped PostgreSQL journal path is rejected rather than allowing two authorities.
+treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations are
+fenced into manual recovery. Once any Legal Entity for a tenant is routed to TigerBeetle, the legacy
+tenant-scoped PostgreSQL journal path is rejected rather than allowing two authorities.
 
 ## Authority Matrix
 
-| Fact or responsibility | Authority | Notes |
-| --- | --- | --- |
-| Tenant, Legal Entity, account meaning, chart-of-accounts metadata | PostgreSQL / Accounting | Business identity and semantics, not TigerBeetle provider metadata |
-| Fiscal periods, posting dates, posting policy, authorization | PostgreSQL / Accounting | Policy is evaluated before financial submission |
-| Financial operation intent, command identity, retry state, workflow state | PostgreSQL | Durable control-plane state |
-| Accepted debit-credit transfer and linked transfer chain | TigerBeetle | One financial authority for the activated profile |
-| Pending, posted, and voided transfer state | TigerBeetle | Only where a decided capability uses pending transfers |
-| Account balance and balance constraints | TigerBeetle | PostgreSQL may project values for reads |
-| Immutable transfer history | TigerBeetle | PostgreSQL stores references and projections |
-| Journal/document metadata and correction relationships | PostgreSQL / Accounting | Financial acceptance is derived from the mapped TigerBeetle operation |
-| Audit references and reporting projection | PostgreSQL | Rebuildable from TigerBeetle facts plus control-plane metadata |
-| Reconciliation state and mismatch quarantine | PostgreSQL / application operations | Reconciliation never creates an unapproved business correction |
-| TigerBeetle client, transport, batching, and provider failures | Kernel/infrastructure | Never part of a domain public contract |
+| Fact or responsibility                                                    | Authority                           | Notes                                                                 |
+| ------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------- |
+| Tenant, Legal Entity, account meaning, chart-of-accounts metadata         | PostgreSQL / Accounting             | Business identity and semantics, not TigerBeetle provider metadata    |
+| Fiscal periods, posting dates, posting policy, authorization              | PostgreSQL / Accounting             | Policy is evaluated before financial submission                       |
+| Financial operation intent, command identity, retry state, workflow state | PostgreSQL                          | Durable control-plane state                                           |
+| Accepted debit-credit transfer and linked transfer chain                  | TigerBeetle                         | One financial authority for the activated profile                     |
+| Pending, posted, and voided transfer state                                | TigerBeetle                         | Only where a decided capability uses pending transfers                |
+| Account balance and balance constraints                                   | TigerBeetle                         | PostgreSQL may project values for reads                               |
+| Immutable transfer history                                                | TigerBeetle                         | PostgreSQL stores references and projections                          |
+| Journal/document metadata and correction relationships                    | PostgreSQL / Accounting             | Financial acceptance is derived from the mapped TigerBeetle operation |
+| Audit references and reporting projection                                 | PostgreSQL                          | Rebuildable from TigerBeetle facts plus control-plane metadata        |
+| Reconciliation state and mismatch quarantine                              | PostgreSQL / application operations | Reconciliation never creates an unapproved business correction        |
+| TigerBeetle client, transport, batching, and provider failures            | Kernel/infrastructure               | Never part of a domain public contract                                |
 
 No row has two authorities. A PostgreSQL journal row or balance projection cannot authorize a new
 financial movement by itself.
@@ -63,9 +70,10 @@ post-cutover reversal may target only a post-cutover operation in the first prof
 implementation additionally requires the source operation to be verified TigerBeetle-owned,
 reconciled, in the same Legal Entity and currency, and locked together with its immutable source
 lines. A correction that crosses the boundary is rejected into an explicit not-ready/manual-recovery
-path until a later correction decision defines its period, archive reference, opening-balance effect,
-and reconciliation proof. Full historical transfer import is an optional migration improvement, not
-a prerequisite for the first profile; it requires its own ordering and replay proof.
+path until a later correction decision defines its period, archive reference, opening-balance
+effect, and reconciliation proof. Full historical transfer import is an optional migration
+improvement, not a prerequisite for the first profile; it requires its own ordering and replay
+proof.
 
 ## Semantic Boundary
 
@@ -100,8 +108,8 @@ failures.
 
 The port is owned by the Accounting/application contract boundary and is supplied at the composition
 root. Kernel/infrastructure may implement the provider adapter but must not import Accounting domain
-semantics. If a neutral package is needed later, it may contain only the provider-neutral port shape;
-it must not become a generic ledger domain or import TigerBeetle types.
+semantics. If a neutral package is needed later, it may contain only the provider-neutral port
+shape; it must not become a generic ledger domain or import TigerBeetle types.
 
 ## Financial Operation Protocol
 
@@ -165,17 +173,17 @@ For the activated profile:
 
 ## Failure and Publication Matrix
 
-| Failure point | Financial fact | PostgreSQL state | Caller/worker behavior |
-| --- | --- | --- | --- |
-| Before intent commit | No TigerBeetle submission | No intent | Retry the command safely |
-| Intent committed, no submission | No accepted transfer | `intent` | Durable worker submits the same IDs |
-| TigerBeetle rejects | No accepted transfer | `rejected` after receipt transaction | Return a stable business/infrastructure result; no posted projection |
-| TigerBeetle accepts and receipt transaction commits | Accepted transfer exists | `accepted`/projection plus outbox | Return `posted`; reconciliation may still be pending |
-| TigerBeetle accepts, PostgreSQL receipt fails | Accepted transfer exists | No durable receipt or `unknown` | No caller-visible success; freeze dependent work and reconcile by the same IDs |
-| Response is lost | Unknown until lookup | `submitted` or `unknown` | Retry/lookup the same IDs; never generate new IDs |
-| Mapping or amount mismatch | Transfer may exist but is unsafe | `manual_recovery`/quarantine | Fail closed; do not invent a balancing mutation |
-| TigerBeetle unavailable | Unknown or no new result | Intent remains durable | Retry within policy; never fall back to PostgreSQL |
-| Restore points diverge | Authority cannot be assumed from either copy | Profile fenced | Freeze submission, compare deterministic IDs, quarantine drift, and recover explicitly |
+| Failure point                                       | Financial fact                               | PostgreSQL state                     | Caller/worker behavior                                                                 |
+| --------------------------------------------------- | -------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Before intent commit                                | No TigerBeetle submission                    | No intent                            | Retry the command safely                                                               |
+| Intent committed, no submission                     | No accepted transfer                         | `intent`                             | Durable worker submits the same IDs                                                    |
+| TigerBeetle rejects                                 | No accepted transfer                         | `rejected` after receipt transaction | Return a stable business/infrastructure result; no posted projection                   |
+| TigerBeetle accepts and receipt transaction commits | Accepted transfer exists                     | `accepted`/projection plus outbox    | Return `posted`; reconciliation may still be pending                                   |
+| TigerBeetle accepts, PostgreSQL receipt fails       | Accepted transfer exists                     | No durable receipt or `unknown`      | No caller-visible success; freeze dependent work and reconcile by the same IDs         |
+| Response is lost                                    | Unknown until lookup                         | `submitted` or `unknown`             | Retry/lookup the same IDs; never generate new IDs                                      |
+| Mapping or amount mismatch                          | Transfer may exist but is unsafe             | `manual_recovery`/quarantine         | Fail closed; do not invent a balancing mutation                                        |
+| TigerBeetle unavailable                             | Unknown or no new result                     | Intent remains durable               | Retry within policy; never fall back to PostgreSQL                                     |
+| Restore points diverge                              | Authority cannot be assumed from either copy | Profile fenced                       | Freeze submission, compare deterministic IDs, quarantine drift, and recover explicitly |
 
 After TigerBeetle acceptance, the worker invokes an Accounting-owned public finalize/reconcile
 command. That command opens the PostgreSQL transaction and commits the outcome receipt,
@@ -231,7 +239,8 @@ For an activated profile:
 - a journal is financially accepted only when its mapped TigerBeetle operation is accepted;
 - a reversal is a new correcting TigerBeetle operation and a new PostgreSQL projection;
 - accepted transfer history is never updated or deleted;
-- reports read a PostgreSQL projection or approved TigerBeetle query path, never a competing balance;
+- reports read a PostgreSQL projection or approved TigerBeetle query path, never a competing
+  balance;
 - projections carry source IDs, mapping version, and reconciliation status so they can be rebuilt.
 
 ### Period and policy concurrency
@@ -239,13 +248,13 @@ For an activated profile:
 The PostgreSQL intent transaction snapshots the Legal Entity, posting period, account mapping, and
 policy versions used for the operation. It serializes with period close and configuration changes:
 
-- an open period cannot close while an operation for that period is `intent`, `submitted`, `accepted`,
-  or `unknown`; close returns a typed pending-work failure or waits through an approved durable
-  close workflow;
+- an open period cannot close while an operation for that period is `intent`, `submitted`,
+  `accepted`, or `unknown`; close returns a typed pending-work failure or waits through an approved
+  durable close workflow;
 - a mapping or posting-policy change cannot invalidate a non-reconciled operation; it is rejected or
   creates a new version for later operations;
-- the submission worker revalidates the captured versions before sending an unsubmitted operation;
-  a stale intent is fenced rather than submitted with changed semantics;
+- the submission worker revalidates the captured versions before sending an unsubmitted operation; a
+  stale intent is fenced rather than submitted with changed semantics;
 - authorization is checked before intent creation, and a policy or scope change fences unsubmitted
   work until an authorized recovery command resumes it;
 - period close uses a bounded wait/deadline. When the deadline expires, it returns a typed
@@ -293,9 +302,17 @@ At minimum it detects:
 - PostgreSQL marked accepted while TigerBeetle remains unresolved;
 - restore or checkpoint gaps between the two stores.
 
-Reconciliation can reload, replay, rebuild, quarantine, or require manual recovery. It must not issue
-an invented posting merely to make the stores look equal. Corrections remain authorized business
-commands and use new transfers.
+Reconciliation can reload, replay, rebuild, quarantine, or require manual recovery. It must not
+issue an invented posting merely to make the stores look equal. Corrections remain authorized
+business commands and use new transfers.
+
+The implementation persists append-only `financial_reconciliation_checkpoints` with source/target
+watermarks, snapshot references, fact-set hashes, mismatch/orphan counts, and optional linkage to an
+immutable signed `financial_verification_artifacts` row. Unexpected operation-scoped transfer IDs
+are quarantined in `financial_orphan_transfers`. This is a bounded checkpoint: the current port
+reconciles known operation IDs and does not yet expose a global TigerBeetle CDC cursor, so it cannot
+be described as a complete global orphan scan or point-in-time proof until that provider capability
+and its rehearsal exist.
 
 ### Cross-store restore protocol
 
@@ -320,6 +337,9 @@ modules, reporting workers, and untrusted plugins must not connect directly.
 The production profile requires:
 
 - version-pinned client and compatibility evidence;
+- a KMS/HSM-backed Ed25519 signer layer for bounded verification artifacts, with key-ID resolution
+  and independent signature verification; the default composition root intentionally supplies no
+  signer and therefore cannot approve activation;
 - bounded request batching and concurrency;
 - backup, restore, upgrade, and point-in-time relationship procedures;
 - health, latency, rejection, unknown-outcome, projection-lag, and reconciliation metrics;

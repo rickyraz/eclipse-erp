@@ -13,6 +13,7 @@ import { AuthorizationService, makeAuthorizationService } from "../../packages/a
 import { makeUserAccountService, UserAccountService } from "../../packages/identity/mod.ts"
 import {
   DurableJobEnqueuer,
+  type FinancialVerificationSignerService,
   type PostgresClient,
   PostgresDatabaseLive,
   TigerBeetleConfigurationFailure,
@@ -40,6 +41,7 @@ import { ApiHandlers, BearerAuthLive } from "./handlers.ts"
 export const serviceLayers = (
   client: Sql,
   financialLedger?: Layer.Layer<FinancialLedgerPort, TigerBeetleConfigurationFailure, never>,
+  financialSigner?: Layer.Layer<FinancialVerificationSignerService>,
 ) => {
   const database = PostgresDatabaseLive(client)
 
@@ -73,8 +75,11 @@ export const serviceLayers = (
     Layer.provide(Layer.merge(businessRequirements, messaging)),
   )
 
+  const accountingRequirements = financialSigner === undefined
+    ? Layer.mergeAll(businessRequirements, messaging, sales)
+    : Layer.mergeAll(businessRequirements, messaging, sales, financialSigner)
   const accounting = Layer.effect(AccountingService, makeAccountingService).pipe(
-    Layer.provide(Layer.mergeAll(businessRequirements, messaging, sales)),
+    Layer.provide(accountingRequirements),
   )
 
   const jobEnqueuer = Layer.effect(DurableJobEnqueuer, makeProcessJobEnqueuer).pipe(

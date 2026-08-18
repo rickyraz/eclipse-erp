@@ -8,7 +8,13 @@ export {
   UnsupportedPostgresVersion,
   validatePostgresVersion,
 } from "./database.ts"
-export { WebCryptoLive } from "./crypto.ts"
+export {
+  FinancialVerificationSigner,
+  generateEd25519FinancialVerificationSigner,
+  makeEd25519FinancialVerificationSigner,
+  WebCryptoLive,
+} from "./crypto.ts"
+export type { FinancialVerificationSignerService } from "./crypto.ts"
 export { MigrationFailure, runMigrations } from "./migrations.ts"
 export { DurableJob, DurableJobEnqueuer, DurableJobInput } from "./jobs.ts"
 export { makeTigerBeetleFinancialLedger, TigerBeetleConfigurationFailure } from "./tigerbeetle.ts"

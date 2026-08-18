@@ -12,6 +12,7 @@ import {
   accounts,
   financialCutoverControls,
   financialOperations,
+  financialVerificationArtifacts,
   journalEntries,
   journalLines,
   legalEntityAccountingConfigurations,
@@ -20,7 +21,12 @@ import {
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import { AccountingCapabilities } from "./capabilities.ts"
-import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import {
+  Database,
+  DatabaseFailure,
+  FinancialVerificationSigner,
+  isDatabaseConstraint,
+} from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingRevenuePostedEvent, RevenuePostedEventPayload } from "./events.ts"
@@ -29,6 +35,10 @@ import {
   type FinancialAccountConstraint,
   FinancialLedgerPort,
 } from "./financial-ledger.ts"
+import {
+  FinancialVerificationEvidence,
+  hashFinancialVerificationEvidence,
+} from "./financial-readiness.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
 const Uuid = Schema.String.check(Schema.isUUID())
@@ -118,6 +128,7 @@ export const FinancialCutoverControl = Schema.Struct({
   historicalBoundaryVerified: Schema.Boolean,
   reconciliationHealthy: Schema.Boolean,
   backupRecoveryVerified: Schema.Boolean,
+  evidenceArtifactId: Schema.NullOr(Uuid),
   unresolvedAcceptedOperations: Schema.Int,
   approvedBy: Schema.NullOr(NonEmptyString),
   approvedAt: Schema.NullOr(Schema.String),
@@ -127,6 +138,28 @@ export const FinancialCutoverControl = Schema.Struct({
 })
 export type FinancialCutoverControl = Schema.Schema.Type<typeof FinancialCutoverControl>
 
+export const FinancialVerificationArtifact = Schema.Struct({
+  id: Uuid,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  artifactHash: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)),
+  signatureAlgorithm: Schema.Literal("Ed25519"),
+  signingKeyId: NonEmptyString,
+  signature: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_-]+$/)),
+  status: Schema.Literals(["verified", "rejected"]),
+  evidence: FinancialVerificationEvidence,
+  producerPrincipalId: NonEmptyString,
+  createdAt: Schema.String,
+})
+export type FinancialVerificationArtifact = Schema.Schema.Type<
+  typeof FinancialVerificationArtifact
+>
+
+export const RecordFinancialVerificationArtifactInput = Schema.Struct({
+  ...ScopedInput,
+  evidence: FinancialVerificationEvidence,
+})
+
 export const PrepareTigerBeetleCutoverInput = Schema.Struct({
   ...ScopedInput,
   legalEntityId: Uuid,
@@ -135,12 +168,7 @@ export const PrepareTigerBeetleCutoverInput = Schema.Struct({
 export const ApproveTigerBeetleCutoverInput = Schema.Struct({
   ...ScopedInput,
   legalEntityId: Uuid,
-  cutoverWatermark: NonEmptyString,
-  verificationHash: NonEmptyString,
-  openingBalanceVerified: Schema.Boolean,
-  historicalBoundaryVerified: Schema.Boolean,
-  reconciliationHealthy: Schema.Boolean,
-  backupRecoveryVerified: Schema.Boolean,
+  evidenceArtifactId: Uuid,
 })
 
 export const ActivateTigerBeetleCutoverInput = Schema.Struct({
@@ -236,6 +264,21 @@ export class FinancialEngineCutoverBlocked
         "ledger_not_configured",
         "account_provisioning_failed",
       ]),
+    },
+  ) {}
+
+export class FinancialVerificationArtifactNotFound
+  extends Schema.TaggedErrorClass<FinancialVerificationArtifactNotFound>()(
+    "FinancialVerificationArtifactNotFound",
+    { tenantId: Uuid, artifactId: Uuid },
+  ) {}
+export class FinancialVerificationArtifactInvalid
+  extends Schema.TaggedErrorClass<FinancialVerificationArtifactInvalid>()(
+    "FinancialVerificationArtifactInvalid",
+    {
+      tenantId: Uuid,
+      legalEntityId: Uuid,
+      reason: Schema.Literals(["scope_mismatch", "incomplete", "mismatch", "stale", "unsigned"]),
     },
   ) {}
 
@@ -336,6 +379,15 @@ export interface AccountingService {
     | FinancialEngineCutoverBlocked
     | CommonFailure
   >
+  readonly recordFinancialVerificationArtifact: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialVerificationArtifact,
+    | FinancialVerificationArtifactInvalid
+    | DatabaseFailure
+    | AuthorizationDenied
+    | Schema.SchemaError
+  >
   readonly prepareTigerBeetleCutover: (
     input: unknown,
   ) => Effect.Effect<
@@ -352,6 +404,8 @@ export interface AccountingService {
     | AccountingLegalEntityNotFound
     | FinancialEngineActivated
     | FinancialEngineCutoverBlocked
+    | FinancialVerificationArtifactInvalid
+    | FinancialVerificationArtifactNotFound
     | CommonFailure
   >
   readonly activateTigerBeetleCutover: (
@@ -479,6 +533,7 @@ export const makeAccountingService = Effect.gen(function* () {
   const sales = yield* SalesService
   const clock = yield* Clock.Clock
   const ledgerOption = yield* Effect.serviceOption(FinancialLedgerPort)
+  const signerOption = yield* Effect.serviceOption(FinancialVerificationSigner)
   const now = () => new Date(clock.currentTimeMillisUnsafe())
   const toCutoverControl = (row: {
     readonly tenantId: string
@@ -492,6 +547,7 @@ export const makeAccountingService = Effect.gen(function* () {
     readonly historicalBoundaryVerified: boolean
     readonly reconciliationHealthy: boolean
     readonly backupRecoveryVerified: boolean
+    readonly evidenceArtifactId: string | null
     readonly unresolvedAcceptedOperations: number
     readonly approvedBy: string | null
     readonly approvedAt: Date | null
@@ -510,6 +566,7 @@ export const makeAccountingService = Effect.gen(function* () {
     historicalBoundaryVerified: row.historicalBoundaryVerified,
     reconciliationHealthy: row.reconciliationHealthy,
     backupRecoveryVerified: row.backupRecoveryVerified,
+    evidenceArtifactId: row.evidenceArtifactId,
     unresolvedAcceptedOperations: row.unresolvedAcceptedOperations,
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt?.toISOString() ?? null,
@@ -529,6 +586,7 @@ export const makeAccountingService = Effect.gen(function* () {
     historicalBoundaryVerified: financialCutoverControls.historicalBoundaryVerified,
     reconciliationHealthy: financialCutoverControls.reconciliationHealthy,
     backupRecoveryVerified: financialCutoverControls.backupRecoveryVerified,
+    evidenceArtifactId: financialCutoverControls.evidenceArtifactId,
     unresolvedAcceptedOperations: financialCutoverControls.unresolvedAcceptedOperations,
     approvedBy: financialCutoverControls.approvedBy,
     approvedAt: financialCutoverControls.approvedAt,
@@ -536,6 +594,81 @@ export const makeAccountingService = Effect.gen(function* () {
     activatedAt: financialCutoverControls.activatedAt,
     lastError: financialCutoverControls.lastError,
   }
+  const toVerificationArtifact = (row: {
+    readonly id: string
+    readonly tenantId: string
+    readonly legalEntityId: string
+    readonly artifactHash: string
+    readonly signatureAlgorithm: string
+    readonly signingKeyId: string
+    readonly signature: string
+    readonly status: "verified" | "rejected"
+    readonly kind: FinancialVerificationEvidence["kind"]
+    readonly completeness: FinancialVerificationEvidence["completeness"]
+    readonly scope: string
+    readonly schemaVersion: number
+    readonly mappingVersion: number
+    readonly currency: string
+    readonly sourceWatermark: string
+    readonly targetWatermark: string
+    readonly sourceSnapshotRef: string
+    readonly targetSnapshotRef: string
+    readonly operationSetHash: string
+    readonly accountBalanceHash: string
+    readonly transferSetHash: string
+    readonly projectionHash: string | null
+    readonly sourceDebitMinor: string
+    readonly sourceCreditMinor: string
+    readonly targetDebitMinor: string
+    readonly targetCreditMinor: string
+    readonly accountCount: number
+    readonly operationCount: number
+    readonly transferCount: number
+    readonly mismatchCount: number
+    readonly producerPrincipalId: string
+    readonly startedAt: Date
+    readonly completedAt: Date
+    readonly createdAt: Date
+  }): FinancialVerificationArtifact => ({
+    id: row.id,
+    tenantId: row.tenantId,
+    legalEntityId: row.legalEntityId,
+    artifactHash: row.artifactHash,
+    signatureAlgorithm: row.signatureAlgorithm as "Ed25519",
+    signingKeyId: row.signingKeyId,
+    signature: row.signature,
+    status: row.status,
+    evidence: {
+      tenantId: row.tenantId,
+      legalEntityId: row.legalEntityId,
+      kind: row.kind,
+      completeness: row.completeness,
+      scope: row.scope,
+      schemaVersion: row.schemaVersion,
+      mappingVersion: row.mappingVersion,
+      currency: row.currency,
+      sourceWatermark: row.sourceWatermark,
+      targetWatermark: row.targetWatermark,
+      sourceSnapshotRef: row.sourceSnapshotRef,
+      targetSnapshotRef: row.targetSnapshotRef,
+      operationSetHash: row.operationSetHash,
+      accountBalanceHash: row.accountBalanceHash,
+      transferSetHash: row.transferSetHash,
+      projectionHash: row.projectionHash,
+      sourceDebitMinor: row.sourceDebitMinor,
+      sourceCreditMinor: row.sourceCreditMinor,
+      targetDebitMinor: row.targetDebitMinor,
+      targetCreditMinor: row.targetCreditMinor,
+      accountCount: row.accountCount,
+      operationCount: row.operationCount,
+      transferCount: row.transferCount,
+      mismatchCount: row.mismatchCount,
+      startedAt: row.startedAt.toISOString(),
+      completedAt: row.completedAt.toISOString(),
+    },
+    producerPrincipalId: row.producerPrincipalId,
+    createdAt: row.createdAt.toISOString(),
+  })
   const cutoverBlocked = (
     tenantId: string,
     legalEntityId: string,
@@ -595,6 +728,114 @@ export const makeAccountingService = Effect.gen(function* () {
     )
 
   return {
+    recordFinancialVerificationArtifact: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(RecordFinancialVerificationArtifactInput)(
+          input,
+        )
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: AccountingCapabilities.financialEvidenceRecord,
+        })
+        if (decoded.evidence.tenantId !== decoded.tenantId) {
+          return yield* Effect.fail(
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "scope_mismatch",
+            }),
+          )
+        }
+        const startedAt = new Date(decoded.evidence.startedAt)
+        const completedAt = new Date(decoded.evidence.completedAt)
+        if (!Number.isFinite(startedAt.getTime()) || !Number.isFinite(completedAt.getTime())) {
+          return yield* Effect.fail(
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "incomplete",
+            }),
+          )
+        }
+        if (completedAt < startedAt) {
+          return yield* Effect.fail(
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "incomplete",
+            }),
+          )
+        }
+        if (Option.isNone(signerOption)) {
+          return yield* Effect.fail(
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "unsigned",
+            }),
+          )
+        }
+        const artifactHash = yield* hashFinancialVerificationEvidence(decoded.evidence).pipe(
+          Effect.catch(() =>
+            Effect.fail(
+              new FinancialVerificationArtifactInvalid({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.evidence.legalEntityId,
+                reason: "incomplete",
+              }),
+            )
+          ),
+        )
+        const signature = yield* Effect.tryPromise({
+          try: () => signerOption.value.sign(artifactHash),
+          catch: () =>
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "unsigned",
+            }),
+        })
+        const [inserted] = yield* database.query(
+          (db) =>
+            db.insert(financialVerificationArtifacts).values({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              kind: decoded.evidence.kind,
+              status: decoded.evidence.mismatchCount === 0 ? "verified" : "rejected",
+              completeness: decoded.evidence.completeness,
+              scope: decoded.evidence.scope,
+              schemaVersion: decoded.evidence.schemaVersion,
+              mappingVersion: decoded.evidence.mappingVersion,
+              currency: decoded.evidence.currency,
+              sourceWatermark: decoded.evidence.sourceWatermark,
+              targetWatermark: decoded.evidence.targetWatermark,
+              sourceSnapshotRef: decoded.evidence.sourceSnapshotRef,
+              targetSnapshotRef: decoded.evidence.targetSnapshotRef,
+              artifactHash,
+              signatureAlgorithm: signerOption.value.algorithm,
+              signingKeyId: signerOption.value.keyId,
+              signature,
+              operationSetHash: decoded.evidence.operationSetHash,
+              accountBalanceHash: decoded.evidence.accountBalanceHash,
+              transferSetHash: decoded.evidence.transferSetHash,
+              projectionHash: decoded.evidence.projectionHash,
+              sourceDebitMinor: decoded.evidence.sourceDebitMinor,
+              sourceCreditMinor: decoded.evidence.sourceCreditMinor,
+              targetDebitMinor: decoded.evidence.targetDebitMinor,
+              targetCreditMinor: decoded.evidence.targetCreditMinor,
+              accountCount: decoded.evidence.accountCount,
+              operationCount: decoded.evidence.operationCount,
+              transferCount: decoded.evidence.transferCount,
+              mismatchCount: decoded.evidence.mismatchCount,
+              producerPrincipalId: decoded.principal.userAccountId,
+              startedAt,
+              completedAt,
+            }).returning(),
+          "accounting.financial_verification_artifact.record",
+        )
+        return toVerificationArtifact(inserted!)
+      }),
     prepareTigerBeetleCutover: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(PrepareTigerBeetleCutoverInput)(input)
@@ -686,10 +927,9 @@ export const makeAccountingService = Effect.gen(function* () {
             }
             if (current.status === "tigerbeetle") return toCutoverControl(current)
             if (current.status === "approved") {
-              if (
-                current.cutoverWatermark === decoded.cutoverWatermark &&
-                current.verificationHash === decoded.verificationHash
-              ) return toCutoverControl(current)
+              if (current.evidenceArtifactId === decoded.evidenceArtifactId) {
+                return toCutoverControl(current)
+              }
               return yield* cutoverBlocked(
                 decoded.tenantId,
                 decoded.legalEntityId,
@@ -719,6 +959,88 @@ export const makeAccountingService = Effect.gen(function* () {
                 "verification_mismatch",
               )
             }
+            const [artifactRow] = yield* database.query(
+              (db) =>
+                db.select().from(financialVerificationArtifacts).where(and(
+                  eq(financialVerificationArtifacts.tenantId, decoded.tenantId),
+                  eq(financialVerificationArtifacts.id, decoded.evidenceArtifactId),
+                )),
+              "accounting.financial_cutover.approve.evidence",
+            )
+            if (artifactRow === undefined) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactNotFound({
+                  tenantId: decoded.tenantId,
+                  artifactId: decoded.evidenceArtifactId,
+                }),
+              )
+            }
+            const artifact = toVerificationArtifact(artifactRow)
+            if (
+              artifact.legalEntityId !== decoded.legalEntityId ||
+              artifact.status !== "verified" ||
+              artifact.evidence.kind !== "cutover_rehearsal" ||
+              artifact.evidence.mismatchCount !== 0 ||
+              artifact.evidence.targetWatermark.trim() === ""
+            ) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: artifact.legalEntityId !== decoded.legalEntityId
+                    ? "scope_mismatch"
+                    : artifact.evidence.mismatchCount > 0
+                    ? "mismatch"
+                    : "incomplete",
+                }),
+              )
+            }
+            if (Option.isNone(signerOption)) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+              )
+            }
+            if (artifact.signingKeyId !== signerOption.value.keyId) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "stale",
+                }),
+              )
+            }
+            const computedArtifactHash = yield* hashFinancialVerificationEvidence(artifact.evidence)
+            if (computedArtifactHash !== artifact.artifactHash) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "mismatch",
+                }),
+              )
+            }
+            const signatureValid = yield* Effect.tryPromise({
+              try: () => signerOption.value.verify(artifact.artifactHash, artifact.signature),
+              catch: () =>
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+            })
+            if (!signatureValid) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+              )
+            }
             const unresolved = yield* database.query(
               (db) =>
                 db.select({ id: financialOperations.id }).from(financialOperations).where(and(
@@ -733,16 +1055,6 @@ export const makeAccountingService = Effect.gen(function* () {
                 )),
               "accounting.financial_cutover.approve.unresolved",
             )
-            if (
-              !decoded.openingBalanceVerified || !decoded.historicalBoundaryVerified ||
-              !decoded.reconciliationHealthy || !decoded.backupRecoveryVerified
-            ) {
-              return yield* cutoverBlocked(
-                decoded.tenantId,
-                decoded.legalEntityId,
-                "verification_mismatch",
-              )
-            }
             if (unresolved.length > 0) {
               return yield* cutoverBlocked(
                 decoded.tenantId,
@@ -754,12 +1066,13 @@ export const makeAccountingService = Effect.gen(function* () {
               (db) =>
                 db.update(financialCutoverControls).set({
                   status: "approved",
-                  cutoverWatermark: decoded.cutoverWatermark,
-                  verificationHash: decoded.verificationHash,
-                  openingBalanceVerified: decoded.openingBalanceVerified,
-                  historicalBoundaryVerified: decoded.historicalBoundaryVerified,
-                  reconciliationHealthy: decoded.reconciliationHealthy,
-                  backupRecoveryVerified: decoded.backupRecoveryVerified,
+                  cutoverWatermark: artifact.evidence.targetWatermark,
+                  verificationHash: artifact.artifactHash,
+                  openingBalanceVerified: true,
+                  historicalBoundaryVerified: true,
+                  reconciliationHealthy: true,
+                  backupRecoveryVerified: true,
+                  evidenceArtifactId: artifact.id,
                   unresolvedAcceptedOperations: unresolved.length,
                   approvedBy: decoded.principal.userAccountId,
                   approvedAt: now(),
@@ -1838,12 +2151,14 @@ export const makeAccountingTestLayer = () =>
       const messaging = yield* MessagingService
       const sales = yield* SalesService
       const clock = yield* Clock.Clock
+      const signerOption = yield* Effect.serviceOption(FinancialVerificationSigner)
       const configurations = new Map<string, AccountingConfiguration>()
       const profiles = new Map<string, RevenuePostingProfile>()
       const periods = new Map<string, AccountingPeriod>()
       const storedAccounts = new Map<string, Account>()
       const storedJournals = new Map<string, JournalEntry>()
       const controls = new Map<string, FinancialCutoverControl>()
+      const verificationArtifacts = new Map<string, FinancialVerificationArtifact>()
       const nextId = () => crypto.randomUUID()
       const testControl = (tenantId: string, legalEntityId: string) => {
         const key = `${tenantId}:${legalEntityId}`
@@ -1861,6 +2176,7 @@ export const makeAccountingTestLayer = () =>
           historicalBoundaryVerified: false,
           reconciliationHealthy: false,
           backupRecoveryVerified: false,
+          evidenceArtifactId: null,
           unresolvedAcceptedOperations: 0,
           approvedBy: null,
           approvedAt: null,
@@ -1872,6 +2188,60 @@ export const makeAccountingTestLayer = () =>
         return created
       }
       const service: AccountingService = {
+        recordFinancialVerificationArtifact: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(
+              RecordFinancialVerificationArtifactInput,
+            )(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: AccountingCapabilities.financialEvidenceRecord,
+            })
+            if (decoded.evidence.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.evidence.legalEntityId,
+                  reason: "scope_mismatch",
+                }),
+              )
+            }
+            if (Option.isNone(signerOption)) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.evidence.legalEntityId,
+                  reason: "unsigned",
+                }),
+              )
+            }
+            const artifactHash = yield* hashFinancialVerificationEvidence(decoded.evidence)
+            const signature = yield* Effect.tryPromise({
+              try: () => signerOption.value.sign(artifactHash),
+              catch: () =>
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.evidence.legalEntityId,
+                  reason: "unsigned",
+                }),
+            })
+            const artifact: FinancialVerificationArtifact = {
+              id: nextId(),
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              artifactHash,
+              signatureAlgorithm: signerOption.value.algorithm,
+              signingKeyId: signerOption.value.keyId,
+              signature,
+              status: decoded.evidence.mismatchCount === 0 ? "verified" : "rejected",
+              evidence: decoded.evidence,
+              producerPrincipalId: decoded.principal.userAccountId,
+              createdAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
+            }
+            verificationArtifacts.set(artifact.id, artifact)
+            return artifact
+          }),
         prepareTigerBeetleCutover: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(PrepareTigerBeetleCutoverInput)(input)
@@ -1925,10 +2295,8 @@ export const makeAccountingTestLayer = () =>
               )
             }
             if (current.status === "tigerbeetle") return current
-            if (
-              !decoded.openingBalanceVerified || !decoded.historicalBoundaryVerified ||
-              !decoded.reconciliationHealthy || !decoded.backupRecoveryVerified
-            ) {
+            if (current.status === "approved") {
+              if (current.evidenceArtifactId === decoded.evidenceArtifactId) return current
               return yield* Effect.fail(
                 new FinancialEngineCutoverBlocked({
                   tenantId: decoded.tenantId,
@@ -1937,15 +2305,89 @@ export const makeAccountingTestLayer = () =>
                 }),
               )
             }
+            const artifact = verificationArtifacts.get(decoded.evidenceArtifactId)
+            if (artifact === undefined) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactNotFound({
+                  tenantId: decoded.tenantId,
+                  artifactId: decoded.evidenceArtifactId,
+                }),
+              )
+            }
+            if (
+              artifact.legalEntityId !== decoded.legalEntityId ||
+              artifact.status !== "verified" ||
+              artifact.evidence.kind !== "cutover_rehearsal" ||
+              artifact.evidence.mismatchCount !== 0
+            ) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: artifact.legalEntityId !== decoded.legalEntityId
+                    ? "scope_mismatch"
+                    : artifact.evidence.mismatchCount > 0
+                    ? "mismatch"
+                    : "incomplete",
+                }),
+              )
+            }
+            if (Option.isNone(signerOption)) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+              )
+            }
+            if (artifact.signingKeyId !== signerOption.value.keyId) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "stale",
+                }),
+              )
+            }
+            const computedArtifactHash = yield* hashFinancialVerificationEvidence(artifact.evidence)
+            if (computedArtifactHash !== artifact.artifactHash) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "mismatch",
+                }),
+              )
+            }
+            const signatureValid = yield* Effect.tryPromise({
+              try: () => signerOption.value.verify(artifact.artifactHash, artifact.signature),
+              catch: () =>
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+            })
+            if (!signatureValid) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  reason: "unsigned",
+                }),
+              )
+            }
             const approved = {
               ...current,
               status: "approved" as const,
-              cutoverWatermark: decoded.cutoverWatermark,
-              verificationHash: decoded.verificationHash,
+              cutoverWatermark: artifact.evidence.targetWatermark,
+              verificationHash: artifact.artifactHash,
               openingBalanceVerified: true,
               historicalBoundaryVerified: true,
               reconciliationHealthy: true,
               backupRecoveryVerified: true,
+              evidenceArtifactId: artifact.id,
               approvedBy: decoded.principal.userAccountId,
               approvedAt: new Date(clock.currentTimeMillisUnsafe()).toISOString(),
             }

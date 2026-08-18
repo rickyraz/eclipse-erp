@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 export const FinancialFailurePoint = Schema.Literals([
@@ -25,6 +26,94 @@ export type FinancialFailureMatrixRow = Readonly<{
   readonly reconciliationAction: string
   readonly terminalCondition: string
 }>
+
+export type FinancialFailureExecutionRow = Readonly<{
+  readonly point: FinancialFailurePoint
+  readonly mode: "accounting_failpoint" | "provider_fault" | "worker_failpoint" | "database_fault"
+  readonly hook: string
+  readonly recovery: string
+}>
+
+export const financialFailureExecutionMatrix: readonly FinancialFailureExecutionRow[] = [
+  {
+    point: "A_before_intent_commit",
+    mode: "accounting_failpoint",
+    hook: "before_intent_commit",
+    recovery: "same intent",
+  },
+  {
+    point: "B_after_intent_before_submission",
+    mode: "accounting_failpoint",
+    hook: "after_intent_commit",
+    recovery: "same job",
+  },
+  {
+    point: "C_submission_outcome_unknown",
+    mode: "provider_fault",
+    hook: "failBeforeSubmissionFor",
+    recovery: "same IDs",
+  },
+  {
+    point: "D_response_lost_after_acceptance",
+    mode: "provider_fault",
+    hook: "loseResponseFor",
+    recovery: "reconcile same IDs",
+  },
+  {
+    point: "E_process_dies_after_acceptance_before_receipt",
+    mode: "accounting_failpoint",
+    hook: "after_provider_acceptance",
+    recovery: "reconcile same operation",
+  },
+  {
+    point: "F_accepted_before_journal_projection",
+    mode: "accounting_failpoint",
+    hook: "before_projection_commit",
+    recovery: "finalize only",
+  },
+  {
+    point: "G_projected_before_outbox",
+    mode: "accounting_failpoint",
+    hook: "before_outbox_append",
+    recovery: "same event identity",
+  },
+  {
+    point: "H_partial_finalization",
+    mode: "accounting_failpoint",
+    hook: "before_receipt_commit",
+    recovery: "finalize only",
+  },
+  {
+    point: "I_worker_lease_held",
+    mode: "worker_failpoint",
+    hook: "after_lease_before_accounting",
+    recovery: "lease expiry and reclaim",
+  },
+  {
+    point: "J_worker_restart",
+    mode: "worker_failpoint",
+    hook: "after_accounting_before_job_completion",
+    recovery: "new worker and lease token",
+  },
+  {
+    point: "K_duplicate_workers",
+    mode: "worker_failpoint",
+    hook: "before_job_completion",
+    recovery: "stale lease rejected",
+  },
+  {
+    point: "L_tigerbeetle_unavailable",
+    mode: "provider_fault",
+    hook: "unavailableFor",
+    recovery: "bounded retry",
+  },
+  {
+    point: "M_postgresql_unavailable",
+    mode: "database_fault",
+    hook: "financial_operation.receipt",
+    recovery: "retry last committed state",
+  },
+] as const
 
 /**
  * The application-side protocol is intentionally more conservative than a
@@ -160,6 +249,95 @@ export type OpeningBalanceMismatch = Readonly<{
   readonly fields?: readonly string[]
 }>
 
+const Hash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))
+const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9][0-9]*)$/))
+const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+
+export const FinancialVerificationEvidence = Schema.Struct({
+  tenantId: Schema.String.check(Schema.isUUID()),
+  legalEntityId: Schema.String.check(Schema.isUUID()),
+  kind: Schema.Literals([
+    "opening_balance",
+    "historical_boundary",
+    "backup_restore",
+    "failure_matrix",
+    "projection_rebuild",
+    "cutover_rehearsal",
+    "observability",
+  ]),
+  completeness: Schema.Literals(["bounded", "full", "fenced"]),
+  scope: Schema.String.check(Schema.isPattern(/\S/)),
+  schemaVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
+  sourceWatermark: Schema.String.check(Schema.isPattern(/\S/)),
+  targetWatermark: Schema.String.check(Schema.isPattern(/\S/)),
+  sourceSnapshotRef: Schema.String.check(Schema.isPattern(/\S/)),
+  targetSnapshotRef: Schema.String.check(Schema.isPattern(/\S/)),
+  operationSetHash: Hash,
+  accountBalanceHash: Hash,
+  transferSetHash: Hash,
+  projectionHash: Schema.NullOr(Hash),
+  sourceDebitMinor: MinorAmount,
+  sourceCreditMinor: MinorAmount,
+  targetDebitMinor: MinorAmount,
+  targetCreditMinor: MinorAmount,
+  accountCount: Count,
+  operationCount: Count,
+  transferCount: Count,
+  mismatchCount: Count,
+  startedAt: Schema.String.check(Schema.isPattern(/\S/)),
+  completedAt: Schema.String.check(Schema.isPattern(/\S/)),
+})
+export type FinancialVerificationEvidence = Schema.Schema.Type<typeof FinancialVerificationEvidence>
+
+const evidenceKeys = [
+  "tenantId",
+  "legalEntityId",
+  "kind",
+  "completeness",
+  "scope",
+  "schemaVersion",
+  "mappingVersion",
+  "currency",
+  "sourceWatermark",
+  "targetWatermark",
+  "sourceSnapshotRef",
+  "targetSnapshotRef",
+  "operationSetHash",
+  "accountBalanceHash",
+  "transferSetHash",
+  "projectionHash",
+  "sourceDebitMinor",
+  "sourceCreditMinor",
+  "targetDebitMinor",
+  "targetCreditMinor",
+  "accountCount",
+  "operationCount",
+  "transferCount",
+  "mismatchCount",
+  "startedAt",
+  "completedAt",
+] as const
+
+/** Fixed-key ordering makes the artifact hash stable across property insertion order. */
+export const canonicalizeFinancialVerificationEvidence = (
+  evidence: FinancialVerificationEvidence,
+) => JSON.stringify(evidenceKeys.map((key) => [key, evidence[key]]))
+
+export const hashFinancialVerificationEvidence = (
+  evidence: FinancialVerificationEvidence,
+) =>
+  Effect.promise(async () => {
+    const digest = new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(canonicalizeFinancialVerificationEvidence(evidence)),
+      ),
+    )
+    return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  })
+
 export type OpeningBalanceVerification = Readonly<{
   readonly ok: boolean
   readonly sourceCount: number
@@ -181,6 +359,245 @@ const sum = (entries: readonly OpeningBalance[], field: "debitsMinor" | "credits
   entries.reduce((total, entry) => total + (amount(entry[field]) ?? 0n), 0n)
 
 /** Exact account-level comparison; no tolerance is applied to integer ledger amounts. */
+export const FinancialOperationFact = Schema.Struct({
+  operationId: Schema.String.check(Schema.isPattern(/\S/)),
+  status: Schema.Literals(["accepted", "reconciled"]),
+  currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
+  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+})
+export type FinancialOperationFact = Schema.Schema.Type<typeof FinancialOperationFact>
+
+export const FinancialTransferFact = Schema.Struct({
+  operationId: Schema.String.check(Schema.isPattern(/\S/)),
+  position: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  transferId: Schema.String.check(Schema.isPattern(/\S/)),
+  debitAccountId: Schema.String.check(Schema.isPattern(/\S/)),
+  creditAccountId: Schema.String.check(Schema.isPattern(/\S/)),
+  amountMinor: MinorAmount,
+  currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
+  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+})
+export type FinancialTransferFact = Schema.Schema.Type<typeof FinancialTransferFact>
+
+export const FinancialBalanceFact = Schema.Struct({
+  accountId: Schema.String.check(Schema.isPattern(/\S/)),
+  currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
+  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  debitsPostedMinor: MinorAmount,
+  creditsPostedMinor: MinorAmount,
+})
+export type FinancialBalanceFact = Schema.Schema.Type<typeof FinancialBalanceFact>
+
+export const FinancialProjectionFact = Schema.Struct({
+  operationId: Schema.String.check(Schema.isPattern(/\S/)),
+  journalStatus: Schema.Literals(["draft", "posted", "reversed"]),
+  transferIds: Schema.Array(Schema.String.check(Schema.isPattern(/\S/))),
+})
+export type FinancialProjectionFact = Schema.Schema.Type<typeof FinancialProjectionFact>
+
+export const FinancialFactSnapshot = Schema.Struct({
+  operations: Schema.Array(FinancialOperationFact),
+  transfers: Schema.Array(FinancialTransferFact),
+  balances: Schema.Array(FinancialBalanceFact),
+  projections: Schema.Array(FinancialProjectionFact),
+})
+export type FinancialFactSnapshot = Schema.Schema.Type<typeof FinancialFactSnapshot>
+
+export type FinancialFactMismatch = Readonly<{
+  kind:
+    | "missing_operation"
+    | "unexpected_operation"
+    | "operation_mismatch"
+    | "missing_transfer"
+    | "unexpected_transfer"
+    | "transfer_mismatch"
+    | "balance_mismatch"
+    | "projection_mismatch"
+  key: string
+  detail: string
+}>
+
+const factKey = (...parts: readonly (string | number)[]) => parts.join(":")
+const sortedJson = (value: unknown) => JSON.stringify(value)
+
+export const compareFinancialFactSnapshots = (
+  source: FinancialFactSnapshot,
+  target: FinancialFactSnapshot,
+): Readonly<{ ok: boolean; mismatches: readonly FinancialFactMismatch[] }> => {
+  const mismatches: FinancialFactMismatch[] = []
+  const sourceOperations = new Map(source.operations.map((fact) => [fact.operationId, fact]))
+  const targetOperations = new Map(target.operations.map((fact) => [fact.operationId, fact]))
+  for (const [operationId, sourceFact] of sourceOperations) {
+    const targetFact = targetOperations.get(operationId)
+    if (targetFact === undefined) {
+      mismatches.push({ kind: "missing_operation", key: operationId, detail: "target" })
+    } else if (sortedJson(sourceFact) !== sortedJson(targetFact)) {
+      mismatches.push({ kind: "operation_mismatch", key: operationId, detail: "metadata" })
+    }
+  }
+  for (const operationId of targetOperations.keys()) {
+    if (!sourceOperations.has(operationId)) {
+      mismatches.push({ kind: "unexpected_operation", key: operationId, detail: "target" })
+    }
+  }
+
+  const sourceTransfers = new Map(
+    source.transfers.map((fact) => [factKey(fact.operationId, fact.position), fact]),
+  )
+  const targetTransfers = new Map(
+    target.transfers.map((fact) => [factKey(fact.operationId, fact.position), fact]),
+  )
+  for (const [key, sourceFact] of sourceTransfers) {
+    const targetFact = targetTransfers.get(key)
+    if (targetFact === undefined) {
+      mismatches.push({ kind: "missing_transfer", key, detail: "target" })
+    } else if (sortedJson(sourceFact) !== sortedJson(targetFact)) {
+      mismatches.push({ kind: "transfer_mismatch", key, detail: "identity_or_amount" })
+    }
+  }
+  for (const key of targetTransfers.keys()) {
+    if (!sourceTransfers.has(key)) {
+      mismatches.push({ kind: "unexpected_transfer", key, detail: "target" })
+    }
+  }
+
+  const sourceBalances = new Map(
+    source.balances.map((
+      fact,
+    ) => [factKey(fact.accountId, fact.currency, fact.mappingVersion), fact]),
+  )
+  const targetBalances = new Map(
+    target.balances.map((
+      fact,
+    ) => [factKey(fact.accountId, fact.currency, fact.mappingVersion), fact]),
+  )
+  for (const [key, sourceFact] of sourceBalances) {
+    const targetFact = targetBalances.get(key)
+    if (targetFact === undefined || sortedJson(sourceFact) !== sortedJson(targetFact)) {
+      mismatches.push({
+        kind: "balance_mismatch",
+        key,
+        detail: targetFact === undefined ? "missing" : "amount",
+      })
+    }
+  }
+  for (const key of targetBalances.keys()) {
+    if (!sourceBalances.has(key)) {
+      mismatches.push({ kind: "balance_mismatch", key, detail: "unexpected" })
+    }
+  }
+
+  const sourceProjections = new Map(source.projections.map((fact) => [fact.operationId, fact]))
+  const targetProjections = new Map(target.projections.map((fact) => [fact.operationId, fact]))
+  for (const [key, sourceFact] of sourceProjections) {
+    const targetFact = targetProjections.get(key)
+    if (targetFact === undefined || sortedJson(sourceFact) !== sortedJson(targetFact)) {
+      mismatches.push({
+        kind: "projection_mismatch",
+        key,
+        detail: targetFact === undefined ? "missing" : "state",
+      })
+    }
+  }
+  for (const key of targetProjections.keys()) {
+    if (!sourceProjections.has(key)) {
+      mismatches.push({ kind: "projection_mismatch", key, detail: "unexpected" })
+    }
+  }
+  return { ok: mismatches.length === 0, mismatches }
+}
+
+const hashJson = (value: unknown) =>
+  Effect.promise(async () => {
+    const digest = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value))),
+    )
+    return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  })
+
+export const hashFinancialFactSnapshot = (snapshot: FinancialFactSnapshot) =>
+  hashJson({
+    operations: [...snapshot.operations].toSorted((a, b) =>
+      a.operationId.localeCompare(b.operationId)
+    ),
+    transfers: [...snapshot.transfers].toSorted((a, b) =>
+      factKey(a.operationId, a.position).localeCompare(factKey(b.operationId, b.position))
+    ),
+    balances: [...snapshot.balances].toSorted((a, b) =>
+      factKey(a.accountId, a.currency, a.mappingVersion).localeCompare(
+        factKey(b.accountId, b.currency, b.mappingVersion),
+      )
+    ),
+    projections: [...snapshot.projections].toSorted((a, b) =>
+      a.operationId.localeCompare(b.operationId)
+    ),
+  })
+
+export type FinancialVerificationEvidenceSource = Readonly<{
+  tenantId: string
+  legalEntityId: string
+  kind: FinancialVerificationEvidence["kind"]
+  completeness: FinancialVerificationEvidence["completeness"]
+  scope: string
+  mappingVersion: number
+  currency: string
+  sourceWatermark: string
+  targetWatermark: string
+  sourceSnapshotRef: string
+  targetSnapshotRef: string
+  source: FinancialFactSnapshot
+  target: FinancialFactSnapshot
+  startedAt: string
+  completedAt: string
+}>
+
+const sumBalance = (
+  balances: readonly FinancialBalanceFact[],
+  field: "debitsPostedMinor" | "creditsPostedMinor",
+) => balances.reduce((sum, balance) => sum + BigInt(balance[field]), 0n).toString()
+
+export const buildFinancialVerificationEvidence = (
+  input: FinancialVerificationEvidenceSource,
+) =>
+  Effect.gen(function* () {
+    const comparison = compareFinancialFactSnapshots(input.source, input.target)
+    const [operationSetHash, accountBalanceHash, transferSetHash, projectionHash] = yield* Effect
+      .all([
+        hashJson(input.source.operations),
+        hashJson(input.source.balances),
+        hashJson(input.source.transfers),
+        hashJson(input.source.projections),
+      ])
+    return {
+      tenantId: input.tenantId,
+      legalEntityId: input.legalEntityId,
+      kind: input.kind,
+      completeness: input.completeness,
+      scope: input.scope,
+      schemaVersion: 1,
+      mappingVersion: input.mappingVersion,
+      currency: input.currency.toUpperCase(),
+      sourceWatermark: input.sourceWatermark,
+      targetWatermark: input.targetWatermark,
+      sourceSnapshotRef: input.sourceSnapshotRef,
+      targetSnapshotRef: input.targetSnapshotRef,
+      operationSetHash,
+      accountBalanceHash,
+      transferSetHash,
+      projectionHash,
+      sourceDebitMinor: sumBalance(input.source.balances, "debitsPostedMinor"),
+      sourceCreditMinor: sumBalance(input.source.balances, "creditsPostedMinor"),
+      targetDebitMinor: sumBalance(input.target.balances, "debitsPostedMinor"),
+      targetCreditMinor: sumBalance(input.target.balances, "creditsPostedMinor"),
+      accountCount: input.source.balances.length,
+      operationCount: input.source.operations.length,
+      transferCount: input.source.transfers.length,
+      mismatchCount: comparison.mismatches.length,
+      startedAt: input.startedAt,
+      completedAt: input.completedAt,
+    } satisfies FinancialVerificationEvidence
+  })
+
 export const verifyOpeningBalances = (
   source: readonly OpeningBalance[],
   target: readonly OpeningBalance[],

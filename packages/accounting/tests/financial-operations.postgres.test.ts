@@ -4,16 +4,20 @@ import * as Layer from "effect/Layer"
 
 import {
   AccountingCapabilities,
+  type FinancialOperationFailpointNameType,
+  FinancialOperationInjectedFailure,
   FinancialOperationsPending,
   FinancialReversalAlreadyExists,
   makeAccountingService,
   makeFinancialLedgerTestLayer,
+  makeFinancialOperationFailpointLayer,
   makeFinancialOperationService,
 } from "../mod.ts"
 import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
   Database,
   DatabaseFailure,
+  type DatabaseService,
   DurableJobEnqueuer,
   makePostgresDatabase,
   runMigrations,
@@ -26,6 +30,22 @@ import { withTemporaryDatabase } from "../../../tests/support/postgres-database.
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const postgresFailure = (effect: () => Promise<unknown>) =>
   Effect.tryPromise({ try: effect, catch: (cause) => cause }).pipe(Effect.flip)
+
+const failDatabaseOnceAt = (database: DatabaseService, operationName: string): DatabaseService => {
+  let failed = false
+  const shouldFail = (name: string | undefined) => !failed && name === operationName
+  const failure = (name: string | undefined) => {
+    failed = true
+    return Effect.fail(new DatabaseFailure({ operation: name ?? operationName, cause: "injected" }))
+  }
+  return {
+    query: (operation, name) => shouldFail(name) ? failure(name) : database.query(operation, name),
+    transaction: (operation, name) =>
+      shouldFail(name) ? failure(name) : database.transaction(operation, name),
+    withTransaction: (operation, name) =>
+      shouldFail(name) ? failure(name) : database.withTransaction(operation, name),
+  } as DatabaseService
+}
 
 it.effect.skipIf(databaseUrl === undefined)(
   "persists a financial intent, submits it once, and projects the receipt",
@@ -70,13 +90,35 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )
+          const [evidenceArtifact] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.financial_verification_artifacts (
+                tenant_id, legal_entity_id, kind, status, completeness, scope,
+                schema_version, mapping_version, currency, source_watermark, target_watermark,
+                source_snapshot_ref, target_snapshot_ref, artifact_hash, signature_algorithm,
+                signing_key_id, signature, operation_set_hash, account_balance_hash,
+                transfer_set_hash, source_debit_minor, source_credit_minor, target_debit_minor,
+                target_credit_minor, account_count, operation_count, transfer_count,
+                mismatch_count, producer_principal_id, started_at, completed_at
+              ) values (
+                ${tenant!.id}, ${
+              legalEntity!.id
+            }, 'cutover_rehearsal', 'verified', 'bounded', 'test',
+                1, 1, 'USD', 'test-watermark', 'test-watermark', 'test-source', 'test-target',
+                repeat('0', 64), 'Ed25519', 'test-key', 'test-signature', repeat('0', 64),
+                repeat('1', 64), repeat('2', 64), '0', '0', '0', '0', 0, 0, 0, 0,
+                'test-operator', now(), now()
+              ) returning id
+            `
+          )
           yield* Effect.promise(() =>
             client`
               update accounting.financial_cutover_controls
               set status = 'approved', cutover_watermark = 'test-watermark',
                 verification_hash = 'test-hash', opening_balance_verified = true,
                 historical_boundary_verified = true, reconciliation_healthy = true,
-                backup_recovery_verified = true, approved_by = 'test-operator', approved_at = now()
+                backup_recovery_verified = true, evidence_artifact_id = ${evidenceArtifact!.id},
+                approved_by = 'test-operator', approved_at = now()
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )
@@ -148,6 +190,10 @@ it.effect.skipIf(databaseUrl === undefined)(
             userAccountId: principal.userAccountId,
             tenantId: tenant!.id,
             capability: AccountingCapabilities.financialProjectionRebuild,
+          }, {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant!.id,
+            capability: AccountingCapabilities.financialReconciliationCheckpoint,
           }])
           const messaging = yield* makeMessagingService.pipe(
             Effect.provideService(Database, database),
@@ -494,6 +540,157 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: lostInput.operationId,
           })
           assert.strictEqual(reconciledAgain.status, "reconciled")
+
+          const checkpoint = yield* service.reconcileFinancialCheckpoint({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            recoveryWatermark: `checkpoint-${crypto.randomUUID()}`,
+            sourceWatermark: "postgres:test-watermark",
+            targetWatermark: "tigerbeetle:test-watermark",
+            sourceSnapshotRef: "postgres:test-snapshot",
+            targetSnapshotRef: "tigerbeetle:test-snapshot",
+            evidenceArtifactId: null,
+          })
+          assert.include(["verified", "blocked"], checkpoint.status)
+          const checkpointReplay = yield* service.reconcileFinancialCheckpoint({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            recoveryWatermark: checkpoint.recoveryWatermark,
+            sourceWatermark: "postgres:test-watermark",
+            targetWatermark: "tigerbeetle:test-watermark",
+            sourceSnapshotRef: "postgres:test-snapshot",
+            targetSnapshotRef: "tigerbeetle:test-snapshot",
+            evidenceArtifactId: null,
+          })
+          assert.deepStrictEqual(checkpointReplay, checkpoint)
+          const checkpointMutation = yield* postgresFailure(() =>
+            client`
+              update accounting.financial_reconciliation_checkpoints
+              set status = 'verified'
+              where tenant_id = ${tenant!.id} and id = ${checkpoint.id}
+            `
+          )
+          assert.strictEqual(
+            (checkpointMutation as { constraint_name?: string }).constraint_name,
+            "financial_reconciliation_checkpoints_immutable",
+          )
+
+          const makeMatrixService = (
+            databaseLayer: Layer.Layer<DatabaseService> = Layer.succeed(Database, database),
+            ledgerLayer = makeFinancialLedgerTestLayer(),
+            failpoint = undefined as FinancialOperationFailpointNameType | undefined,
+          ) =>
+            Effect.provide(
+              makeFinancialOperationService,
+              Layer.mergeAll(
+                databaseLayer,
+                authorization,
+                Layer.succeed(MessagingService, messaging),
+                Layer.succeed(DurableJobEnqueuer, jobs),
+                Layer.succeed(SalesService, sales),
+                ledgerLayer,
+                makeFinancialOperationFailpointLayer(failpoint === undefined ? [] : [failpoint]),
+              ),
+            )
+          const failureCases = [
+            ["A_before_intent_commit", "before_intent_commit"],
+            ["B_after_intent_before_submission", "after_intent_commit"],
+            ["E_process_dies_after_acceptance_before_receipt", "after_provider_acceptance"],
+            ["F_accepted_before_journal_projection", "before_projection_commit"],
+            ["G_projected_before_outbox", "before_outbox_append"],
+            ["H_partial_finalization", "before_receipt_commit"],
+            ["H_after_receipt_commit", "after_receipt_commit"],
+            ["H_after_finalization", "after_finalization"],
+            ["B_before_provider_submission", "before_provider_submission"],
+          ] as const
+          for (const [point, failpoint] of failureCases) {
+            const matrixInput = {
+              ...input,
+              operationId: `matrix-${point}-${crypto.randomUUID()}`,
+              reference: `matrix-${point}-${crypto.randomUUID()}`,
+            }
+            const matrixService = yield* makeMatrixService(undefined, undefined, failpoint)
+            if (
+              point === "A_before_intent_commit" || point === "B_after_intent_before_submission"
+            ) {
+              const failed = yield* Effect.flip(matrixService.createJournalIntent(matrixInput))
+              assert.instanceOf(failed, FinancialOperationInjectedFailure)
+              assert.strictEqual(failed.point, failpoint)
+              const intentAfterRestart = yield* matrixService.createJournalIntent(matrixInput)
+              assert.strictEqual(intentAfterRestart.status, "intent")
+            } else {
+              const intentBeforeFailure = yield* matrixService.createJournalIntent(matrixInput)
+              assert.strictEqual(intentBeforeFailure.status, "intent")
+              const failed = yield* Effect.flip(matrixService.submitFinancialOperation({
+                tenantId: tenant!.id,
+                operationId: intentBeforeFailure.operationId,
+              }))
+              assert.instanceOf(failed, FinancialOperationInjectedFailure)
+              assert.strictEqual(failed.point, failpoint)
+            }
+            const recovered = yield* matrixService.submitFinancialOperation({
+              tenantId: tenant!.id,
+              operationId: matrixInput.operationId,
+            })
+            assert.strictEqual(recovered.status, "reconciled")
+          }
+
+          const providerCases = [
+            ["C_submission_outcome_unknown", "failBeforeSubmissionFor"],
+            ["D_response_lost_after_acceptance", "loseResponseFor"],
+            ["L_tigerbeetle_unavailable", "unavailableFor"],
+          ] as const
+          for (const [point, option] of providerCases) {
+            const operationId = `matrix-${point}-${crypto.randomUUID()}`
+            const providerLedger = makeFinancialLedgerTestLayer({ [option]: operationId })
+            const providerService = yield* makeMatrixService(undefined, providerLedger)
+            const providerInput = {
+              ...input,
+              operationId,
+              reference: `matrix-${point}-${crypto.randomUUID()}`,
+            }
+            yield* providerService.createJournalIntent(providerInput)
+            const unknownProviderOutcome = yield* providerService.submitFinancialOperation({
+              tenantId: tenant!.id,
+              operationId,
+            })
+            assert.strictEqual(unknownProviderOutcome.status, "unknown")
+            const providerRecovery = yield* providerService.reconcileFinancialOperation({
+              tenantId: tenant!.id,
+              operationId,
+            })
+            assert.strictEqual(
+              providerRecovery.status,
+              point === "L_tigerbeetle_unavailable" ? "unknown" : "reconciled",
+            )
+          }
+
+          const postgresUnavailableOperation = `matrix-M-${crypto.randomUUID()}`
+          const postgresUnavailableService = yield* makeMatrixService(
+            Layer.succeed(
+              Database,
+              failDatabaseOnceAt(database, "accounting.financial_operation.receipt"),
+            ),
+          )
+          yield* postgresUnavailableService.createJournalIntent({
+            ...input,
+            operationId: postgresUnavailableOperation,
+            reference: `matrix-M-${crypto.randomUUID()}`,
+          })
+          const postgresFailureResult = yield* Effect.flip(
+            postgresUnavailableService.submitFinancialOperation({
+              tenantId: tenant!.id,
+              operationId: postgresUnavailableOperation,
+            }),
+          )
+          assert.instanceOf(postgresFailureResult, DatabaseFailure)
+          const postgresRecovered = yield* postgresUnavailableService.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: postgresUnavailableOperation,
+          })
+          assert.strictEqual(postgresRecovered.status, "reconciled")
 
           const replay = yield* service.createJournalIntent(input)
           assert.strictEqual(replay.id, intent.id)

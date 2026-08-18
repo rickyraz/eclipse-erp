@@ -12,6 +12,9 @@ import {
   financialCutoverControls,
   financialOperations,
   financialOperationTransfers,
+  financialOrphanTransfers,
+  financialReconciliationCheckpoints,
+  financialVerificationArtifacts,
   journalEntries,
   journalLines,
   legalEntityAccountingConfigurations,
@@ -33,6 +36,10 @@ import {
   type FinancialExecutionOutcome,
   FinancialLedgerPort,
 } from "./financial-ledger.ts"
+import {
+  buildFinancialVerificationEvidence,
+  type FinancialFactSnapshot,
+} from "./financial-readiness.ts"
 import { AccountingFinancialOperationReconciledEvent } from "./events.ts"
 import {
   AccountingPeriodNotOpen,
@@ -60,6 +67,50 @@ export const FinancialOperationStatus = Schema.Literals([
   "reconciled",
 ])
 export type FinancialOperationStatus = Schema.Schema.Type<typeof FinancialOperationStatus>
+
+export const FinancialOperationFailpointName = Schema.Literals([
+  "before_intent_commit",
+  "after_intent_commit",
+  "before_provider_submission",
+  "after_provider_acceptance",
+  "before_receipt_commit",
+  "after_receipt_commit",
+  "before_projection_commit",
+  "before_outbox_append",
+  "after_finalization",
+])
+export type FinancialOperationFailpointName = Schema.Schema.Type<
+  typeof FinancialOperationFailpointName
+>
+
+export class FinancialOperationInjectedFailure
+  extends Schema.TaggedErrorClass<FinancialOperationInjectedFailure>()(
+    "FinancialOperationInjectedFailure",
+    { point: FinancialOperationFailpointName },
+  ) {}
+
+export interface FinancialOperationFailpointService {
+  readonly hit: (
+    point: FinancialOperationFailpointName,
+  ) => Effect.Effect<void, FinancialOperationInjectedFailure>
+}
+export const FinancialOperationFailpointService = Context.Service<
+  FinancialOperationFailpointService
+>(
+  "EclipseERP/Accounting/FinancialOperationFailpoint",
+)
+
+export const makeFinancialOperationFailpointLayer = (
+  points: Iterable<FinancialOperationFailpointName>,
+) => {
+  const remaining = new Set(points)
+  return Layer.succeed(FinancialOperationFailpointService, {
+    hit: (point: FinancialOperationFailpointName) =>
+      remaining.delete(point)
+        ? Effect.fail(new FinancialOperationInjectedFailure({ point }))
+        : Effect.void,
+  })
+}
 
 export const FinancialOperation = Schema.Struct({
   id: Uuid,
@@ -163,6 +214,40 @@ export const FinancialProjectionRebuildResult = Schema.Struct({
   quarantinedOperations: Schema.Int,
 })
 
+export const ReconcileFinancialCheckpointInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  recoveryWatermark: NonEmptyString,
+  sourceWatermark: NonEmptyString,
+  targetWatermark: NonEmptyString,
+  sourceSnapshotRef: NonEmptyString,
+  targetSnapshotRef: NonEmptyString,
+  evidenceArtifactId: Schema.NullOr(Uuid),
+})
+
+export const FinancialReconciliationCheckpoint = Schema.Struct({
+  id: Uuid,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  engine: Schema.Literal("tigerbeetle"),
+  status: Schema.Literals(["verified", "blocked"]),
+  recoveryWatermark: NonEmptyString,
+  sourceWatermark: NonEmptyString,
+  targetWatermark: NonEmptyString,
+  sourceSnapshotRef: NonEmptyString,
+  targetSnapshotRef: NonEmptyString,
+  operationSetHash: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)),
+  accountBalanceHash: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)),
+  transferSetHash: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)),
+  projectionHash: Schema.NullOr(Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))),
+  evidenceArtifactId: Schema.NullOr(Uuid),
+  mismatchCount: Schema.Int,
+  orphanCount: Schema.Int,
+  checkedBy: NonEmptyString,
+  checkedAt: Schema.String,
+})
+
 export type CreateFinancialJournalIntentInput = Schema.Schema.Type<
   typeof CreateFinancialJournalIntentInput
 >
@@ -181,6 +266,12 @@ export type RebuildFinancialProjectionInput = Schema.Schema.Type<
 >
 export type FinancialProjectionRebuildResult = Schema.Schema.Type<
   typeof FinancialProjectionRebuildResult
+>
+export type ReconcileFinancialCheckpointInput = Schema.Schema.Type<
+  typeof ReconcileFinancialCheckpointInput
+>
+export type FinancialReconciliationCheckpoint = Schema.Schema.Type<
+  typeof FinancialReconciliationCheckpoint
 >
 
 export class FinancialOperationNotFound
@@ -271,6 +362,16 @@ export class FinancialCurrencyMismatch extends Schema.TaggedErrorClass<Financial
   { tenantId: Uuid, legalEntityId: Uuid },
 ) {}
 
+export class FinancialReconciliationCheckpointEvidenceInvalid
+  extends Schema.TaggedErrorClass<FinancialReconciliationCheckpointEvidenceInvalid>()(
+    "FinancialReconciliationCheckpointEvidenceInvalid",
+    {
+      tenantId: Uuid,
+      legalEntityId: Uuid,
+      reason: Schema.Literals(["not_found", "scope_mismatch", "rejected"]),
+    },
+  ) {}
+
 export interface FinancialOperationService {
   readonly createJournalIntent: (
     input: unknown,
@@ -293,6 +394,7 @@ export interface FinancialOperationService {
     | UnbalancedJournal
     | DatabaseFailure
     | Schema.SchemaError
+    | FinancialOperationInjectedFailure
   >
   readonly createRevenueIntent: (
     input: unknown,
@@ -320,6 +422,7 @@ export interface FinancialOperationService {
     | UnbalancedJournal
     | DatabaseFailure
     | Schema.SchemaError
+    | FinancialOperationInjectedFailure
   >
   readonly createReversalIntent: (
     input: unknown,
@@ -342,6 +445,7 @@ export interface FinancialOperationService {
     | UnbalancedJournal
     | DatabaseFailure
     | Schema.SchemaError
+    | FinancialOperationInjectedFailure
   >
   readonly submitFinancialOperation: (
     input: unknown,
@@ -355,6 +459,7 @@ export interface FinancialOperationService {
     | FinancialOperationReconciliationConflict
     | DatabaseFailure
     | Schema.SchemaError
+    | FinancialOperationInjectedFailure
   >
   readonly reconcileFinancialOperation: (
     input: unknown,
@@ -366,6 +471,17 @@ export interface FinancialOperationService {
     | FinancialLedgerNotActivated
     | FinancialOperationNotFound
     | FinancialOperationReconciliationConflict
+    | DatabaseFailure
+    | Schema.SchemaError
+    | FinancialOperationInjectedFailure
+  >
+  readonly reconcileFinancialCheckpoint: (
+    input: unknown,
+  ) => Effect.Effect<
+    FinancialReconciliationCheckpoint,
+    | AuthorizationDenied
+    | FinancialLedgerNotConfigured
+    | FinancialReconciliationCheckpointEvidenceInvalid
     | DatabaseFailure
     | Schema.SchemaError
   >
@@ -380,6 +496,7 @@ export interface FinancialOperationService {
     | FinancialProjectionRebuildBlocked
     | DatabaseFailure
     | Schema.SchemaError
+    | FinancialOperationInjectedFailure
   >
 }
 
@@ -469,6 +586,48 @@ const toOperation = (
   observedEngine: row.observedEngine,
   lastError: row.lastError,
   reconciledAt: row.reconciledAt?.toISOString() ?? null,
+})
+
+const toCheckpoint = (row: {
+  readonly id: string
+  readonly tenantId: string
+  readonly legalEntityId: string
+  readonly engine: string
+  readonly status: "verified" | "blocked"
+  readonly recoveryWatermark: string
+  readonly sourceWatermark: string
+  readonly targetWatermark: string
+  readonly sourceSnapshotRef: string
+  readonly targetSnapshotRef: string
+  readonly operationSetHash: string
+  readonly accountBalanceHash: string
+  readonly transferSetHash: string
+  readonly projectionHash: string | null
+  readonly evidenceArtifactId: string | null
+  readonly mismatchCount: number
+  readonly orphanCount: number
+  readonly checkedBy: string
+  readonly checkedAt: Date
+}): FinancialReconciliationCheckpoint => ({
+  id: row.id,
+  tenantId: row.tenantId,
+  legalEntityId: row.legalEntityId,
+  engine: "tigerbeetle",
+  status: row.status,
+  recoveryWatermark: row.recoveryWatermark,
+  sourceWatermark: row.sourceWatermark,
+  targetWatermark: row.targetWatermark,
+  sourceSnapshotRef: row.sourceSnapshotRef,
+  targetSnapshotRef: row.targetSnapshotRef,
+  operationSetHash: row.operationSetHash,
+  accountBalanceHash: row.accountBalanceHash,
+  transferSetHash: row.transferSetHash,
+  projectionHash: row.projectionHash,
+  evidenceArtifactId: row.evidenceArtifactId,
+  mismatchCount: row.mismatchCount,
+  orphanCount: row.orphanCount,
+  checkedBy: row.checkedBy,
+  checkedAt: row.checkedAt.toISOString(),
 })
 
 const toMinor = (value: string): string => {
@@ -644,6 +803,9 @@ export const makeFinancialOperationService = Effect.gen(function* () {
   const salesOption = yield* Effect.serviceOption(SalesService)
   const jobs = yield* DurableJobEnqueuer
   const messaging = yield* MessagingService
+  const failpointOption = yield* Effect.serviceOption(FinancialOperationFailpointService)
+  const hit = (point: FinancialOperationFailpointName) =>
+    Option.isSome(failpointOption) ? failpointOption.value.hit(point) : Effect.void
 
   const loadOperation = (tenantId: string, operationId: string, lock = false) =>
     database.query(
@@ -672,6 +834,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
     database.withTransaction(
       Effect.gen(function* () {
         const now = currentTime()
+        yield* hit("before_projection_commit")
         const current = yield* loadOperationOrFail(tenantId, operationId, true)
         if (current.status !== "accepted") return current
         const [updated] = yield* database.query(
@@ -722,6 +885,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             ),
           "accounting.financial_operation.finalize.transfers",
         )
+        yield* hit("before_outbox_append")
         yield* messaging.append({
           tenantId,
           eventId: current.id,
@@ -744,7 +908,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         return updated!
       }),
       "accounting.financial_operation.finalize",
-    )
+    ).pipe(Effect.tap(() => hit("after_finalization")))
 
   const writeReceipt = (
     operationId: string,
@@ -754,6 +918,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const now = currentTime()
+      yield* hit("before_receipt_commit")
       const receipt = yield* database.withTransaction(
         Effect.gen(function* () {
           const current = yield* loadOperationOrFail(tenantId, operationId, true)
@@ -914,6 +1079,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         }),
         "accounting.financial_operation.receipt",
       )
+      yield* hit("after_receipt_commit")
       if (outcome._tag === "accepted" && receipt.status === "accepted") {
         return yield* finalizeAccepted(operationId, tenantId)
       }
@@ -1072,6 +1238,304 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       }),
       "accounting.financial_projection_rebuild.quarantine",
     )
+
+  const reconcileFinancialCheckpoint = (input: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* Schema.decodeUnknownEffect(ReconcileFinancialCheckpointInput)(input)
+      yield* authorization.authorize({
+        principal: decoded.principal,
+        tenantId: decoded.tenantId,
+        capability: AccountingCapabilities.financialReconciliationCheckpoint,
+      })
+      if (Option.isNone(ledgerOption)) {
+        return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
+      }
+      if (decoded.evidenceArtifactId !== null) {
+        const [artifact] = yield* database.query(
+          (db) =>
+            db.select({
+              legalEntityId: financialVerificationArtifacts.legalEntityId,
+              status: financialVerificationArtifacts.status,
+            }).from(financialVerificationArtifacts).where(and(
+              eq(financialVerificationArtifacts.tenantId, decoded.tenantId),
+              eq(financialVerificationArtifacts.id, decoded.evidenceArtifactId!),
+            )),
+          "accounting.financial_reconciliation_checkpoint.evidence",
+        )
+        if (artifact === undefined) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "not_found",
+            }),
+          )
+        }
+        if (artifact.legalEntityId !== decoded.legalEntityId) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "scope_mismatch",
+            }),
+          )
+        }
+        if (artifact.status !== "verified") {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "rejected",
+            }),
+          )
+        }
+      }
+      const existing = yield* database.query(
+        (db) =>
+          db.select().from(financialReconciliationCheckpoints).where(and(
+            eq(financialReconciliationCheckpoints.tenantId, decoded.tenantId),
+            eq(financialReconciliationCheckpoints.legalEntityId, decoded.legalEntityId),
+            eq(financialReconciliationCheckpoints.engine, "tigerbeetle"),
+            eq(financialReconciliationCheckpoints.recoveryWatermark, decoded.recoveryWatermark),
+          )),
+        "accounting.financial_reconciliation_checkpoint.idempotency",
+      )
+      if (existing[0] !== undefined) return toCheckpoint(existing[0])
+
+      const operations = yield* database.query(
+        (db) =>
+          db.select(operationSelection).from(financialOperations).where(and(
+            eq(financialOperations.tenantId, decoded.tenantId),
+            eq(financialOperations.legalEntityId, decoded.legalEntityId),
+            eq(financialOperations.engine, "tigerbeetle"),
+            eq(financialOperations.engineVerified, true),
+            inArray(financialOperations.status, ["accepted", "reconciled"]),
+          )).orderBy(financialOperations.createdAt),
+        "accounting.financial_reconciliation_checkpoint.operations",
+      )
+      const sourceOperations: Array<FinancialFactSnapshot["operations"][number]> = []
+      const targetOperations: Array<FinancialFactSnapshot["operations"][number]> = []
+      const sourceTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
+      const targetTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
+      const projections: Array<FinancialFactSnapshot["projections"][number]> = []
+      const orphanTransfers: Array<{
+        readonly operationId: string
+        readonly transferId: string
+        readonly mappingVersion: number
+      }> = []
+
+      for (const operation of operations) {
+        sourceOperations.push({
+          operationId: operation.operationId,
+          status: operation.status === "accepted" ? "accepted" : "reconciled",
+          currency: operation.currency,
+          mappingVersion: operation.mappingVersion,
+        })
+        const lines = yield* database.query(
+          (db) =>
+            db.select({
+              accountId: journalLines.accountId,
+              debit: journalLines.debit,
+              credit: journalLines.credit,
+            }).from(journalLines).where(and(
+              eq(journalLines.tenantId, decoded.tenantId),
+              eq(journalLines.entryId, operation.journalId),
+            )),
+          "accounting.financial_reconciliation_checkpoint.lines",
+        )
+        const journalInput = {
+          tenantId: decoded.tenantId,
+          legalEntityId: operation.legalEntityId,
+          operationId: operation.operationId,
+          journalId: operation.journalId,
+          reference: operation.reference,
+          currency: operation.currency,
+          mappingVersion: operation.mappingVersion,
+          lines: lines.map((line) => ({
+            accountId: line.accountId,
+            debitMinor: toMinor(line.debit),
+            creditMinor: toMinor(line.credit),
+          })),
+        }
+        const expectedTransferIds = yield* ledgerOption.value.expectedTransferIds(journalInput)
+        const outcome = yield* ledgerOption.value.reconcileJournal(journalInput)
+        const projected = yield* database.query(
+          (db) =>
+            db.select({
+              position: financialOperationTransfers.position,
+              debitAccountId: financialOperationTransfers.debitAccountId,
+              creditAccountId: financialOperationTransfers.creditAccountId,
+              amountMinor: financialOperationTransfers.amountMinor,
+              engineTransferId: financialOperationTransfers.engineTransferId,
+            }).from(financialOperationTransfers).where(and(
+              eq(financialOperationTransfers.tenantId, decoded.tenantId),
+              eq(financialOperationTransfers.operationId, operation.id),
+            )),
+          "accounting.financial_reconciliation_checkpoint.transfers",
+        )
+        projected.sort((left, right) => left.position - right.position)
+        for (const transfer of projected) {
+          sourceTransfers.push({
+            operationId: operation.operationId,
+            position: transfer.position,
+            transferId: transfer.engineTransferId ?? expectedTransferIds[transfer.position] ??
+              `missing:${transfer.position}`,
+            debitAccountId: transfer.debitAccountId,
+            creditAccountId: transfer.creditAccountId,
+            amountMinor: String(transfer.amountMinor),
+            currency: operation.currency,
+            mappingVersion: operation.mappingVersion,
+          })
+        }
+        const journalStatus = operation.operationType === "journal_reverse" ? "reversed" : "posted"
+        projections.push({
+          operationId: operation.operationId,
+          journalStatus,
+          transferIds: projected.map((transfer) =>
+            transfer.engineTransferId ?? expectedTransferIds[transfer.position] ??
+              `missing:${transfer.position}`
+          ),
+        })
+        if (outcome._tag === "accepted") {
+          targetOperations.push({
+            operationId: operation.operationId,
+            status: operation.status === "accepted" ? "accepted" : "reconciled",
+            currency: operation.currency,
+            mappingVersion: operation.mappingVersion,
+          })
+          for (const transfer of projected) {
+            const transferId = outcome.transferIds[transfer.position]
+            targetTransfers.push({
+              operationId: operation.operationId,
+              position: transfer.position,
+              transferId: transferId ?? `missing:${transfer.position}`,
+              debitAccountId: transfer.debitAccountId,
+              creditAccountId: transfer.creditAccountId,
+              amountMinor: String(transfer.amountMinor),
+              currency: operation.currency,
+              mappingVersion: operation.mappingVersion,
+            })
+            if (transferId !== undefined && !expectedTransferIds.includes(transferId)) {
+              orphanTransfers.push({
+                operationId: operation.id,
+                transferId,
+                mappingVersion: operation.mappingVersion,
+              })
+            }
+          }
+          if (
+            outcome.transferCount !== expectedTransferIds.length ||
+            outcome.transferIds.length !== expectedTransferIds.length ||
+            outcome.transferIds.some((id, index) => id !== expectedTransferIds[index])
+          ) {
+            for (const transferId of outcome.transferIds) {
+              if (!expectedTransferIds.includes(transferId)) {
+                orphanTransfers.push({
+                  operationId: operation.id,
+                  transferId,
+                  mappingVersion: operation.mappingVersion,
+                })
+              }
+            }
+          }
+        }
+      }
+      const source: FinancialFactSnapshot = {
+        operations: sourceOperations,
+        transfers: sourceTransfers,
+        balances: [],
+        projections,
+      }
+      const target: FinancialFactSnapshot = {
+        operations: targetOperations,
+        transfers: targetTransfers,
+        balances: [],
+        projections,
+      }
+      const uniqueOrphans = [...new Map(
+        orphanTransfers.map((orphan) => [
+          `${orphan.operationId}:${orphan.transferId}`,
+          orphan,
+        ]),
+      ).values()]
+      const evidence = yield* buildFinancialVerificationEvidence({
+        tenantId: decoded.tenantId,
+        legalEntityId: decoded.legalEntityId,
+        kind: "observability",
+        completeness: "bounded",
+        scope: `tenant:${decoded.tenantId}/legal-entity:${decoded.legalEntityId}`,
+        mappingVersion: operations[0]?.mappingVersion ?? 1,
+        currency: operations[0]?.currency ?? "USD",
+        sourceWatermark: decoded.sourceWatermark,
+        targetWatermark: decoded.targetWatermark,
+        sourceSnapshotRef: decoded.sourceSnapshotRef,
+        targetSnapshotRef: decoded.targetSnapshotRef,
+        source,
+        target,
+        startedAt: currentTime().toISOString(),
+        completedAt: currentTime().toISOString(),
+      }).pipe(
+        Effect.catch(() =>
+          Effect.fail(
+            new DatabaseFailure({
+              operation: "accounting.financial_reconciliation_checkpoint.hash",
+              cause: "hash_failed",
+            }),
+          )
+        ),
+      )
+      const status = evidence.mismatchCount === 0 && uniqueOrphans.length === 0
+        ? "verified"
+        : "blocked"
+      const checkedAt = currentTime()
+      return yield* database.withTransaction(
+        Effect.gen(function* () {
+          const [checkpoint] = yield* database.query(
+            (db) =>
+              db.insert(financialReconciliationCheckpoints).values({
+                tenantId: decoded.tenantId,
+                legalEntityId: decoded.legalEntityId,
+                engine: "tigerbeetle",
+                status,
+                recoveryWatermark: decoded.recoveryWatermark,
+                sourceWatermark: decoded.sourceWatermark,
+                targetWatermark: decoded.targetWatermark,
+                sourceSnapshotRef: decoded.sourceSnapshotRef,
+                targetSnapshotRef: decoded.targetSnapshotRef,
+                operationSetHash: evidence.operationSetHash,
+                accountBalanceHash: evidence.accountBalanceHash,
+                transferSetHash: evidence.transferSetHash,
+                projectionHash: evidence.projectionHash,
+                evidenceArtifactId: decoded.evidenceArtifactId,
+                mismatchCount: evidence.mismatchCount,
+                orphanCount: uniqueOrphans.length,
+                checkedBy: decoded.principal.userAccountId,
+                checkedAt,
+              }).returning(),
+            "accounting.financial_reconciliation_checkpoint.insert",
+          )
+          if (uniqueOrphans.length > 0) {
+            yield* database.query(
+              (db) =>
+                db.insert(financialOrphanTransfers).values(uniqueOrphans.map((orphan) => ({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.legalEntityId,
+                  checkpointId: checkpoint!.id,
+                  operationId: orphan.operationId,
+                  transferId: orphan.transferId,
+                  mappingVersion: orphan.mappingVersion,
+                  status: "open" as const,
+                  reason: "unexpected_provider_transfer",
+                  detectedAt: checkedAt,
+                }))),
+              "accounting.financial_reconciliation_checkpoint.orphans",
+            )
+          }
+          return toCheckpoint(checkpoint!)
+        }),
+        "accounting.financial_reconciliation_checkpoint.transaction",
+      )
+    })
 
   const rebuildFinancialProjections = (input: unknown) =>
     Effect.gen(function* () {
@@ -1550,9 +2014,11 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           }, "tigerbeetle"),
         )
       }
+      yield* hit("before_provider_submission")
       let outcome = yield* (state.reconcile
         ? ledger.reconcileJournal(journalInput)
         : ledger.postJournal(journalInput))
+      if (outcome._tag === "accepted") yield* hit("after_provider_acceptance")
       if (state.reconcile && outcome._tag === "unknown" && outcome.reason === "not_found") {
         outcome = yield* ledger.postJournal(journalInput)
       }
@@ -1560,7 +2026,9 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         if (
           outcome.transferCount !== expectedTransferIds.length ||
           outcome.transferIds.length !== expectedTransferIds.length ||
-          outcome.transferIds.some((id, index) => id !== expectedTransferIds[index])
+          outcome.transferIds.some((id, index) =>
+            id !== expectedTransferIds[index]
+          )
         ) {
           outcome = {
             _tag: "manual_recovery",
@@ -1606,6 +2074,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       const requestFingerprint = fingerprint({ ...decoded, operationType })
       const sourceJournalIdForConflict = decoded.sourceJournalId
       const now = currentTime()
+      yield* hit("before_intent_commit")
       const operation = yield* database.withTransaction(
         Effect.gen(function* () {
           const [existing] = yield* database.query(
@@ -1963,6 +2432,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             ),
         ),
       )
+      yield* hit("after_intent_commit")
       return toOperation(operation)
     })
 
@@ -2059,6 +2529,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
     createReversalIntent,
     submitFinancialOperation: (input) => submit(input, submitJobType),
     reconcileFinancialOperation: (input) => submit(input, reconcileJobType),
+    reconcileFinancialCheckpoint,
     rebuildFinancialProjections,
   } satisfies FinancialOperationService
 })

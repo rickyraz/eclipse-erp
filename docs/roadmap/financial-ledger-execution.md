@@ -5,17 +5,23 @@
 > **Owns:** sequencing, implementation dependencies, readiness gates, and cutover steps for the
 > required TigerBeetle financial execution profile.
 >
-> **Detailed authority and runtime rules belong to:** [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md)
-> and [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md).
+> **Detailed authority and runtime rules belong to:**
+> [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md) and
+> [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md).
 
 > **Related documents**
 >
 > - Roadmap index: [`./README.md`](./README.md)
-> - Financial ledger architecture: [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md)
-> - Ledger decision: [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
-> - P2 financial baseline: [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
-> - State and consistency: [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
-> - Durable execution: [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
+> - Financial ledger architecture:
+>   [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md)
+> - Ledger decision:
+>   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
+> - P2 financial baseline:
+>   [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
+> - State and consistency:
+>   [`../architecture/state-and-consistency.md`](../architecture/state-and-consistency.md)
+> - Durable execution:
+>   [`../architecture/durable-execution.md`](../architecture/durable-execution.md)
 > - Testing strategy: [`../development/testing.md`](../development/testing.md)
 
 ## Goal
@@ -40,17 +46,17 @@ inventory quantity remain separate decisions.
 
 ## What Changes
 
-| Area | Current posture | Target posture | Required work |
-| --- | --- | --- | --- |
-| Financial authority | PostgreSQL journal rows and balances are the current implementation authority | TigerBeetle is authoritative for accepted transfers, balances, and transfer history | Define the cutover boundary and prohibit competing authorities |
-| Accounting contract | Service validates and writes PostgreSQL journal tables directly | Accounting owns policy and calls `FinancialLedgerPort` | Add semantic port and stable operation outcomes |
-| Transaction boundary | Journal and event can commit in one PostgreSQL transaction | PostgreSQL intent and TigerBeetle acceptance are separate durable steps | Add operation protocol, retry, unknown-outcome, and recovery state |
-| Identity | Journal reference/idempotency is PostgreSQL-local | Account and transfer IDs are deterministic across retries | Version the encoding and mapping |
-| Journal data | PostgreSQL rows are treated as financial facts | PostgreSQL rows are metadata/projection with TigerBeetle provenance | Add rebuild and reconciliation behavior |
-| Worker path | Request/service performs the PostgreSQL mutation | Durable job/workflow submits and reconciles the TigerBeetle operation | Use the job table or an approved durable workflow, never an Effect fiber |
-| Cross-domain workflows | Existing order flow relies on one PostgreSQL transaction | Any TB-backed cross-domain flow needs an explicit accepted/pending/compensation contract | Revisit order confirmation in a separate ADR before migration |
-| Operations | PostgreSQL-only deployment and recovery | Trusted TigerBeetle adapter, isolated credentials, backup/restore and no-fallback runbook | Add deployment and failure evidence |
-| Reporting | Reads PostgreSQL financial tables | Reads rebuildable PostgreSQL projection backed by TigerBeetle facts | Preserve audit links and reproducibility |
+| Area                   | Current posture                                                               | Target posture                                                                            | Required work                                                            |
+| ---------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Financial authority    | PostgreSQL journal rows and balances are the current implementation authority | TigerBeetle is authoritative for accepted transfers, balances, and transfer history       | Define the cutover boundary and prohibit competing authorities           |
+| Accounting contract    | Service validates and writes PostgreSQL journal tables directly               | Accounting owns policy and calls `FinancialLedgerPort`                                    | Add semantic port and stable operation outcomes                          |
+| Transaction boundary   | Journal and event can commit in one PostgreSQL transaction                    | PostgreSQL intent and TigerBeetle acceptance are separate durable steps                   | Add operation protocol, retry, unknown-outcome, and recovery state       |
+| Identity               | Journal reference/idempotency is PostgreSQL-local                             | Account and transfer IDs are deterministic across retries                                 | Version the encoding and mapping                                         |
+| Journal data           | PostgreSQL rows are treated as financial facts                                | PostgreSQL rows are metadata/projection with TigerBeetle provenance                       | Add rebuild and reconciliation behavior                                  |
+| Worker path            | Request/service performs the PostgreSQL mutation                              | Durable job/workflow submits and reconciles the TigerBeetle operation                     | Use the job table or an approved durable workflow, never an Effect fiber |
+| Cross-domain workflows | Existing order flow relies on one PostgreSQL transaction                      | Any TB-backed cross-domain flow needs an explicit accepted/pending/compensation contract  | Revisit order confirmation in a separate ADR before migration            |
+| Operations             | PostgreSQL-only deployment and recovery                                       | Trusted TigerBeetle adapter, isolated credentials, backup/restore and no-fallback runbook | Add deployment and failure evidence                                      |
+| Reporting              | Reads PostgreSQL financial tables                                             | Reads rebuildable PostgreSQL projection backed by TigerBeetle facts                       | Preserve audit links and reproducibility                                 |
 
 ## Implementation Surface
 
@@ -66,9 +72,9 @@ The implementation should change the fewest owners necessary:
   writes Accounting, Process, or Messaging tables directly. A worker must re-enter command admission
   and authorization for any business command; adapter submission itself uses the narrow trusted
   capability.
-- **Accounting-owned PostgreSQL schema**: persist operation intent, deterministic mapping,
-  observed outcome, projection provenance, and reconciliation state only when the contract proves
-  those records are needed. Do not create a generic cross-domain ledger schema.
+- **Accounting-owned PostgreSQL schema**: persist operation intent, deterministic mapping, observed
+  outcome, projection provenance, and reconciliation state only when the contract proves those
+  records are needed. Do not create a generic cross-domain ledger schema.
 - **`db/ownership.toml`**: remains unchanged if these records stay Accounting-owned. A new schema or
   package requires its own ownership decision before migration.
 - **Reporting/audit paths**: consume PostgreSQL projections with TigerBeetle IDs and mapping
@@ -92,15 +98,16 @@ The repository now contains a bounded, non-activated execution slice:
   transfer mapping, provider-status translation, linked transfer compilation, and scoped cleanup;
 - `apps/worker` leases only Accounting financial jobs through the public Accounting contract, while
   Process owns `process.jobs` lease/fencing state;
-- migrations enforce operation identity, period ownership, state transitions, source-journal binding,
-  and the non-overlapping process job types;
+- migrations enforce operation identity, period ownership, state transitions, source-journal
+  binding, and the non-overlapping process job types;
 - contract, PostgreSQL, worker, response-loss, receipt-failure, reversal, and optional local-cluster
-  integration tests cover replay, rejection, reconciliation, period fencing, and projection behavior.
+  integration tests cover replay, rejection, reconciliation, period fencing, and projection
+  behavior.
 
 The existing PostgreSQL `postJournal` and revenue commands remain transitional for compatibility;
 the new financial-operation endpoints and worker path are not a production cutover. Controlled
-prepare/approve/activate commands, database activation gates, exact opening-balance comparison,
-and an operation-level projection rebuild now exist, but activation still requires the operational,
+prepare/approve/activate commands, database activation gates, exact opening-balance comparison, and
+an operation-level projection rebuild now exist, but activation still requires the operational,
 historical replay/opening-balance, bounded rehearsal, and cutover gates below.
 
 ## Execution Sequence
@@ -232,8 +239,9 @@ Connect accepted engine outcomes to PostgreSQL control-plane records:
 
 - mark the operation accepted only after TigerBeetle acceptance is known, then finalize the journal,
   transfer projections, and outbox in a separate retryable PostgreSQL transaction;
-- invoke the Accounting public finalize/reconcile command, which updates journal/reporting projections
-  with engine provenance and calls the public Messaging contract in the same PostgreSQL transaction;
+- invoke the Accounting public finalize/reconcile command, which updates journal/reporting
+  projections with engine provenance and calls the public Messaging contract in the same PostgreSQL
+  transaction;
 - publish accepted events from durable PostgreSQL intent;
 - reconcile accepted-but-unprojected operations;
 - quarantine missing, duplicate, conflicting, or mismatched mappings;
@@ -256,7 +264,8 @@ Exit gate:
 The first cutover uses an explicit, non-overlapping authority boundary. The default is:
 
 - PostgreSQL remains an immutable historical archive for journals before the cutover boundary;
-- TigerBeetle receives verified opening balances and owns every selected operation after the boundary;
+- TigerBeetle receives verified opening balances and owns every selected operation after the
+  boundary;
 - reports union both ranges with source provenance and never present them as two authorities for the
   same operation;
 - importing all historical transfers into TigerBeetle is optional and requires a separate ordering,
@@ -300,7 +309,8 @@ Activate one explicit profile scope, such as a Legal Entity or tenant cohort. Du
 - retries use the same operation identity;
 - the old PostgreSQL path remains disabled for the selected tenant once a Legal Entity is cut over,
   not chosen per request;
-- historical operations without an explicit engine verification marker are fenced rather than inferred.
+- historical operations without an explicit engine verification marker are fenced rather than
+  inferred.
 
 Keep the existing PostgreSQL profile for scopes that have not passed cutover. This is a transition
 boundary, not permission to route one logical invariant to two engines.
@@ -346,35 +356,37 @@ cross-domain contract, event timing, failure semantics, and user-visible result.
 [ ] every cross-domain workflow has its own accepted consistency decision
 ```
 
-## Audit A–M and release decision (2026-08-17)
+## Audit A–M and release decision (2026-08-18)
 
 The implementation is hardened and tested, but this audit is a release gate, not a production
 approval. `P0` means production-blocking; `P1` means a correctness/readiness gap that must close
 before pilot approval; `P2` means operational maturity work that must be tracked.
 
-| Bagian | Status | Klasifikasi | Bukti / celah yang tersisa |
-| --- | --- | --- | --- |
-| A. Authority dan ownership | jelas | P0 gate | TigerBeetle memegang transfer accepted/balance/history; PostgreSQL memegang control-plane. Tidak ada fallback atau dual authority pada route aktif. |
-| B. State machine | implemented | P1 | `intent -> submitted -> accepted -> reconciled` dan transisi database sudah dijaga; fault proof end-to-end belum lengkap. |
-| C. Crash windows | partial | P1 | Status `accepted` dan finalisasi retryable menutup crash setelah acceptance; kill point PostgreSQL sebelum/sesudah engine belum direhearsal penuh. |
-| D. Idempotency dan concurrency | implemented | P1 | ID deterministik, uniqueness, replay, dan concurrent intent diuji; duplicate-worker rehearsal deployment belum ada. |
-| E. Reconciliation | partial | P1 | Lost response, `not_found`, unavailable, partial result, metadata/mapping mismatch fail closed; orphan scan/checkpoint global dan full rebuild belum terbukti. |
-| F. Worker dan durable jobs | implemented | P1 | Worker memakai kontrak Accounting/Process, lease fencing, retry, dan reconciliation; restart/lease rehearsal produksi belum ada. |
-| G. Projection, receipt, outbox | partial | P1 | Receipt diterima lebih dulu dan finalisasi terpisah; operation projection dapat direbuild dan diuji, tetapi reproduksi seluruh report belum terbukti. |
-| H. Outage/restart | unproven | P0 | Belum ada bukti PostgreSQL/TigerBeetle outage, adapter exit, process restart, dan recovery watermark terhadap deployment target. |
-| I. Backup/restore | unproven | P0 | Belum ada restore rehearsal, cross-store correspondence, orphan comparison, atau independently-restored-store fencing yang dieksekusi. |
-| J. Migration/cutover | partial | P0 | Opening-balance verifier dan state machine tersedia; historical replay/opening-balance sign-off dan bounded cohort rehearsal belum ada. |
-| K. Authorization/security | hardened | P1 | Capability activation/rebuild, authorization ordering, tenant fencing, dan no-fallback path tersedia; production credential/privilege rehearsal belum ada. |
-| L. Amount/ID/mapping | implemented | P1 | Currency, uppercase mapping, UInt128, deterministic IDs, metadata, linked transfer, dan balance constraints diuji. |
-| M. Reversal/observability/testing | partial | P1/P2 | Reversal dan failure tests membaik; metrics, SLO, alert, dashboard, complete fault matrix, dan runbook execution evidence belum lengkap. |
+| Bagian                            | Status                       | Klasifikasi | Bukti / celah yang tersisa                                                                                                                                                                      |
+| --------------------------------- | ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. Authority dan ownership        | jelas                        | P0 gate     | TigerBeetle memegang transfer accepted/balance/history; PostgreSQL memegang control-plane. Tidak ada fallback atau dual authority pada route aktif.                                             |
+| B. State machine                  | implemented                  | P1          | `intent -> submitted -> accepted -> reconciled` dan transisi database sudah dijaga; fault proof end-to-end belum lengkap.                                                                       |
+| C. Crash windows                  | executable failure-injection | P1          | Accounting failpoints execute intent/engine/receipt/projection/outbox recovery and same-ID retries; OS kill/process-restart evidence remains open.                                              |
+| D. Idempotency dan concurrency    | implemented                  | P1          | ID deterministik, uniqueness, replay, dan concurrent intent diuji; duplicate-worker rehearsal deployment belum ada.                                                                             |
+| E. Reconciliation                 | bounded checkpoint           | P1          | Immutable checkpoint/orphan tables and operation-scoped cross-store hashes now exist; global CDC/orphan scan and complete balance correspondence remain unproven.                               |
+| F. Worker dan durable jobs        | executable failure-injection | P1          | Worker lease/restart/stale-completion failpoints are tested through public contracts; deployment termination and lease-expiry rehearsal remain open.                                            |
+| G. Projection, receipt, outbox    | partial                      | P1          | Receipt/finalization failpoints and operation rebuild are tested; fact-set hashing is available, but complete report/balance reproducibility is not yet proven from an independent source.      |
+| H. Outage/restart                 | unproven                     | P0          | Belum ada bukti PostgreSQL/TigerBeetle outage, adapter exit, process restart, dan recovery watermark terhadap deployment target.                                                                |
+| I. Backup/restore                 | unproven                     | P0          | Belum ada restore rehearsal, cross-store correspondence, orphan comparison, atau independently-restored-store fencing yang dieksekusi.                                                          |
+| J. Migration/cutover              | partial                      | P0          | Opening-balance verifier dan state machine tersedia; historical replay/opening-balance sign-off dan bounded cohort rehearsal belum ada.                                                         |
+| K. Authorization/security         | hardened                     | P1          | Capability activation/rebuild, authorization ordering, tenant fencing, dan no-fallback path tersedia; production credential/privilege rehearsal belum ada.                                      |
+| L. Amount/ID/mapping              | implemented                  | P1          | Currency, uppercase mapping, UInt128, deterministic IDs, metadata, linked transfer, dan balance constraints diuji.                                                                              |
+| M. Reversal/observability/testing | partial                      | P1/P2       | Signed artifact plumbing, failure matrix hooks, and checkpoint persistence exist; KMS/HSM key evidence, production metrics/SLO/alerts, full matrix, and runbook execution evidence remain open. |
 
 **Keputusan: NO-GO untuk produksi.** TigerBeetle tetap non-default dan konfigurasi normal tetap
-menolak aktivasi langsung. P0 yang wajib ditutup: (1) full PostgreSQL-before/after-engine fault
-matrix dengan kill/restart/worker termination, (2) backup/restore dan cross-store comparison,
-(3) outage/adapter-exit recovery, (4) historical/opening-balance verification, dan (5) bounded
-cutover rehearsal dengan owner, watermark, approval, serta bukti observability. Local one-replica
-integration test yang lulus hanya membuktikan adapter compatibility; tidak membuktikan quorum,
-production recovery, atau restore readiness.
+menolak aktivasi langsung. The default composition root has no signing-key layer, and
+caller-supplied readiness booleans are no longer accepted; approval requires an immutable signed
+`financial_verification_artifacts` row. P0 yang wajib ditutup: (1) full
+PostgreSQL-before/after-engine fault matrix dengan kill/restart/worker termination, (2)
+backup/restore dan cross-store comparison, (3) outage/adapter-exit recovery, (4)
+historical/opening-balance verification, dan (5) bounded cutover rehearsal dengan owner, watermark,
+approval, serta bukti observability. Local one-replica integration test yang lulus hanya membuktikan
+adapter compatibility; tidak membuktikan quorum, production recovery, atau restore readiness.
 
 ## Explicit Non-Goals
 

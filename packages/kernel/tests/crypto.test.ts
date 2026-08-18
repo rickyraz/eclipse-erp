@@ -2,7 +2,7 @@ import { assert, it } from "@effect/vitest"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 
-import { WebCryptoLive } from "../mod.ts"
+import { generateEd25519FinancialVerificationSigner, WebCryptoLive } from "../mod.ts"
 
 it.effect("provides cryptography through the Effect environment", () =>
   Effect.gen(function* () {
@@ -16,3 +16,13 @@ it.effect("provides cryptography through the Effect environment", () =>
     )
     assert.strictEqual((yield* crypto.randomBytes(32)).length, 32)
   }).pipe(Effect.provide(WebCryptoLive)))
+
+it.effect("signs and verifies a readiness payload with an explicit key id", () =>
+  Effect.gen(function* () {
+    const generated = yield* generateEd25519FinancialVerificationSigner("test-key")
+    const signature = yield* Effect.promise(() => generated.signer.sign("artifact-hash"))
+    assert.isTrue(yield* Effect.promise(() => generated.signer.verify("artifact-hash", signature)))
+    assert.isFalse(
+      yield* Effect.promise(() => generated.signer.verify("different-hash", signature)),
+    )
+  }))

@@ -282,6 +282,7 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
         { fingerprint: string; outcome: FinancialExecutionOutcome }
       >()
       const lost = new Set<string>()
+      const failedBefore = new Set<string>()
       return {
         createExecutionAccount: (input) =>
           Effect.gen(function* () {
@@ -326,7 +327,12 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
                 reason: "unavailable" as const,
               }
             }
-            if (options.failBeforeSubmissionFor === decoded.operationId) {
+            const failureKey = operationKey(decoded)
+            if (
+              options.failBeforeSubmissionFor === decoded.operationId &&
+              !failedBefore.has(failureKey)
+            ) {
+              failedBefore.add(failureKey)
               return {
                 _tag: "unknown" as const,
                 operationId: decoded.operationId,
