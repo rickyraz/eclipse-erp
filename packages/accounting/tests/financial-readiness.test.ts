@@ -1,11 +1,13 @@
 import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
 import {
   buildFinancialVerificationEvidence,
   compareFinancialFactSnapshots,
   financialFailureExecutionMatrix,
   financialFailureMatrix,
+  FinancialVerificationEvidence,
   hashFinancialFactSnapshot,
   verifyOpeningBalances,
 } from "../mod.ts"
@@ -48,6 +50,18 @@ describe("financial readiness proofs", () => {
       assert.isNotEmpty(row.terminalCondition)
     }
   })
+
+  it.effect("rejects verification versions outside PostgreSQL smallint range", () =>
+    Effect.gen(function* () {
+      const mappingVersionFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationEvidence.fields.mappingVersion)(32768),
+      )
+      assert.strictEqual(mappingVersionFailure._tag, "SchemaError")
+      const schemaVersionFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationEvidence.fields.schemaVersion)(32768),
+      )
+      assert.strictEqual(schemaVersionFailure._tag, "SchemaError")
+    }))
 
   it.effect("rebuilds the same cross-store facts to the same hash", () =>
     Effect.gen(function* () {

@@ -252,6 +252,9 @@ export type OpeningBalanceMismatch = Readonly<{
 const Hash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9][0-9]*)$/))
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const PositiveSmallInt = Schema.Int.check(
+  Schema.isBetween({ minimum: 1, maximum: 0x7fff }),
+)
 
 export const FinancialVerificationEvidence = Schema.Struct({
   tenantId: Schema.String.check(Schema.isUUID()),
@@ -267,8 +270,8 @@ export const FinancialVerificationEvidence = Schema.Struct({
   ]),
   completeness: Schema.Literals(["bounded", "full", "fenced"]),
   scope: Schema.String.check(Schema.isPattern(/\S/)),
-  schemaVersion: Schema.Int.check(Schema.isGreaterThan(0)),
-  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  schemaVersion: PositiveSmallInt,
+  mappingVersion: PositiveSmallInt,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   sourceWatermark: Schema.String.check(Schema.isPattern(/\S/)),
   targetWatermark: Schema.String.check(Schema.isPattern(/\S/)),

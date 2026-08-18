@@ -43,6 +43,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 9. Accounting financial-operation event payloads preserve the positive mapping-version invariant at the public catalog boundary.
 10. Accounting financial-operation event mapping versions stay within the PostgreSQL integer range.
 11. Accounting financial-operation command schemas keep persisted mapping versions within the PostgreSQL integer range.
+12. Accounting verification evidence versions stay within the PostgreSQL smallint range used by artifact persistence.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -54,3 +55,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Financial operation persistence requires positive mapping versions, so the PUBLIC reconciled event must reject impossible versions before catalog consumers see them.
 - The persisted mapping version is PostgreSQL `integer`; the public event must reject values above `2_147_483_647` as well as non-positive values.
 - The financial-operation command schemas share the same persisted integer boundary, so overflow must be rejected before intent persistence.
+- Verification artifacts persist schema and mapping versions as PostgreSQL `smallint`, so the public evidence contract must reject values above `32_767` before artifact writes.
