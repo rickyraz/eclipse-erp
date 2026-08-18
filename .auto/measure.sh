@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=207
+total=208
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -196,6 +196,7 @@ gate bash -c 'grep -Fq "const PositiveSmallInt" packages/accounting/src/financia
 gate bash -c 'grep -Fq "const Count" packages/accounting/src/financial-readiness.ts && grep -Fq "maximum: 0x7fffffff" packages/accounting/src/financial-readiness.ts && grep -Fq "rejects verification counts above PostgreSQL integer range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "2_147_483_648" packages/accounting/tests/financial-readiness.test.ts'
 gate bash -c 'grep -Fq "const NonNegativeInt" packages/accounting/src/service.ts && grep -Fq "unresolvedAcceptedOperations: NonNegativeInt" packages/accounting/src/service.ts && grep -Fq "rejects unresolved cutover operation counts outside PostgreSQL integer range" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialCutoverControl.fields.unresolvedAcceptedOperations" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "const NonNegativeInt" packages/accounting/src/financial-operations.ts && grep -Fq "attempts: NonNegativeInt" packages/accounting/src/financial-operations.ts && grep -Fq "rejects financial operation attempts outside PostgreSQL integer range" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialOperation.fields.attempts" packages/accounting/tests/accounting.test.ts'
+gate bash -c 'grep -Fq "AccountingFinancialOperationReconciledEvent.payloadSchema" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "assert.strictEqual(eventPayload.operationId, reconciledEvent!.operation_id)" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "assert.strictEqual(eventPayload.mappingVersion, reconciledEvent!.mapping_version)" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "sales_order_confirmed" packages/catalog/mod.ts && grep -Fq "sales_order_confirmed" packages/accounting/src/catalog.ts'
 gate bash -c 'grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "replayedWithTamperedAmount" packages/accounting/tests/accounting.postgres.test.ts'
 gate bash -c 'grep -Fq "const salesFacts" packages/accounting/tests/accounting.test.ts && grep -Fq "amount: \"99.99\"" packages/accounting/tests/accounting.test.ts && grep -Fq "const amount = yield* sales.getConfirmedOrderTotal" packages/accounting/src/service.ts && grep -Fq "Layer.succeed(SalesService" apps/api/bootstrap.test.ts'

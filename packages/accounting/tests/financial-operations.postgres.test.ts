@@ -1,9 +1,11 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
 import {
   AccountingCapabilities,
+  AccountingFinancialOperationReconciledEvent,
   type FinancialOperationFailpointNameType,
   FinancialOperationInjectedFailure,
   FinancialOperationsPending,
@@ -248,17 +250,30 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(postedRevenue.status, "reconciled")
           const [reconciledEvent] = yield* Effect.promise(() =>
             client<{
+              operation_id: string
+              journal_id: string
+              mapping_version: number
+              payload: unknown
               command_id: string
               correlation_id: string
               causation_id: string
               idempotency_key: string
             }[]>`
-              select command_id, correlation_id, causation_id, idempotency_key
-              from messaging.event_outbox
-              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+              select f.operation_id, f.journal_id, f.mapping_version, e.payload,
+                e.command_id, e.correlation_id, e.causation_id, e.idempotency_key
+              from messaging.event_outbox e
+              join accounting.financial_operations f
+                on f.tenant_id = e.tenant_id and f.id = e.id
+              where e.tenant_id = ${tenant!.id} and e.id = ${revenue.id}
             `
           )
           assert.isDefined(reconciledEvent)
+          const eventPayload = yield* Schema.decodeUnknownEffect(
+            AccountingFinancialOperationReconciledEvent.payloadSchema,
+          )(reconciledEvent!.payload)
+          assert.strictEqual(eventPayload.operationId, reconciledEvent!.operation_id)
+          assert.strictEqual(eventPayload.journalId, reconciledEvent!.journal_id)
+          assert.strictEqual(eventPayload.mappingVersion, reconciledEvent!.mapping_version)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.correlation_id)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.causation_id)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.idempotency_key)
