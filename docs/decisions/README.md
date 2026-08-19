@@ -63,5 +63,6 @@ current system; ADRs preserve decision history.
 | [`0038`](./0038-move-internal-event-delivery-to-messaging.md)        | Move internal event delivery ownership to Messaging             | Accepted   |
 | [`0039`](./0039-select-postgresql-wait-for-for-replica-read-your-writes.md) | Select PostgreSQL `WAIT FOR` for replica read-your-writes | Accepted |
 | [`0040`](./0040-adopt-tigerbeetle-financial-ledger.md)                 | Adopt TigerBeetle as the financial ledger execution engine     | Accepted   |
+| [`0041`](./0041-separate-deployment-profile-and-financial-authority.md) | Separate deployment profile from financial authority          | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

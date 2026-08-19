@@ -7,7 +7,8 @@
 >
 > **Detailed authority and runtime rules belong to:**
 > [`../architecture/financial-ledger.md`](../architecture/financial-ledger.md) and
-> [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md).
+> [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md) and
+[`../decisions/0041-separate-deployment-profile-and-financial-authority.md`](../decisions/0041-separate-deployment-profile-and-financial-authority.md).
 
 > **Related documents**
 >
@@ -89,8 +90,10 @@ when the trusted adapter phase has an approved compatibility and operational tar
 
 ### Current implementation slice
 
-The repository now contains a bounded, non-activated execution slice:
+The repository now contains a bounded execution slice:
 
+- `apps/runtime.ts` composes one selected `FinancialLedgerPort` for both API and worker; the
+  `entry + postgresql` profile requires no TigerBeetle settings.
 - `packages/accounting` owns the provider-neutral `FinancialLedgerPort`, durable journal/revenue/
   reversal intents, PostgreSQL receipt and journal projections, mapping rows, reconciliation state,
   and the public finalize/reconcile commands;
@@ -105,10 +108,12 @@ The repository now contains a bounded, non-activated execution slice:
   behavior.
 
 The existing PostgreSQL `postJournal` and revenue commands remain transitional for compatibility;
-the new financial-operation endpoints and worker path are not a production cutover. Controlled
-prepare/approve/activate commands, database activation gates, exact opening-balance comparison, and
-an operation-level projection rebuild now exist, but activation still requires the operational,
-historical replay/opening-balance, bounded rehearsal, and cutover gates below.
+the new financial-operation endpoints and worker path use the selected authority, with PostgreSQL
+available as the executable entry transition. This is not a TigerBeetle production cutover.
+Controlled prepare/approve/activate commands, database activation gates, exact opening-balance
+comparison, and an operation-level projection rebuild now exist, but TigerBeetle activation still
+requires the operational, historical replay/opening-balance, bounded rehearsal, and cutover gates
+below.
 
 ## Execution Sequence
 
@@ -116,7 +121,8 @@ historical replay/opening-balance, bounded rehearsal, and cutover gates below.
 
 Deliverables:
 
-- superseding ADR-0040;
+- ADR-0041 separating deployment profile from financial authority while retaining ADR-0040's
+  TigerBeetle target;
 - canonical financial-ledger architecture;
 - authority matrix;
 - explicit transition from PostgreSQL implementation to TigerBeetle execution;

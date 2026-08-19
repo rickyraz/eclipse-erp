@@ -99,6 +99,7 @@ export {
   FinancialBalanceOutcome,
   FinancialExecutionOutcome,
   FinancialJournalLine,
+  FinancialLedgerAuthority,
   FinancialLedgerPort,
   FinancialManualRecoveryReason,
   FinancialRejectionReason,
@@ -106,6 +107,10 @@ export {
   makeFinancialLedgerTestLayer,
   PostFinancialJournalInput,
 } from "./src/financial-ledger.ts"
+export {
+  makePostgresqlFinancialLedger,
+  makePostgresqlFinancialLedgerLayer,
+} from "./src/postgresql-ledger.ts"
 
 export {
   Account,

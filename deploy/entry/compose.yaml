@@ -1,0 +1,66 @@
+name: ritsei-entry
+
+services:
+  postgres:
+    image: postgres:19
+    environment:
+      POSTGRES_DB: ritsei
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ritsei"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ritsei-entry-postgres:/var/lib/postgresql/data
+
+  migrate:
+    image: denoland/deno:2.9.5
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ritsei
+      RITSEI_DEPLOYMENT_PROFILE: entry
+      RITSEI_FINANCIAL_AUTHORITY: postgresql
+    volumes:
+      - ../..:/app
+    command: ["deno", "run", "-A", "apps/migrate/mod.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: denoland/deno:2.9.5
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ritsei
+      RITSEI_DEPLOYMENT_PROFILE: entry
+      RITSEI_FINANCIAL_AUTHORITY: postgresql
+      PORT: "8000"
+    volumes:
+      - ../..:/app
+    command: ["deno", "run", "-A", "apps/api/mod.ts"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: denoland/deno:2.9.5
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ritsei
+      RITSEI_DEPLOYMENT_PROFILE: entry
+      RITSEI_FINANCIAL_AUTHORITY: postgresql
+      WORKER_TENANT_ID: 00000000-0000-4000-8000-000000000001
+      WORKER_ID: entry-accounting-worker
+    volumes:
+      - ../..:/app
+    command: ["deno", "run", "-A", "apps/worker/mod.ts"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  ritsei-entry-postgres:

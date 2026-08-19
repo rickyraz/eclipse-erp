@@ -131,6 +131,30 @@ explicit, and infrastructure must not pretend several shards form one local tran
 
 ## Deployment Profiles
 
+Deployment topology and financial authority are separate selectors. The runtime accepts:
+
+| Selector | Values | Meaning |
+| --- | --- | --- |
+| `RITSEI_DEPLOYMENT_PROFILE` | `entry`, `standard`, `scale`, `enterprise` | operational topology and maturity target |
+| `RITSEI_FINANCIAL_AUTHORITY` | `postgresql`, `tigerbeetle` | authority used by the `FinancialLedgerPort` composition |
+
+The executable reference profile is [`deploy/entry/compose.yaml`](../../deploy/entry/compose.yaml):
+`entry + postgresql`, with PostgreSQL 19, migrations, API, and worker. It intentionally supplies no
+TigerBeetle settings. Selecting `tigerbeetle` requires the conditional replica, ledger, code, and
+currency settings and remains subject to the financial readiness gate; changing an environment
+variable is not a cutover or reconciliation.
+
+Current maturity:
+
+- **Entry + PostgreSQL:** executable through both API and worker composition roots; no TigerBeetle
+  dependency is required.
+- **Standard + PostgreSQL:** composition-compatible, but PostgreSQL HA, pooling, backup, and failover
+  evidence are not supplied by this repository.
+- **Scale + TigerBeetle:** adapter-compatible, but multi-replica quorum, recovery, reconciliation,
+  signing custody, and outage evidence remain unresolved.
+- **Enterprise:** topology-agnostic contracts exist, but WorkloadCell routing, hard isolation,
+  regional DR, and deployment automation are not implemented.
+
 ### Minimal
 
 A small installation may use:

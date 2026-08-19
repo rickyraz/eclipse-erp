@@ -446,7 +446,7 @@ export const financialOperations = accountingSchema.table("financial_operations"
   reference: text("reference").notNull(),
   currency: text("currency").notNull(),
   mappingVersion: integer("mapping_version").notNull(),
-  engine: financialEngine("engine").notNull().default("tigerbeetle"),
+  engine: financialEngine("engine").notNull().default("postgresql"),
   engineVerified: boolean("engine_verified").notNull().default(false),
   requestFingerprint: text("request_fingerprint").notNull(),
   actorPrincipalId: text("actor_principal_id").notNull(),

@@ -8,6 +8,9 @@ const PositiveInteger = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum:
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9]\d*)$/))
 
+export const FinancialLedgerAuthority = Schema.Literals(["postgresql", "tigerbeetle"])
+export type FinancialLedgerAuthority = Schema.Schema.Type<typeof FinancialLedgerAuthority>
+
 export const FinancialAccountConstraint = Schema.Literals([
   "none",
   "debits_must_not_exceed_credits",
@@ -148,6 +151,7 @@ export type FinancialExecutionOutcome = Schema.Schema.Type<typeof FinancialExecu
 export type FinancialBalanceOutcome = Schema.Schema.Type<typeof FinancialBalanceOutcome>
 
 export interface FinancialLedgerPort {
+  readonly authority: FinancialLedgerAuthority
   readonly createExecutionAccount: (
     input: unknown,
   ) => Effect.Effect<ExecutionAccountOutcome, Schema.SchemaError>
@@ -284,6 +288,7 @@ export const makeFinancialLedgerTestLayer = (options: TestAdapterOptions = {}) =
       const lost = new Set<string>()
       const failedBefore = new Set<string>()
       return {
+        authority: "tigerbeetle" as const,
         createExecutionAccount: (input) =>
           Effect.gen(function* () {
             const decoded = yield* Schema.decodeUnknownEffect(CreateExecutionAccountInput)(input)

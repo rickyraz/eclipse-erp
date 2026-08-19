@@ -34,6 +34,7 @@ import { AccountingCapabilities } from "./capabilities.ts"
 import {
   type FinancialAccountConstraint,
   type FinancialExecutionOutcome,
+  FinancialLedgerAuthority,
   FinancialLedgerPort,
 } from "./financial-ledger.ts"
 import {
@@ -235,7 +236,7 @@ export const FinancialReconciliationCheckpoint = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
   legalEntityId: Uuid,
-  engine: Schema.Literal("tigerbeetle"),
+  engine: FinancialLedgerAuthority,
   status: Schema.Literals(["verified", "blocked"]),
   recoveryWatermark: NonEmptyString,
   sourceWatermark: NonEmptyString,
@@ -617,7 +618,7 @@ const toCheckpoint = (row: {
   id: row.id,
   tenantId: row.tenantId,
   legalEntityId: row.legalEntityId,
-  engine: "tigerbeetle",
+  engine: row.engine === "postgresql" ? "postgresql" : "tigerbeetle",
   status: row.status,
   recoveryWatermark: row.recoveryWatermark,
   sourceWatermark: row.sourceWatermark,
@@ -1112,7 +1113,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               reconciledAt: current.reconciledAt ?? now,
               rejectionReason: null,
               recoveryReason: null,
-              observedEngine: "tigerbeetle",
+              observedEngine: current.engine,
               lastError: null,
               updatedAt: now,
             }).where(and(
@@ -1255,6 +1256,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       if (Option.isNone(ledgerOption)) {
         return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
       }
+      const authority = ledgerOption.value.authority
       if (decoded.evidenceArtifactId !== null) {
         const [artifact] = yield* database.query(
           (db) =>
@@ -1300,7 +1302,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           db.select().from(financialReconciliationCheckpoints).where(and(
             eq(financialReconciliationCheckpoints.tenantId, decoded.tenantId),
             eq(financialReconciliationCheckpoints.legalEntityId, decoded.legalEntityId),
-            eq(financialReconciliationCheckpoints.engine, "tigerbeetle"),
+            eq(financialReconciliationCheckpoints.engine, authority),
             eq(financialReconciliationCheckpoints.recoveryWatermark, decoded.recoveryWatermark),
           )),
         "accounting.financial_reconciliation_checkpoint.idempotency",
@@ -1312,7 +1314,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           db.select(operationSelection).from(financialOperations).where(and(
             eq(financialOperations.tenantId, decoded.tenantId),
             eq(financialOperations.legalEntityId, decoded.legalEntityId),
-            eq(financialOperations.engine, "tigerbeetle"),
+            eq(financialOperations.engine, authority),
             eq(financialOperations.engineVerified, true),
             inArray(financialOperations.status, ["accepted", "reconciled"]),
           )).orderBy(financialOperations.createdAt),
@@ -1500,7 +1502,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               db.insert(financialReconciliationCheckpoints).values({
                 tenantId: decoded.tenantId,
                 legalEntityId: decoded.legalEntityId,
-                engine: "tigerbeetle",
+                engine: authority,
                 status,
                 recoveryWatermark: decoded.recoveryWatermark,
                 sourceWatermark: decoded.sourceWatermark,
@@ -1553,12 +1555,13 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       if (Option.isNone(ledgerOption)) {
         return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
       }
+      const authority = ledgerOption.value.authority
       const operations = yield* database.query(
         (db) =>
           db.select(operationSelection).from(financialOperations).where(and(
             eq(financialOperations.tenantId, decoded.tenantId),
             eq(financialOperations.legalEntityId, decoded.legalEntityId),
-            eq(financialOperations.engine, "tigerbeetle"),
+            eq(financialOperations.engine, authority),
             eq(financialOperations.engineVerified, true),
             inArray(financialOperations.status, ["accepted", "reconciled"]),
           )).orderBy(financialOperations.createdAt),
@@ -1754,7 +1757,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                 ),
               "accounting.financial_operation.lines",
             )
-          if (!current.engineVerified || current.engine !== "tigerbeetle") {
+          if (!current.engineVerified || current.engine !== ledgerOption.value.authority) {
             return {
               operation: current,
               lines: [] as never[],
@@ -1818,7 +1821,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             "accounting.financial_operation.submit.period",
           )
           if (
-            !current.engineVerified || current.engine !== "tigerbeetle" ||
+            !current.engineVerified || current.engine !== ledgerOption.value.authority ||
             configuration?.financialEngine !== current.engine
           ) {
             return {
@@ -1914,7 +1917,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               _tag: "manual_recovery",
               operationId: decoded.operationId,
               reason: "mapping_mismatch",
-            }, "tigerbeetle"),
+            }, ledger.authority),
           )
         }
         const accountOutcome = yield* ledger.createExecutionAccount({
@@ -1948,7 +1951,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               decoded.operationId,
               decoded.tenantId,
               operationOutcome,
-              "tigerbeetle",
+              ledger.authority,
             ),
           )
         }
@@ -2016,7 +2019,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             _tag: "manual_recovery",
             operationId: decoded.operationId,
             reason: "mapping_mismatch",
-          }, "tigerbeetle"),
+          }, ledger.authority),
         )
       }
       yield* hit("before_provider_submission")
@@ -2047,7 +2050,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           decoded.operationId,
           decoded.tenantId,
           outcome,
-          "tigerbeetle",
+          ledger.authority,
         ),
       )
     })
@@ -2060,6 +2063,9 @@ export const makeFinancialOperationService = Effect.gen(function* () {
     operationTypeOverride?: "journal_post" | "journal_reverse" | "revenue_post",
   ) =>
     Effect.gen(function* () {
+      const selectedAuthority = Option.isSome(ledgerOption)
+        ? ledgerOption.value.authority
+        : undefined
       const decoded = yield* Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)(input)
       const operationType = operationTypeOverride ?? decoded.operationType
       if (operationType !== "journal_reverse") {
@@ -2146,8 +2152,10 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             "accounting.financial_operation.intent.period",
           )
           if (
-            configuration?.financialEngine !== "tigerbeetle" ||
-            cutover?.status !== "tigerbeetle"
+            configuration === undefined ||
+            (selectedAuthority !== undefined &&
+              configuration.financialEngine !== selectedAuthority) ||
+            cutover?.status !== configuration.financialEngine
           ) {
             return yield* Effect.fail(
               new FinancialLedgerNotActivated({
@@ -2255,7 +2263,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               sourceOperation.legalEntityId !== decoded.legalEntityId ||
               sourceOperation.currency !== decoded.currency ||
               !sourceOperation.engineVerified ||
-              sourceOperation.engine !== "tigerbeetle" ||
+              sourceOperation.engine !== configuration.financialEngine ||
               sourceOperation.status !== "reconciled"
             ) {
               return yield* Effect.fail(
@@ -2338,7 +2346,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
                 periodId: period.id,
                 operationId: decoded.operationId,
                 operationType,
-                engine: "tigerbeetle",
+                engine: configuration.financialEngine,
                 engineVerified: true,
                 journalId,
                 sourceJournalId: decoded.sourceJournalId,

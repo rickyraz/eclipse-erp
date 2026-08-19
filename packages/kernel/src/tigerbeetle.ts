@@ -151,6 +151,7 @@ export class TigerBeetleConfigurationFailure
   ) {}
 
 export interface TigerBeetleFinancialLedger {
+  readonly authority: "tigerbeetle"
   readonly createExecutionAccount: (
     input: unknown,
   ) => Effect.Effect<ExecutionAccountOutcome, Schema.SchemaError>
@@ -372,6 +373,7 @@ const makeAdapter = (
   config: TigerBeetleFinancialLedgerConfig,
   runtime: TigerBeetleRuntime,
 ): TigerBeetleFinancialLedger => ({
+  authority: "tigerbeetle",
   createExecutionAccount: (input) =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(CreateExecutionAccountInput)(input)

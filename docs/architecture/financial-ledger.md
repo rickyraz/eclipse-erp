@@ -9,6 +9,8 @@
 >
 > - Ledger decision:
 >   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
+> - Runtime authority separation:
+>   [`../decisions/0041-separate-deployment-profile-and-financial-authority.md`](../decisions/0041-separate-deployment-profile-and-financial-authority.md)
 > - Previous ledger decision:
 >   [`../decisions/0011-financial-ledger-engine.md`](../decisions/0011-financial-ledger-engine.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
@@ -17,8 +19,8 @@
 > - P2 financial baseline:
 >   [`../decisions/0036-define-p2-document-and-financial-baseline.md`](../decisions/0036-define-p2-document-and-financial-baseline.md)
 >
->> - Execution roadmap:
->>   [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
+> - Execution roadmap:
+>   [`../roadmap/financial-ledger-execution.md`](../roadmap/financial-ledger-execution.md)
 >
 > - Recovery and cutover runbook:
 >   [`../operations/tigerbeetle-recovery.md`](../operations/tigerbeetle-recovery.md)
@@ -29,12 +31,18 @@ TigerBeetle is the required target execution engine for RITSEI financial movemen
 financial data plane, not an ERP database and not a reporting warehouse. PostgreSQL remains the
 control-plane and non-ledger transactional database.
 
-The repository is in a transition period until the first profile is activated. Existing
-PostgreSQL-backed Accounting commands remain the current implementation during migration. The
-provider-neutral `FinancialLedgerPort`, deterministic test adapter, and scoped TigerBeetle adapter
-are implemented as an unactivated integration slice; they do not change the current Accounting
-command path. They are not a reason to add a live PostgreSQL/TigerBeetle mirror, and no new command
-may silently assume that both stores are authoritative.
+Runtime topology and financial authority are separate concerns. The executable `entry + postgresql`
+composition is a supported transitional/default path while TigerBeetle readiness remains fail-closed;
+it does not supersede ADR-0040 or make PostgreSQL and TigerBeetle simultaneous authorities. The
+selected `FinancialLedgerPort` authority must agree with the legal-entity configuration and its
+reconciliation state.
+
+The repository is in a transition period until the first TigerBeetle profile is activated.
+Existing PostgreSQL-backed Accounting commands remain the legacy implementation during migration.
+The provider-neutral `FinancialLedgerPort`, deterministic test adapter, PostgreSQL adapter, and
+scoped TigerBeetle adapter are available to the durable financial-operation path. The PostgreSQL
+adapter is the executable transitional authority for `entry + postgresql`; it is not a live mirror
+of TigerBeetle. No command may silently assume that both stores are authoritative.
 
 A Legal Entity selects its route explicitly with `financial_engine`, which defaults to PostgreSQL
 until the controlled cutover gates are approved and `financial_cutover_controls` reaches
@@ -51,11 +59,11 @@ tenant-scoped PostgreSQL journal path is rejected rather than allowing two autho
 | Tenant, Legal Entity, account meaning, chart-of-accounts metadata         | PostgreSQL / Accounting             | Business identity and semantics, not TigerBeetle provider metadata    |
 | Fiscal periods, posting dates, posting policy, authorization              | PostgreSQL / Accounting             | Policy is evaluated before financial submission                       |
 | Financial operation intent, command identity, retry state, workflow state | PostgreSQL                          | Durable control-plane state                                           |
-| Accepted debit-credit transfer and linked transfer chain                  | TigerBeetle                         | One financial authority for the activated profile                     |
-| Pending, posted, and voided transfer state                                | TigerBeetle                         | Only where a decided capability uses pending transfers                |
-| Account balance and balance constraints                                   | TigerBeetle                         | PostgreSQL may project values for reads                               |
-| Immutable transfer history                                                | TigerBeetle                         | PostgreSQL stores references and projections                          |
-| Journal/document metadata and correction relationships                    | PostgreSQL / Accounting             | Financial acceptance is derived from the mapped TigerBeetle operation |
+| Accepted debit-credit transfer and linked transfer chain                  | Selected `FinancialLedgerPort` authority | PostgreSQL for entry transition; TigerBeetle for an activated target profile |
+| Pending, posted, and voided transfer state                                | Selected `FinancialLedgerPort` authority | Only where a decided capability uses pending transfers                         |
+| Account balance and balance constraints                                   | Selected `FinancialLedgerPort` authority | PostgreSQL for entry transition; TigerBeetle for an activated target profile   |
+| Immutable transfer history                                                | Selected `FinancialLedgerPort` authority | PostgreSQL rows are authoritative only for the PostgreSQL route                |
+| Journal/document metadata and correction relationships                    | PostgreSQL / Accounting             | Financial acceptance is derived from the selected adapter                    |
 | Audit references and reporting projection                                 | PostgreSQL                          | Rebuildable from TigerBeetle facts plus control-plane metadata        |
 | Reconciliation state and mismatch quarantine                              | PostgreSQL / application operations | Reconciliation never creates an unapproved business correction        |
 | TigerBeetle client, transport, batching, and provider failures            | Kernel/infrastructure               | Never part of a domain public contract                                |
