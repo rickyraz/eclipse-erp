@@ -1010,6 +1010,42 @@ it.effect.skipIf(databaseUrl === undefined)(
             }),
           )
           assert.instanceOf(checkpointConflict, FinancialReconciliationCheckpointConflict)
+          const checkpointMismatchLedger = {
+            ...ledger,
+            reconcileJournal: (input: unknown) =>
+              ledger.reconcileJournal(input).pipe(
+                Effect.map((outcome) =>
+                  outcome._tag === "accepted"
+                    ? { ...outcome, mappingVersion: outcome.mappingVersion + 1 }
+                    : outcome
+                ),
+              ),
+          }
+          const checkpointMismatchService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, checkpointMismatchLedger),
+            ),
+          )
+          const mismatchedCheckpoint = yield* checkpointMismatchService
+            .reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `checkpoint-mismatch-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:mismatch-watermark",
+              targetWatermark: "tigerbeetle:mismatch-watermark",
+              sourceSnapshotRef: "postgres:mismatch-snapshot",
+              targetSnapshotRef: "tigerbeetle:mismatch-snapshot",
+              evidenceArtifactId: null,
+            })
+          assert.strictEqual(mismatchedCheckpoint.status, "blocked")
+          assert.isAbove(mismatchedCheckpoint.mismatchCount, 0)
           const checkpointMutation = yield* postgresFailure(() =>
             client`
               update accounting.financial_reconciliation_checkpoints

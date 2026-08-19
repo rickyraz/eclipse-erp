@@ -1478,22 +1478,22 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         })
         if (outcome._tag === "accepted") {
           targetOperations.push({
-            operationId: operation.operationId,
+            operationId: outcome.operationId,
             status: operation.status === "accepted" ? "accepted" : "reconciled",
             currency: operation.currency,
-            mappingVersion: operation.mappingVersion,
+            mappingVersion: outcome.mappingVersion,
           })
           for (const transfer of projected) {
             const transferId = outcome.transferIds[transfer.position]
             targetTransfers.push({
-              operationId: operation.operationId,
+              operationId: outcome.operationId,
               position: transfer.position,
               transferId: transferId ?? `missing:${transfer.position}`,
               debitAccountId: transfer.debitAccountId,
               creditAccountId: transfer.creditAccountId,
               amountMinor: String(transfer.amountMinor),
               currency: operation.currency,
-              mappingVersion: operation.mappingVersion,
+              mappingVersion: outcome.mappingVersion,
             })
             if (transferId !== undefined && !expectedTransferIds.includes(transferId)) {
               orphanTransfers.push({
