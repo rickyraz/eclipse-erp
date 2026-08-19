@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=221
+total=222
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -230,6 +230,7 @@ gate bash -c 'grep -Fq "OLD.completed_at IS DISTINCT FROM NEW.completed_at" db/m
 gate bash -c 'grep -Fq "outcome.mappingVersion === operation.mappingVersion" packages/accounting/src/financial-operations.ts && grep -Fq "mappingMismatchLedger" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "mappingMismatchProjection.quarantinedOperations" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "outcome.operationId !== current.operationId" packages/accounting/src/financial-operations.ts && grep -Fq "operation_identity_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "submissionIdentityPosted.status" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "rebuildIdentityOperation!.status" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "const missingTransfers" packages/accounting/src/financial-operations.ts && grep -Fq "financial_projection_rebuild.operation" packages/accounting/src/financial-operations.ts && grep -Fq "failingRebuildMessaging" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "failedTransfers!.count, 0" packages/accounting/tests/financial-operations.postgres.test.ts'
+gate bash -c 'grep -Fq "FinancialReconciliationCheckpointConflict" packages/accounting/src/financial-operations.ts && grep -Fq "matchesCheckpointRequest" packages/accounting/src/financial-operations.ts && grep -Fq "checkpointConflict" packages/accounting/tests/financial-operations.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

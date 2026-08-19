@@ -10,6 +10,7 @@ import {
   type FinancialOperationFailpointNameType,
   FinancialOperationInjectedFailure,
   FinancialOperationsPending,
+  FinancialReconciliationCheckpointConflict,
   FinancialReversalAlreadyExists,
   makeAccountingService,
   makeFinancialLedgerTestLayer,
@@ -995,6 +996,20 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidenceArtifactId: null,
           })
           assert.deepStrictEqual(checkpointReplay, checkpoint)
+          const checkpointConflict = yield* Effect.flip(
+            service.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: checkpoint.recoveryWatermark,
+              sourceWatermark: "postgres:test-watermark",
+              targetWatermark: "tigerbeetle:changed-watermark",
+              sourceSnapshotRef: "postgres:test-snapshot",
+              targetSnapshotRef: "tigerbeetle:test-snapshot",
+              evidenceArtifactId: null,
+            }),
+          )
+          assert.instanceOf(checkpointConflict, FinancialReconciliationCheckpointConflict)
           const checkpointMutation = yield* postgresFailure(() =>
             client`
               update accounting.financial_reconciliation_checkpoints

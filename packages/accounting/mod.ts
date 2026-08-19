@@ -32,6 +32,7 @@ export {
   FinancialProjectionRebuildBlocked,
   FinancialProjectionRebuildResult,
   FinancialReconciliationCheckpoint,
+  FinancialReconciliationCheckpointConflict,
   FinancialReconciliationCheckpointEvidenceInvalid,
   FinancialRevenueAmountMismatch,
   FinancialReversalAlreadyExists,

@@ -381,6 +381,16 @@ export class FinancialReconciliationCheckpointEvidenceInvalid
     },
   ) {}
 
+export class FinancialReconciliationCheckpointConflict
+  extends Schema.TaggedErrorClass<FinancialReconciliationCheckpointConflict>()(
+    "FinancialReconciliationCheckpointConflict",
+    {
+      tenantId: Uuid,
+      legalEntityId: Uuid,
+      recoveryWatermark: NonEmptyString,
+    },
+  ) {}
+
 export interface FinancialOperationService {
   readonly createJournalIntent: (
     input: unknown,
@@ -491,6 +501,7 @@ export interface FinancialOperationService {
     | AuthorizationDenied
     | FinancialLedgerNotConfigured
     | FinancialReconciliationCheckpointEvidenceInvalid
+    | FinancialReconciliationCheckpointConflict
     | DatabaseFailure
     | Schema.SchemaError
   >
@@ -1331,17 +1342,45 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           )
         }
       }
-      const existing = yield* database.query(
-        (db) =>
-          db.select().from(financialReconciliationCheckpoints).where(and(
-            eq(financialReconciliationCheckpoints.tenantId, decoded.tenantId),
-            eq(financialReconciliationCheckpoints.legalEntityId, decoded.legalEntityId),
-            eq(financialReconciliationCheckpoints.engine, authority),
-            eq(financialReconciliationCheckpoints.recoveryWatermark, decoded.recoveryWatermark),
-          )),
-        "accounting.financial_reconciliation_checkpoint.idempotency",
-      )
-      if (existing[0] !== undefined) return toCheckpoint(existing[0])
+      const loadExistingCheckpoint = () =>
+        database.query(
+          (db) =>
+            db.select().from(financialReconciliationCheckpoints).where(and(
+              eq(financialReconciliationCheckpoints.tenantId, decoded.tenantId),
+              eq(financialReconciliationCheckpoints.legalEntityId, decoded.legalEntityId),
+              eq(financialReconciliationCheckpoints.engine, authority),
+              eq(
+                financialReconciliationCheckpoints.recoveryWatermark,
+                decoded.recoveryWatermark,
+              ),
+            )),
+          "accounting.financial_reconciliation_checkpoint.idempotency",
+        )
+      const matchesCheckpointRequest = (row: {
+        readonly sourceWatermark: string
+        readonly targetWatermark: string
+        readonly sourceSnapshotRef: string
+        readonly targetSnapshotRef: string
+        readonly evidenceArtifactId: string | null
+      }) =>
+        row.sourceWatermark === decoded.sourceWatermark &&
+        row.targetWatermark === decoded.targetWatermark &&
+        row.sourceSnapshotRef === decoded.sourceSnapshotRef &&
+        row.targetSnapshotRef === decoded.targetSnapshotRef &&
+        row.evidenceArtifactId === decoded.evidenceArtifactId
+      const existing = yield* loadExistingCheckpoint()
+      if (existing[0] !== undefined) {
+        if (!matchesCheckpointRequest(existing[0])) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointConflict({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              recoveryWatermark: decoded.recoveryWatermark,
+            }),
+          )
+        }
+        return toCheckpoint(existing[0])
+      }
 
       const operations = yield* database.query(
         (db) =>
@@ -1575,6 +1614,37 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           return toCheckpoint(checkpoint!)
         }),
         "accounting.financial_reconciliation_checkpoint.transaction",
+      ).pipe(
+        Effect.catchIf(
+          (error) =>
+            error instanceof DatabaseFailure &&
+            isDatabaseConstraint(
+              error,
+              "financial_reconciliation_checkpoints_scope_watermark_key",
+            ),
+          () =>
+            Effect.gen(function* () {
+              const [winner] = yield* loadExistingCheckpoint()
+              if (winner === undefined) {
+                return yield* Effect.fail(
+                  new DatabaseFailure({
+                    operation: "accounting.financial_reconciliation_checkpoint.idempotency",
+                    cause: "checkpoint winner disappeared",
+                  }),
+                )
+              }
+              if (!matchesCheckpointRequest(winner)) {
+                return yield* Effect.fail(
+                  new FinancialReconciliationCheckpointConflict({
+                    tenantId: decoded.tenantId,
+                    legalEntityId: decoded.legalEntityId,
+                    recoveryWatermark: decoded.recoveryWatermark,
+                  }),
+                )
+              }
+              return toCheckpoint(winner)
+            }),
+        ),
       )
     })
 
