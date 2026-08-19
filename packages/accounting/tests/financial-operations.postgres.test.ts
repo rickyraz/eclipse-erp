@@ -254,18 +254,22 @@ it.effect.skipIf(databaseUrl === undefined)(
               operation_id: string
               journal_id: string
               mapping_version: number
+              reconciled_event_id: string
+              event_id: string
+              aggregate_id: string
               payload: unknown
               command_id: string
               correlation_id: string
               causation_id: string
               idempotency_key: string
             }[]>`
-              select f.operation_id, f.journal_id, f.mapping_version, e.payload,
+              select f.operation_id, f.journal_id, f.mapping_version,
+                f.reconciled_event_id, e.id as event_id, e.aggregate_id, e.payload,
                 e.command_id, e.correlation_id, e.causation_id, e.idempotency_key
               from messaging.event_outbox e
               join accounting.financial_operations f
-                on f.tenant_id = e.tenant_id and f.id = e.id
-              where e.tenant_id = ${tenant!.id} and e.id = ${revenue.id}
+                on f.tenant_id = e.tenant_id and f.reconciled_event_id = e.id
+              where e.tenant_id = ${tenant!.id} and f.id = ${revenue.id}
             `
           )
           assert.isDefined(reconciledEvent)
@@ -275,6 +279,10 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(eventPayload.operationId, reconciledEvent!.operation_id)
           assert.strictEqual(eventPayload.journalId, reconciledEvent!.journal_id)
           assert.strictEqual(eventPayload.mappingVersion, reconciledEvent!.mapping_version)
+          assert.strictEqual(reconciledEvent!.event_id, reconciledEvent!.reconciled_event_id)
+          assert.notStrictEqual(reconciledEvent!.event_id, revenue.id)
+          assert.strictEqual(reconciledEvent!.aggregate_id, revenue.id)
+          assert.notStrictEqual(reconciledEvent!.event_id, reconciledEvent!.aggregate_id)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.correlation_id)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.causation_id)
           assert.notStrictEqual(reconciledEvent?.command_id, reconciledEvent?.idempotency_key)
@@ -288,10 +296,11 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
             `
           )
+          const reconciledEventId = reconciledEvent!.event_id
           yield* Effect.promise(() =>
             client`
               delete from messaging.event_outbox
-              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
             `
           )
           const rebuiltProjection = yield* service.rebuildFinancialProjections({
@@ -311,6 +320,16 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(rebuiltRevenueTransfers.length, 1)
           assert.strictEqual(rebuiltRevenueTransfers[0]!.status, "accepted")
           assert.isNotNull(rebuiltRevenueTransfers[0]!.engine_transfer_id)
+          const [rebuiltReconciledEvent] = yield* Effect.promise(() =>
+            client<{ id: string; aggregate_id: string }[]>`
+              select id, aggregate_id
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          assert.isDefined(rebuiltReconciledEvent)
+          assert.strictEqual(rebuiltReconciledEvent!.id, reconciledEventId)
+          assert.strictEqual(rebuiltReconciledEvent!.aggregate_id, revenue.id)
 
           const revenuePrincipal = {
             userAccountId: crypto.randomUUID(),

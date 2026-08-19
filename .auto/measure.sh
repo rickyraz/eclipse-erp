@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=208
+total=209
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -217,6 +217,7 @@ gate bash -c 'grep -Fq "legalEntityId: Schema.optionalKey(Schema.String)" packag
 gate bash -c 'grep -Fq "selected warehouse must belong to the selected legal entity" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md && grep -Fq "validates that relationship inside the reservation transaction" docs/decisions/0033-extend-order-lifecycle-and-gate-pgque.md'
 gate bash -c 'grep -Fq "sameTenantOtherScope" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "StockReservationLegalEntityMismatch" packages/inventory/tests/inventory.postgres.test.ts && grep -Fq "otherWarehouseSameTenant.id" packages/inventory/tests/inventory.postgres.test.ts'
 gate bash -c 'grep -Fq "legalEntityMismatch" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "StockReservationLegalEntityMismatch" packages/process/tests/order-confirmation.postgres.test.ts && grep -Fq "legal-entity-mismatch-1" packages/process/tests/order-confirmation.postgres.test.ts'
+gate bash -c 'grep -Fq "reconciledEventId: uuidv7" db/schema/accounting.ts && grep -Fq "reconciled_event_id" db/migrations/20260819012009_financial_reconciliation_event_identity/migration.sql && test "$(grep -c "eventId: current.reconciledEventId" packages/accounting/src/financial-operations.ts)" -eq 2 && grep -Fq "assert.notStrictEqual(reconciledEvent!.event_id, revenue.id)" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "assert.strictEqual(rebuiltReconciledEvent!.id, reconciledEventId)" packages/accounting/tests/financial-operations.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

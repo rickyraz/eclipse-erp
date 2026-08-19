@@ -519,6 +519,7 @@ const operationSelection = {
   legalEntityId: financialOperations.legalEntityId,
   periodId: financialOperations.periodId,
   operationId: financialOperations.operationId,
+  reconciledEventId: financialOperations.reconciledEventId,
   operationType: financialOperations.operationType,
   engine: financialOperations.engine,
   engineVerified: financialOperations.engineVerified,
@@ -549,6 +550,7 @@ const toOperation = (
     readonly legalEntityId: string
     readonly periodId: string
     readonly operationId: string
+    readonly reconciledEventId: string
     readonly operationType: "journal_post" | "journal_reverse" | "revenue_post"
     readonly engine: "postgresql" | "tigerbeetle"
     readonly engineVerified: boolean
@@ -903,7 +905,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         yield* hit("before_outbox_append")
         yield* messaging.append({
           tenantId,
-          eventId: current.id,
+          eventId: current.reconciledEventId,
           eventType: AccountingFinancialOperationReconciledEvent.id,
           eventVersion: AccountingFinancialOperationReconciledEvent.version,
           aggregateType: AccountingFinancialOperationReconciledEvent.aggregateType,
@@ -1192,7 +1194,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         }
         yield* messaging.append({
           tenantId,
-          eventId: current.id,
+          eventId: current.reconciledEventId,
           eventType: AccountingFinancialOperationReconciledEvent.id,
           eventVersion: AccountingFinancialOperationReconciledEvent.version,
           aggregateType: AccountingFinancialOperationReconciledEvent.aggregateType,

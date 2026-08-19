@@ -328,7 +328,11 @@ it.effect.skipIf(databaseUrl === undefined)(
           yield* Effect.promise(() =>
             client`
               delete from messaging.event_outbox
-              where tenant_id = ${tenant!.id} and id = ${operation.id}
+              where tenant_id = ${tenant!.id} and id = (
+                select reconciled_event_id
+                from accounting.financial_operations
+                where tenant_id = ${tenant!.id} and id = ${operation.id}
+              )
             `
           )
           const rebuilt = yield* operationService.rebuildFinancialProjections({

@@ -18,7 +18,7 @@ import {
 
 import { tenants } from "./auth.ts"
 import { legalEntities } from "./party.ts"
-import { createdAt, id, money, updatedAt } from "./common.ts"
+import { createdAt, id, money, updatedAt, uuidv7 } from "./common.ts"
 
 export const accountingSchema = pgSchema("accounting")
 export const accountType = accountingSchema.enum(
@@ -440,6 +440,7 @@ export const financialOperations = accountingSchema.table("financial_operations"
   legalEntityId: uuid("legal_entity_id").notNull(),
   periodId: uuid("period_id").notNull(),
   operationId: text("operation_id").notNull(),
+  reconciledEventId: uuidv7("reconciled_event_id").default(sql`uuidv7()`).notNull(),
   operationType: financialOperationType("operation_type").notNull(),
   journalId: uuid("journal_id").notNull(),
   sourceJournalId: uuid("source_journal_id"),
