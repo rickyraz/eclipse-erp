@@ -163,6 +163,55 @@ it.effect.skipIf(databaseUrl === undefined)(
 )
 
 it.effect.skipIf(databaseUrl === undefined)(
+  "keeps event occurrence and tenant identity immutable for replay",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const input = event(tenant!.id)
+        const appended = yield* messaging.append(input)
+        assert.strictEqual(appended.eventId, input.eventId)
+
+        const changedId = crypto.randomUUID()
+        const changedKey = crypto.randomUUID()
+        const failure = yield* postgresFailure(() =>
+          client`
+            update messaging.event_outbox
+            set id = ${changedId}, idempotency_key = ${changedKey}
+            where tenant_id = ${tenant!.id} and id = ${input.eventId}
+          `
+        )
+        assert.strictEqual((failure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (failure as { constraint_name?: string }).constraint_name,
+          "event_outbox_immutable_identity_check",
+        )
+
+        const rows = yield* Effect.promise(() =>
+          client<{ id: string; idempotency_key: string }[]>`
+            select id, idempotency_key
+            from messaging.event_outbox
+            where tenant_id = ${tenant!.id}
+          `
+        )
+        assert.strictEqual(rows.length, 1)
+        assert.strictEqual(rows[0]!.id, input.eventId)
+        assert.strictEqual(rows[0]!.idempotency_key, input.idempotencyKey)
+        const replayed = yield* messaging.append(input)
+        assert.strictEqual(replayed.eventId, input.eventId)
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
   "joins an ambient transaction and rolls back a successful append",
   () =>
     withTemporaryDatabase(databaseUrl!, (client) =>

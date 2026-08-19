@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=212
+total=213
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -221,6 +221,7 @@ gate bash -c 'grep -Fq "reconciledEventId: uuidv7" db/schema/accounting.ts && gr
 gate bash -c 'grep -Fq "OLD.reconciled_event_id IS DISTINCT FROM NEW.reconciled_event_id" db/migrations/20260819012700_protect_financial_reconciled_event_identity/migration.sql && grep -Fq "set reconciled_event_id" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "immutableReconciledEventId" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "financial_operations_tenant_reconciled_event_key" db/schema/accounting.ts && grep -Fq "financial_operations_tenant_reconciled_event_key" db/migrations/20260819013408_unique_financial_reconciled_event_identity/migration.sql && grep -Fq "duplicateReconciledEvent" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "rebuilt.failure instanceof EventIdempotencyConflict" packages/accounting/src/financial-operations.ts && grep -Fq "quarantinedProjection.quarantinedOperations" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "corruptPayload.mappingVersion, 2" packages/accounting/tests/financial-operations.postgres.test.ts'
+gate bash -c 'grep -Fq "event_outbox_immutable_identity_check" db/migrations/20260819015137_protect_messaging_event_identity/migration.sql && grep -Fq "keeps event occurrence and tenant identity immutable for replay" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.strictEqual(replayed.eventId, input.eventId)" packages/messaging/tests/messaging.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
