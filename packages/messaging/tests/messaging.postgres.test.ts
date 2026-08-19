@@ -68,7 +68,15 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and id = ${eventId}`
             ),
-            "event_outbox_event_type_check",
+            "event_outbox_immutable_identity_check",
+          ],
+          [
+            yield* postgresFailure(() =>
+              client`update messaging.event_outbox set event_version = 0 where tenant_id = ${
+                tenant!.id
+              } and id = ${eventId}`
+            ),
+            "event_outbox_immutable_identity_check",
           ],
           [
             yield* postgresFailure(() =>
@@ -108,7 +116,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and id = ${eventId}`
             ),
-            "event_outbox_idempotency_key_check",
+            "event_outbox_immutable_identity_check",
           ],
           [
             yield* postgresFailure(() =>
@@ -752,7 +760,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           eventId: source.eventId,
         }
         yield* messaging.consumeOnce(input, Effect.succeed("completed"))
-        yield* Effect.promise(() =>
+        const sourceMutation = yield* postgresFailure(() =>
           client`
             update messaging.event_outbox
             set event_type = 'tampered.event',
@@ -761,11 +769,14 @@ it.effect.skipIf(databaseUrl === undefined)(
             where tenant_id = ${tenant!.id} and id = ${source.eventId}
           `
         )
-        let executions = 0
-        const failure = yield* Effect.flip(
-          messaging.consumeOnce(input, Effect.sync(() => ++executions)),
+        assert.strictEqual((sourceMutation as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (sourceMutation as { constraint_name?: string }).constraint_name,
+          "event_outbox_immutable_identity_check",
         )
-        assert.instanceOf(failure, DatabaseFailure)
+        let executions = 0
+        const replay = yield* messaging.consumeOnce(input, Effect.sync(() => ++executions))
+        assert.isTrue(replay.duplicate)
         assert.strictEqual(executions, 0)
       })),
 )
