@@ -374,6 +374,69 @@ it.effect.skipIf(databaseUrl === undefined)(
           )(corruptReconciledEvent!.payload)
           assert.strictEqual(corruptPayload.mappingVersion, 2)
 
+          const submissionIdentityOperationId = `submission-identity-${crypto.randomUUID()}`
+          const submissionIdentityIntent = yield* service.createJournalIntent({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            operationId: submissionIdentityOperationId,
+            reference: `submission-identity-${crypto.randomUUID()}`,
+            currency: "USD",
+            mappingVersion: 1,
+            lines: [
+              { accountId: debitAccount!.id, debit: "12.50", credit: "0" },
+              { accountId: creditAccount!.id, debit: "0", credit: "12.50" },
+            ],
+            correlationId: `submission-identity-correlation-${crypto.randomUUID()}`,
+          })
+          const submissionIdentityLedger = {
+            ...ledger,
+            postJournal: (input: unknown) =>
+              ledger.postJournal(input).pipe(
+                Effect.map((outcome) =>
+                  outcome._tag === "accepted" &&
+                    outcome.operationId === submissionIdentityOperationId
+                    ? { ...outcome, operationId: `foreign-${crypto.randomUUID()}` }
+                    : outcome
+                ),
+              ),
+          }
+          const submissionIdentityService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, submissionIdentityLedger),
+            ),
+          )
+          const submissionIdentityPosted = yield* submissionIdentityService
+            .submitFinancialOperation({
+              tenantId: tenant!.id,
+              operationId: submissionIdentityIntent.operationId,
+            })
+          assert.strictEqual(submissionIdentityPosted.status, "manual_recovery")
+          const [submissionIdentityTransfer] = yield* Effect.promise(() =>
+            client<{ status: string }[]>`
+              select status
+              from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${submissionIdentityPosted.id}
+            `
+          )
+          assert.strictEqual(submissionIdentityTransfer!.status, "manual_recovery")
+          const [submissionIdentityEvents] = yield* Effect.promise(() =>
+            client<{ events: number }[]>`
+              select count(*)::integer as events
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id}
+                and event_type = ${AccountingFinancialOperationReconciledEvent.id}
+                and payload ->> 'operationId' = ${submissionIdentityOperationId}
+            `
+          )
+          assert.strictEqual(submissionIdentityEvents!.events, 0)
+
           const corruptMappingVersionOperationId = `mapping-version-${crypto.randomUUID()}`
           const mappingMismatchIntent = yield* service.createJournalIntent({
             principal,
@@ -394,16 +457,40 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: mappingMismatchIntent.operationId,
           })
           assert.strictEqual(mappingMismatchPosted.status, "reconciled")
+          const rebuildIdentityOperationId = `rebuild-identity-${crypto.randomUUID()}`
+          const rebuildIdentityIntent = yield* service.createJournalIntent({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            operationId: rebuildIdentityOperationId,
+            reference: `rebuild-identity-${crypto.randomUUID()}`,
+            currency: "USD",
+            mappingVersion: 1,
+            lines: [
+              { accountId: debitAccount!.id, debit: "12.50", credit: "0" },
+              { accountId: creditAccount!.id, debit: "0", credit: "12.50" },
+            ],
+            correlationId: `rebuild-identity-correlation-${crypto.randomUUID()}`,
+          })
+          const rebuildIdentityPosted = yield* service.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: rebuildIdentityIntent.operationId,
+          })
+          assert.strictEqual(rebuildIdentityPosted.status, "reconciled")
           const mappingMismatchLedger = {
             ...ledger,
             reconcileJournal: (input: unknown) =>
               ledger.reconcileJournal(input).pipe(
-                Effect.map((outcome) =>
-                  outcome._tag === "accepted" &&
-                    outcome.operationId === corruptMappingVersionOperationId
-                    ? { ...outcome, mappingVersion: outcome.mappingVersion + 1 }
-                    : outcome
-                ),
+                Effect.map((outcome) => {
+                  if (outcome._tag !== "accepted") return outcome
+                  if (outcome.operationId === corruptMappingVersionOperationId) {
+                    return { ...outcome, mappingVersion: outcome.mappingVersion + 1 }
+                  }
+                  if (outcome.operationId === rebuildIdentityOperationId) {
+                    return { ...outcome, operationId: `foreign-${crypto.randomUUID()}` }
+                  }
+                  return outcome
+                }),
               ),
           }
           const mappingMismatchService = yield* Effect.provide(
@@ -423,8 +510,8 @@ it.effect.skipIf(databaseUrl === undefined)(
               tenantId: tenant!.id,
               legalEntityId: legalEntity!.id,
             })
-          assert.isAtLeast(mappingMismatchProjection.rebuiltOperations, 0)
-          assert.strictEqual(mappingMismatchProjection.quarantinedOperations, 1)
+          assert.strictEqual(mappingMismatchProjection.rebuiltOperations, 0)
+          assert.strictEqual(mappingMismatchProjection.quarantinedOperations, 2)
           const [mappingMismatchOperation] = yield* Effect.promise(() =>
             client<{ status: string; recovery_reason: string | null }[]>`
               select status, recovery_reason
@@ -434,6 +521,15 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           assert.strictEqual(mappingMismatchOperation!.status, "manual_recovery")
           assert.strictEqual(mappingMismatchOperation!.recovery_reason, "mapping_mismatch")
+          const [rebuildIdentityOperation] = yield* Effect.promise(() =>
+            client<{ status: string; recovery_reason: string | null }[]>`
+              select status, recovery_reason
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and operation_id = ${rebuildIdentityOperationId}
+            `
+          )
+          assert.strictEqual(rebuildIdentityOperation!.status, "manual_recovery")
+          assert.strictEqual(rebuildIdentityOperation!.recovery_reason, "mapping_mismatch")
           const [mappingMismatchEvents] = yield* Effect.promise(() =>
             client<{ events: number }[]>`
               select count(*)::integer as events
@@ -444,6 +540,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(mappingMismatchEvents!.events, 1)
+          const [rebuildIdentityEvents] = yield* Effect.promise(() =>
+            client<{ events: number }[]>`
+              select count(*)::integer as events
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id}
+                and event_type = ${AccountingFinancialOperationReconciledEvent.id}
+                and payload ->> 'operationId' = ${rebuildIdentityOperationId}
+            `
+          )
+          assert.strictEqual(rebuildIdentityEvents!.events, 1)
 
           const revenuePrincipal = {
             userAccountId: crypto.randomUUID(),

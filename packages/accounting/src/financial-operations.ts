@@ -936,6 +936,35 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       const receipt = yield* database.withTransaction(
         Effect.gen(function* () {
           const current = yield* loadOperationOrFail(tenantId, operationId, true)
+          if (outcome.operationId !== current.operationId) {
+            const [updated] = yield* database.query(
+              (db) =>
+                db.update(financialOperations).set({
+                  status: "manual_recovery",
+                  rejectionReason: null,
+                  recoveryReason: "mapping_mismatch",
+                  lastError: "operation_identity_mismatch",
+                  reconciledAt: null,
+                  updatedAt: now,
+                }).where(and(
+                  eq(financialOperations.tenantId, tenantId),
+                  eq(financialOperations.id, current.id),
+                )).returning(operationSelection),
+              "accounting.financial_operation.receipt.operation_identity_mismatch",
+            )
+            yield* database.query(
+              (db) =>
+                db.update(financialOperationTransfers).set({
+                  status: "manual_recovery",
+                  updatedAt: now,
+                }).where(and(
+                  eq(financialOperationTransfers.tenantId, tenantId),
+                  eq(financialOperationTransfers.operationId, current.id),
+                )),
+              "accounting.financial_operation.projection.operation_identity_mismatch",
+            )
+            return updated!
+          }
           if (current.status === "reconciled") return current
           if (current.status === "accepted" && outcome._tag !== "accepted") {
             return yield* Effect.fail(
@@ -1605,7 +1634,8 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         if (outcome._tag === "accepted") {
           const expected = yield* ledgerOption.value.expectedTransferIds(journalInput)
           const expectedPairs = pairMinorTransfers(journalInput.lines)
-          const identitiesMatch = outcome.mappingVersion === operation.mappingVersion &&
+          const identitiesMatch = outcome.operationId === operation.operationId &&
+            outcome.mappingVersion === operation.mappingVersion &&
             outcome.transferCount === expected.length &&
             outcome.transferIds.length === expected.length &&
             outcome.transferIds.every((id, index) => id === expected[index]) &&
