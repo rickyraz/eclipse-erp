@@ -236,6 +236,28 @@ it.effect.skipIf(databaseUrl === undefined)(
           }))
           assert.instanceOf(forgedApproval, FinancialVerificationArtifactInvalid)
           assert.strictEqual(forgedApproval.reason, "unsigned")
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set base_currency = 'EUR'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          const driftedApproval = yield* Effect.flip(service.approveTigerBeetleCutover({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            evidenceArtifactId: verified.id,
+          }))
+          assert.instanceOf(driftedApproval, FinancialVerificationArtifactInvalid)
+          assert.strictEqual(driftedApproval.reason, "scope_mismatch")
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set base_currency = 'USD'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
 
           const approved = yield* service.approveTigerBeetleCutover({
             principal,
@@ -376,6 +398,35 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           assert.instanceOf(provenanceMismatch, FinancialReconciliationCheckpointEvidenceInvalid)
           assert.strictEqual(provenanceMismatch.reason, "provenance_mismatch")
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set base_currency = 'EUR'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
+          const driftedCheckpoint = yield* Effect.flip(
+            operationService.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `currency-drift-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:test:1",
+              targetWatermark: "tigerbeetle:test:1",
+              sourceSnapshotRef: "postgres:test-snapshot",
+              targetSnapshotRef: "tigerbeetle:test-snapshot",
+              evidenceArtifactId: verified.id,
+            }),
+          )
+          assert.instanceOf(driftedCheckpoint, FinancialReconciliationCheckpointEvidenceInvalid)
+          assert.strictEqual(driftedCheckpoint.reason, "scope_mismatch")
+          yield* Effect.promise(() =>
+            client`
+              update accounting.legal_entity_accounting_configurations
+              set base_currency = 'USD'
+              where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
+            `
+          )
 
           const [otherOrganization] = yield* Effect.promise(() =>
             client<{ id: string }[]>`

@@ -1302,12 +1302,31 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
       }
       const authority = ledgerOption.value.authority
+      const [configuration] = yield* database.query(
+        (db) =>
+          db.select({ baseCurrency: legalEntityAccountingConfigurations.baseCurrency })
+            .from(legalEntityAccountingConfigurations).where(and(
+              eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+              eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+            )),
+        "accounting.financial_reconciliation_checkpoint.configuration",
+      )
+      if (configuration === undefined) {
+        return yield* Effect.fail(
+          new FinancialReconciliationCheckpointEvidenceInvalid({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            reason: "scope_mismatch",
+          }),
+        )
+      }
       if (decoded.evidenceArtifactId !== null) {
         const [artifact] = yield* database.query(
           (db) =>
             db.select({
               legalEntityId: financialVerificationArtifacts.legalEntityId,
               status: financialVerificationArtifacts.status,
+              currency: financialVerificationArtifacts.currency,
               sourceWatermark: financialVerificationArtifacts.sourceWatermark,
               targetWatermark: financialVerificationArtifacts.targetWatermark,
               sourceSnapshotRef: financialVerificationArtifacts.sourceSnapshotRef,
@@ -1342,6 +1361,15 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               tenantId: decoded.tenantId,
               legalEntityId: decoded.legalEntityId,
               reason: "rejected",
+            }),
+          )
+        }
+        if (artifact.currency !== configuration.baseCurrency) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "scope_mismatch",
             }),
           )
         }
@@ -1422,6 +1450,15 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       }> = []
 
       for (const operation of operations) {
+        if (operation.currency !== configuration.baseCurrency) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "scope_mismatch",
+            }),
+          )
+        }
         sourceOperations.push({
           operationId: operation.operationId,
           status: operation.status === "accepted" ? "accepted" : "reconciled",
@@ -1562,7 +1599,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         completeness: "bounded",
         scope: `tenant:${decoded.tenantId}/legal-entity:${decoded.legalEntityId}`,
         mappingVersion: operations[0]?.mappingVersion ?? 1,
-        currency: operations[0]?.currency ?? "USD",
+        currency: operations[0]?.currency ?? configuration.baseCurrency,
         sourceWatermark: decoded.sourceWatermark,
         targetWatermark: decoded.targetWatermark,
         sourceSnapshotRef: decoded.sourceSnapshotRef,

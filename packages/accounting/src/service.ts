@@ -989,11 +989,13 @@ export const makeAccountingService = Effect.gen(function* () {
             }
             const [configuration] = yield* database.query(
               (db) =>
-                db.select({ financialEngine: legalEntityAccountingConfigurations.financialEngine })
-                  .from(legalEntityAccountingConfigurations).where(and(
-                    eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
-                    eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
-                  )).for("update"),
+                db.select({
+                  financialEngine: legalEntityAccountingConfigurations.financialEngine,
+                  baseCurrency: legalEntityAccountingConfigurations.baseCurrency,
+                }).from(legalEntityAccountingConfigurations).where(and(
+                  eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                  eq(legalEntityAccountingConfigurations.legalEntityId, decoded.legalEntityId),
+                )).for("update"),
               "accounting.financial_cutover.approve.configuration",
             )
             if (configuration?.financialEngine !== "postgresql") {
@@ -1022,6 +1024,7 @@ export const makeAccountingService = Effect.gen(function* () {
             const artifact = toVerificationArtifact(artifactRow)
             if (
               artifact.legalEntityId !== decoded.legalEntityId ||
+              artifact.evidence.currency !== configuration.baseCurrency ||
               artifact.status !== "verified" ||
               artifact.evidence.kind !== "cutover_rehearsal" ||
               artifact.evidence.mismatchCount !== 0 ||
@@ -1031,7 +1034,8 @@ export const makeAccountingService = Effect.gen(function* () {
                 new FinancialVerificationArtifactInvalid({
                   tenantId: decoded.tenantId,
                   legalEntityId: decoded.legalEntityId,
-                  reason: artifact.legalEntityId !== decoded.legalEntityId
+                  reason: artifact.legalEntityId !== decoded.legalEntityId ||
+                      artifact.evidence.currency !== configuration.baseCurrency
                     ? "scope_mismatch"
                     : artifact.evidence.mismatchCount > 0
                     ? "mismatch"
@@ -2380,6 +2384,7 @@ export const makeAccountingTestLayer = () =>
               )
             }
             const artifact = verificationArtifacts.get(decoded.evidenceArtifactId)
+            const configuration = configurations.get(key)
             if (artifact === undefined) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactNotFound({
@@ -2390,6 +2395,7 @@ export const makeAccountingTestLayer = () =>
             }
             if (
               artifact.legalEntityId !== decoded.legalEntityId ||
+              artifact.evidence.currency !== configuration?.baseCurrency ||
               artifact.status !== "verified" ||
               artifact.evidence.kind !== "cutover_rehearsal" ||
               artifact.evidence.mismatchCount !== 0
@@ -2398,7 +2404,8 @@ export const makeAccountingTestLayer = () =>
                 new FinancialVerificationArtifactInvalid({
                   tenantId: decoded.tenantId,
                   legalEntityId: decoded.legalEntityId,
-                  reason: artifact.legalEntityId !== decoded.legalEntityId
+                  reason: artifact.legalEntityId !== decoded.legalEntityId ||
+                      artifact.evidence.currency !== configuration?.baseCurrency
                     ? "scope_mismatch"
                     : artifact.evidence.mismatchCount > 0
                     ? "mismatch"
