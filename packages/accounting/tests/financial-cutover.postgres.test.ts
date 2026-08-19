@@ -355,6 +355,20 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant!.id} and operation_id = ${operation.id}
             `
           )
+          const missingProjectionCheckpoint = yield* operationService
+            .reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `missing-projection-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:missing-projection",
+              targetWatermark: "tigerbeetle:missing-projection",
+              sourceSnapshotRef: "postgres:missing-projection-snapshot",
+              targetSnapshotRef: "tigerbeetle:missing-projection-snapshot",
+              evidenceArtifactId: null,
+            })
+          assert.strictEqual(missingProjectionCheckpoint.status, "blocked")
+          assert.isAbove(missingProjectionCheckpoint.mismatchCount, 0)
           yield* Effect.promise(() =>
             client`
               delete from messaging.event_outbox

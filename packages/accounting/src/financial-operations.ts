@@ -1442,7 +1442,8 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       const targetOperations: Array<FinancialFactSnapshot["operations"][number]> = []
       const sourceTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
       const targetTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
-      const projections: Array<FinancialFactSnapshot["projections"][number]> = []
+      const sourceProjections: Array<FinancialFactSnapshot["projections"][number]> = []
+      const targetProjections: Array<FinancialFactSnapshot["projections"][number]> = []
       const orphanTransfers: Array<{
         readonly operationId: string
         readonly transferId: string
@@ -1522,7 +1523,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           })
         }
         const journalStatus = operation.operationType === "journal_reverse" ? "reversed" : "posted"
-        projections.push({
+        sourceProjections.push({
           operationId: operation.operationId,
           journalStatus,
           transferIds: projected.map((transfer) =>
@@ -1537,15 +1538,21 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             currency: operation.currency,
             mappingVersion: outcome.mappingVersion,
           })
-          for (const transfer of projected) {
-            const transferId = outcome.transferIds[transfer.position]
+          const expectedPairs = pairMinorTransfers(journalInput.lines)
+          targetProjections.push({
+            operationId: outcome.operationId,
+            journalStatus,
+            transferIds: outcome.transferIds,
+          })
+          for (const expectedPair of expectedPairs) {
+            const transferId = outcome.transferIds[expectedPair.position]
             targetTransfers.push({
               operationId: outcome.operationId,
-              position: transfer.position,
-              transferId: transferId ?? `missing:${transfer.position}`,
-              debitAccountId: transfer.debitAccountId,
-              creditAccountId: transfer.creditAccountId,
-              amountMinor: String(transfer.amountMinor),
+              position: expectedPair.position,
+              transferId: transferId ?? `missing:${expectedPair.position}`,
+              debitAccountId: expectedPair.debitAccountId,
+              creditAccountId: expectedPair.creditAccountId,
+              amountMinor: expectedPair.amountMinor,
               currency: operation.currency,
               mappingVersion: outcome.mappingVersion,
             })
@@ -1578,13 +1585,13 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         operations: sourceOperations,
         transfers: sourceTransfers,
         balances: [],
-        projections,
+        projections: sourceProjections,
       }
       const target: FinancialFactSnapshot = {
         operations: targetOperations,
         transfers: targetTransfers,
         balances: [],
-        projections,
+        projections: targetProjections,
       }
       const uniqueOrphans = [...new Map(
         orphanTransfers.map((orphan) => [
