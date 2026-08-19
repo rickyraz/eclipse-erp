@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=216
+total=217
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -225,6 +225,7 @@ gate bash -c 'grep -Fq "event_outbox_immutable_identity_check" db/migrations/202
 gate bash -c 'grep -Fq "OLD.event_type IS DISTINCT FROM NEW.event_type" db/migrations/20260819015853_protect_messaging_dedupe_identity/migration.sql && grep -Fq "OLD.event_version IS DISTINCT FROM NEW.event_version" db/migrations/20260819015853_protect_messaging_dedupe_identity/migration.sql && grep -Fq "sourceMutation" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "event_version = 0" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -Fq "consumer_receipts_immutable_identity_check" db/migrations/20260819020632_protect_messaging_receipt_identity/migration.sql && grep -Fq "keeps completed receipt identity immutable for duplicate suppression" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "assert.isTrue(replay.duplicate)" packages/messaging/tests/messaging.postgres.test.ts'
 gate bash -c 'grep -Fq "new Date(String(storedReceipt!.completed_at)).toISOString()" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "duplicate.receipt.completedAt, first.receipt.completedAt" packages/messaging/tests/messaging.postgres.test.ts'
+gate bash -c 'grep -Fq "OLD.occurred_at IS DISTINCT FROM NEW.occurred_at" db/migrations/20260819022319_protect_messaging_occurred_at/migration.sql && grep -Fq "occurredAtFailure" packages/messaging/tests/messaging.postgres.test.ts && grep -Fq "set occurred_at = occurred_at + interval" packages/messaging/tests/messaging.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

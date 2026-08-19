@@ -189,6 +189,19 @@ it.effect.skipIf(databaseUrl === undefined)(
         const appended = yield* messaging.append(input)
         assert.strictEqual(appended.eventId, input.eventId)
 
+        const occurredAtFailure = yield* postgresFailure(() =>
+          client`
+            update messaging.event_outbox
+            set occurred_at = occurred_at + interval '1 second'
+            where tenant_id = ${tenant!.id} and id = ${input.eventId}
+          `
+        )
+        assert.strictEqual((occurredAtFailure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (occurredAtFailure as { constraint_name?: string }).constraint_name,
+          "event_outbox_immutable_identity_check",
+        )
+
         const changedId = crypto.randomUUID()
         const changedKey = crypto.randomUUID()
         const failure = yield* postgresFailure(() =>
