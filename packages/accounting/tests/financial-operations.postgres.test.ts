@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema"
 import {
   AccountingCapabilities,
   AccountingFinancialOperationReconciledEvent,
+  FinancialLedgerPort,
   type FinancialOperationFailpointNameType,
   FinancialOperationInjectedFailure,
   FinancialOperationsPending,
@@ -204,7 +205,10 @@ it.effect.skipIf(databaseUrl === undefined)(
           const jobs = yield* makeProcessJobEnqueuer.pipe(
             Effect.provideService(Database, database),
           )
-          const ledger = makeFinancialLedgerTestLayer()
+          const ledger = yield* Effect.provide(
+            Effect.service(FinancialLedgerPort),
+            makeFinancialLedgerTestLayer(),
+          )
           const sales = {
             getConfirmedOrderTotal: () => Effect.succeed(LARGE_FINANCIAL_MAJOR),
           } as unknown as SalesService
@@ -216,7 +220,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(MessagingService, messaging),
               Layer.succeed(DurableJobEnqueuer, jobs),
               Layer.succeed(SalesService, sales),
-              ledger,
+              Layer.succeed(FinancialLedgerPort, ledger),
             ),
           )
 
@@ -370,6 +374,77 @@ it.effect.skipIf(databaseUrl === undefined)(
           )(corruptReconciledEvent!.payload)
           assert.strictEqual(corruptPayload.mappingVersion, 2)
 
+          const corruptMappingVersionOperationId = `mapping-version-${crypto.randomUUID()}`
+          const mappingMismatchIntent = yield* service.createJournalIntent({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            operationId: corruptMappingVersionOperationId,
+            reference: `mapping-version-${crypto.randomUUID()}`,
+            currency: "USD",
+            mappingVersion: 1,
+            lines: [
+              { accountId: debitAccount!.id, debit: "12.50", credit: "0" },
+              { accountId: creditAccount!.id, debit: "0", credit: "12.50" },
+            ],
+            correlationId: `mapping-version-correlation-${crypto.randomUUID()}`,
+          })
+          const mappingMismatchPosted = yield* service.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: mappingMismatchIntent.operationId,
+          })
+          assert.strictEqual(mappingMismatchPosted.status, "reconciled")
+          const mappingMismatchLedger = {
+            ...ledger,
+            reconcileJournal: (input: unknown) =>
+              ledger.reconcileJournal(input).pipe(
+                Effect.map((outcome) =>
+                  outcome._tag === "accepted" &&
+                    outcome.operationId === corruptMappingVersionOperationId
+                    ? { ...outcome, mappingVersion: outcome.mappingVersion + 1 }
+                    : outcome
+                ),
+              ),
+          }
+          const mappingMismatchService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, mappingMismatchLedger),
+            ),
+          )
+          const mappingMismatchProjection = yield* mappingMismatchService
+            .rebuildFinancialProjections({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+            })
+          assert.isAtLeast(mappingMismatchProjection.rebuiltOperations, 0)
+          assert.strictEqual(mappingMismatchProjection.quarantinedOperations, 1)
+          const [mappingMismatchOperation] = yield* Effect.promise(() =>
+            client<{ status: string; recovery_reason: string | null }[]>`
+              select status, recovery_reason
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and operation_id = ${corruptMappingVersionOperationId}
+            `
+          )
+          assert.strictEqual(mappingMismatchOperation!.status, "manual_recovery")
+          assert.strictEqual(mappingMismatchOperation!.recovery_reason, "mapping_mismatch")
+          const [mappingMismatchEvents] = yield* Effect.promise(() =>
+            client<{ events: number }[]>`
+              select count(*)::integer as events
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id}
+                and event_type = ${AccountingFinancialOperationReconciledEvent.id}
+                and payload ->> 'operationId' = ${corruptMappingVersionOperationId}
+            `
+          )
+          assert.strictEqual(mappingMismatchEvents!.events, 1)
+
           const revenuePrincipal = {
             userAccountId: crypto.randomUUID(),
             sessionId: crypto.randomUUID(),
@@ -386,7 +461,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               Layer.succeed(MessagingService, messaging),
               Layer.succeed(DurableJobEnqueuer, jobs),
               Layer.succeed(SalesService, sales),
-              ledger,
+              Layer.succeed(FinancialLedgerPort, ledger),
             ),
           )
           const revenueOnlyIntent = yield* revenueOnlyService.createRevenueIntent({

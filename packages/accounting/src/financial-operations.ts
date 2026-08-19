@@ -1605,7 +1605,8 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         if (outcome._tag === "accepted") {
           const expected = yield* ledgerOption.value.expectedTransferIds(journalInput)
           const expectedPairs = pairMinorTransfers(journalInput.lines)
-          const identitiesMatch = outcome.transferCount === expected.length &&
+          const identitiesMatch = outcome.mappingVersion === operation.mappingVersion &&
+            outcome.transferCount === expected.length &&
             outcome.transferIds.length === expected.length &&
             outcome.transferIds.every((id, index) => id === expected[index]) &&
             expectedPairs.length === expected.length
