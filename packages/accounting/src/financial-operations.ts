@@ -377,7 +377,7 @@ export class FinancialReconciliationCheckpointEvidenceInvalid
     {
       tenantId: Uuid,
       legalEntityId: Uuid,
-      reason: Schema.Literals(["not_found", "scope_mismatch", "rejected"]),
+      reason: Schema.Literals(["not_found", "scope_mismatch", "provenance_mismatch", "rejected"]),
     },
   ) {}
 
@@ -1308,6 +1308,10 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             db.select({
               legalEntityId: financialVerificationArtifacts.legalEntityId,
               status: financialVerificationArtifacts.status,
+              sourceWatermark: financialVerificationArtifacts.sourceWatermark,
+              targetWatermark: financialVerificationArtifacts.targetWatermark,
+              sourceSnapshotRef: financialVerificationArtifacts.sourceSnapshotRef,
+              targetSnapshotRef: financialVerificationArtifacts.targetSnapshotRef,
             }).from(financialVerificationArtifacts).where(and(
               eq(financialVerificationArtifacts.tenantId, decoded.tenantId),
               eq(financialVerificationArtifacts.id, decoded.evidenceArtifactId!),
@@ -1338,6 +1342,19 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               tenantId: decoded.tenantId,
               legalEntityId: decoded.legalEntityId,
               reason: "rejected",
+            }),
+          )
+        }
+        const provenanceMatches = artifact.sourceWatermark === decoded.sourceWatermark &&
+          artifact.targetWatermark === decoded.targetWatermark &&
+          artifact.sourceSnapshotRef === decoded.sourceSnapshotRef &&
+          artifact.targetSnapshotRef === decoded.targetSnapshotRef
+        if (!provenanceMatches) {
+          return yield* Effect.fail(
+            new FinancialReconciliationCheckpointEvidenceInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.legalEntityId,
+              reason: "provenance_mismatch",
             }),
           )
         }

@@ -5,6 +5,7 @@ import * as Layer from "effect/Layer"
 
 import {
   AccountingCapabilities,
+  FinancialReconciliationCheckpointEvidenceInvalid,
   FinancialVerificationArtifactInvalid,
   makeAccountingService,
   makeFinancialLedgerTestLayer,
@@ -346,13 +347,28 @@ it.effect.skipIf(databaseUrl === undefined)(
             tenantId: tenant!.id,
             legalEntityId: legalEntity!.id,
             recoveryWatermark: `cutover-recovery-${crypto.randomUUID()}`,
-            sourceWatermark: "postgres:cutover",
-            targetWatermark: "tigerbeetle:cutover",
-            sourceSnapshotRef: "postgres:cutover-snapshot",
-            targetSnapshotRef: "tigerbeetle:cutover-snapshot",
+            sourceWatermark: "postgres:test:1",
+            targetWatermark: "tigerbeetle:test:1",
+            sourceSnapshotRef: "postgres:test-snapshot",
+            targetSnapshotRef: "tigerbeetle:test-snapshot",
             evidenceArtifactId: verified.id,
           })
           assert.strictEqual(checkpoint.status, "verified")
+          const provenanceMismatch = yield* Effect.flip(
+            operationService.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `provenance-mismatch-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:wrong",
+              targetWatermark: "tigerbeetle:test:1",
+              sourceSnapshotRef: "postgres:test-snapshot",
+              targetSnapshotRef: "tigerbeetle:test-snapshot",
+              evidenceArtifactId: verified.id,
+            }),
+          )
+          assert.instanceOf(provenanceMismatch, FinancialReconciliationCheckpointEvidenceInvalid)
+          assert.strictEqual(provenanceMismatch.reason, "provenance_mismatch")
 
           const [otherOrganization] = yield* Effect.promise(() =>
             client<{ id: string }[]>`
