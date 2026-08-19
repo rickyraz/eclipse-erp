@@ -32,7 +32,7 @@ it.effect("applies the shared Drizzle schema primitives", () =>
     )
     assert.strictEqual(
       quotation.columns.find((column) => column.name === "total")?.getSQLType(),
-      "numeric(14, 2)",
+      "numeric(24, 2)",
     )
     assert.deepStrictEqual(
       userAccount.uniqueConstraints.map((constraint) => constraint.name),

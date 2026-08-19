@@ -15,6 +15,7 @@ import {
 import { Database, DatabaseFailure, makePostgresDatabase, runMigrations } from "../../kernel/mod.ts"
 import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
+import { LARGE_FINANCIAL_MAJOR } from "../../../tests/support/financial-ledger-conformance.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const principal = { userAccountId: "sales-postgres", sessionId: "session" }
@@ -76,8 +77,24 @@ it.effect.skipIf(databaseUrl === undefined)(
             principal,
             tenantId: tenant!.id,
             customerId: customer.id,
-            lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "100.00" }],
+            lines: [{
+              itemId: crypto.randomUUID(),
+              quantity: "1",
+              unitPrice: LARGE_FINANCIAL_MAJOR,
+            }],
           })
+          const aggregateOverflow = yield* Effect.flip(sales.createOrder({
+            principal,
+            tenantId: tenant!.id,
+            customerId: customer.id,
+            lines: [{
+              itemId: crypto.randomUUID(),
+              quantity: "1000000000000000000",
+              unitPrice: "1.00",
+            }],
+          }))
+          assert.instanceOf(aggregateOverflow, Schema.SchemaError)
+
           const otherCustomer = yield* sales.createCustomer({
             principal,
             tenantId: otherTenant!.id,
@@ -126,7 +143,7 @@ it.effect.skipIf(databaseUrl === undefined)(
               orderId: confirmed.id,
             }),
           )
-          assert.strictEqual(confirmedTotal, "100.00")
+          assert.strictEqual(confirmedTotal, LARGE_FINANCIAL_MAJOR)
           const otherConfirmed = yield* sales.confirmOrder({
             principal,
             tenantId: otherTenant!.id,
@@ -195,7 +212,7 @@ it.effect.skipIf(databaseUrl === undefined)(
             correlation_id: input.correlationId,
             causation_id: input.causationId,
             idempotency_key: input.idempotencyKey,
-            payload: { orderId: order.id, total: "100.00" },
+            payload: { orderId: order.id, total: LARGE_FINANCIAL_MAJOR },
           })
 
           const rollbackOrder = yield* sales.createOrder({

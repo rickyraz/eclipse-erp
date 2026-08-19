@@ -28,6 +28,7 @@ import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { SalesService } from "../../sales/mod.ts"
 import { makeProcessJobEnqueuer } from "../../process/mod.ts"
 import { withTemporaryDatabase } from "../../../tests/support/postgres-database.ts"
+import { LARGE_FINANCIAL_MAJOR } from "../../../tests/support/financial-ledger-conformance.ts"
 
 const databaseUrl = Deno.env.get("DATABASE_URL")
 const postgresFailure = (effect: () => Promise<unknown>) =>
@@ -205,7 +206,7 @@ it.effect.skipIf(databaseUrl === undefined)(
           )
           const ledger = makeFinancialLedgerTestLayer()
           const sales = {
-            getConfirmedOrderTotal: () => Effect.succeed("7.50"),
+            getConfirmedOrderTotal: () => Effect.succeed(LARGE_FINANCIAL_MAJOR),
           } as unknown as SalesService
           const service = yield* Effect.provide(
             makeFinancialOperationService,

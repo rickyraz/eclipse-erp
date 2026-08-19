@@ -2,6 +2,10 @@ import { assert, describe, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 
 import { FinancialLedgerPort, makeFinancialLedgerTestLayer } from "../mod.ts"
+import {
+  assertFinancialLedgerConformance,
+  LARGE_FINANCIAL_MINOR,
+} from "../../../tests/support/financial-ledger-conformance.ts"
 
 const tenantId = "tenant-a"
 const legalEntityId = "legal-entity-a"
@@ -30,6 +34,28 @@ const withLedger = <A, E>(program: Effect.Effect<A, E, FinancialLedgerPort>, opt
   Effect.provide(program, makeFinancialLedgerTestLayer(options))
 
 describe("financial ledger contract", () => {
+  it.effect("conforms to the exact large-amount ledger contract", () =>
+    withLedger(Effect.gen(function* () {
+      const ledger = yield* FinancialLedgerPort
+      yield* assertFinancialLedgerConformance(
+        ledger,
+        {
+          tenantId: "tenant-large",
+          legalEntityId: "legal-entity-large",
+          operationId: "operation-large",
+          journalId: "journal-large",
+          reference: "LARGE-1",
+          currency: "USD",
+          mappingVersion: 1,
+          lines: [
+            { accountId: "cash-large", debitMinor: LARGE_FINANCIAL_MINOR, creditMinor: "0" },
+            { accountId: "revenue-large", debitMinor: "0", creditMinor: LARGE_FINANCIAL_MINOR },
+          ],
+        },
+        "tigerbeetle",
+      )
+    })))
+
   it.effect("accepts balanced journals and replays the same operation", () =>
     withLedger(Effect.gen(function* () {
       const ledger = yield* FinancialLedgerPort

@@ -1,8 +1,28 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as OpenApi from "effect/unstable/httpapi/OpenApi"
+import * as Schema from "effect/Schema"
 
+import { JournalLine } from "../../packages/accounting/mod.ts"
 import { RitseiApi } from "./api.ts"
+
+it.effect("accepts the exact large amount at the API journal boundary", () =>
+  Effect.sync(() => {
+    assert.isTrue(
+      Schema.is(JournalLine)({
+        accountId: "account",
+        debit: "500000000000000.00",
+        credit: "0.00",
+      }),
+    )
+    assert.isFalse(
+      Schema.is(JournalLine)({
+        accountId: "account",
+        debit: "1000000000000000000.00",
+        credit: "0.00",
+      }),
+    )
+  }))
 
 it.effect("derives routing and OpenAPI from the Effect HttpApi contract", () =>
   Effect.sync(() => {

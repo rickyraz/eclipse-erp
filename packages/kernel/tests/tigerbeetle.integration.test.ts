@@ -1,6 +1,10 @@
 import { assert, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import { makeTigerBeetleFinancialLedger, type TigerBeetleFinancialLedgerConfig } from "../mod.ts"
+import {
+  assertFinancialLedgerConformance,
+  LARGE_FINANCIAL_MINOR,
+} from "../../../tests/support/financial-ledger-conformance.ts"
 
 const enabled = Deno.env.get("TIGERBEETLE_INTEGRATION") === "1"
 const addresses = (Deno.env.get("TIGERBEETLE_REPLICA_ADDRESSES") ?? "127.0.0.1:3000")
@@ -23,6 +27,31 @@ it.effect.skipIf(!enabled)(
       Effect.gen(function* () {
         const ledger = yield* makeTigerBeetleFinancialLedger(config)
         const suffix = crypto.randomUUID()
+        yield* assertFinancialLedgerConformance(
+          ledger,
+          {
+            tenantId: "00000000-0000-0000-0000-000000000001",
+            legalEntityId: "00000000-0000-0000-0000-000000000002",
+            operationId: `integration-large-operation-${suffix}`,
+            journalId: `integration-large-journal-${suffix}`,
+            reference: `integration-large-${suffix}`,
+            currency: config.currency,
+            mappingVersion: 1,
+            lines: [
+              {
+                accountId: `integration-large-debit-${suffix}`,
+                debitMinor: LARGE_FINANCIAL_MINOR,
+                creditMinor: "0",
+              },
+              {
+                accountId: `integration-large-credit-${suffix}`,
+                debitMinor: "0",
+                creditMinor: LARGE_FINANCIAL_MINOR,
+              },
+            ],
+          },
+          "tigerbeetle",
+        )
         const debitAccount = `integration-debit-${suffix}`
         const creditAccount = `integration-credit-${suffix}`
         const operationId = `integration-operation-${suffix}`
