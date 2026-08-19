@@ -25,6 +25,21 @@ export type {
   FinancialVerificationSignerService,
   FinancialVerificationVerifierService,
 } from "./crypto.ts"
+export {
+  FINANCIAL_LEDGER_MAX_MINOR,
+  FINANCIAL_MAJOR_MAX,
+  FINANCIAL_MAJOR_MAX_INTEGER_DIGITS,
+  FINANCIAL_MAJOR_SCALE,
+  FinancialMajorAmount,
+  majorToMinor,
+  minorToMajor,
+  requireExactMajorToMinor,
+} from "./financial-amount.ts"
+export type {
+  FinancialAmountFailureReason,
+  FinancialAmountResult,
+  FinancialMajorAmount as FinancialMajorAmountType,
+} from "./financial-amount.ts"
 export { MigrationFailure, runMigrations } from "./migrations.ts"
 export { DurableJob, DurableJobEnqueuer, DurableJobInput } from "./jobs.ts"
 export { makeTigerBeetleFinancialLedger, TigerBeetleConfigurationFailure } from "./tigerbeetle.ts"

@@ -10,7 +10,12 @@ import {
   journalEntries,
   journalLines,
 } from "../../../db/schema/accounting.ts"
-import { Database, DatabaseFailure } from "../../kernel/mod.ts"
+import {
+  Database,
+  DatabaseFailure,
+  FINANCIAL_LEDGER_MAX_MINOR,
+  requireExactMajorToMinor,
+} from "../../kernel/mod.ts"
 import {
   CreateExecutionAccountInput,
   FinancialExecutionOutcome,
@@ -20,7 +25,6 @@ import {
   PostFinancialJournalInput,
 } from "./financial-ledger.ts"
 
-const U128_MAX = (1n << 128n) - 1n
 type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense"
 type PostedBalance = { debitsMinor: bigint; creditsMinor: bigint }
 
@@ -116,14 +120,14 @@ const validateJournal = (
     const lineDebit = BigInt(line.debitMinor)
     const lineCredit = BigInt(line.creditMinor)
     if (
-      lineDebit > U128_MAX || lineCredit > U128_MAX ||
+      lineDebit > FINANCIAL_LEDGER_MAX_MINOR || lineCredit > FINANCIAL_LEDGER_MAX_MINOR ||
       (lineDebit > 0n) === (lineCredit > 0n)
     ) {
       return { _tag: "rejected", operationId: input.operationId, reason: "invalid_amount" }
     }
     debit += lineDebit
     credit += lineCredit
-    if (debit > U128_MAX || credit > U128_MAX) {
+    if (debit > FINANCIAL_LEDGER_MAX_MINOR || credit > FINANCIAL_LEDGER_MAX_MINOR) {
       return { _tag: "rejected", operationId: input.operationId, reason: "invalid_amount" }
     }
   }
@@ -132,10 +136,7 @@ const validateJournal = (
     : { _tag: "rejected", operationId: input.operationId, reason: "unbalanced" }
 }
 
-const toMinor = (value: string | null) => {
-  const [whole, fraction = ""] = String(value ?? "0").split(".")
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0").slice(0, 2))
-}
+const toMinor = (value: string | null) => requireExactMajorToMinor(String(value ?? "0"), 2)
 
 const constraintFor = (type: AccountType) =>
   type === "asset" || type === "expense"

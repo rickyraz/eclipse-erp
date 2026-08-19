@@ -25,9 +25,11 @@ import { AccountingCapabilities } from "./capabilities.ts"
 import {
   Database,
   DatabaseFailure,
+  FinancialMajorAmount,
   FinancialVerificationKeyring,
   FinancialVerificationSigner,
   isDatabaseConstraint,
+  requireExactMajorToMinor,
 } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
@@ -47,7 +49,7 @@ const Uuid = Schema.String.check(Schema.isUUID())
 const NonNegativeInt = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
 )
-const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
+const Money = FinancialMajorAmount
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Za-z]{3}$/))
 const FinancialEngine = Schema.Literals(["postgresql", "tigerbeetle"])
 const FinancialCutoverStatus = Schema.Literals([
@@ -500,10 +502,7 @@ export const AccountingService = Context.Service<AccountingService>(
   "RITSEI/AccountingService",
 )
 
-const toMinor = (value: string) => {
-  const [whole, fraction = ""] = value.split(".")
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"))
-}
+const toMinor = (value: string) => requireExactMajorToMinor(value, 2)
 
 const journalEntrySelection = {
   id: journalEntries.id,

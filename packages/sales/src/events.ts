@@ -1,9 +1,10 @@
 import * as Schema from "effect/Schema"
 
 import { defineEventCatalogEntry } from "../../catalog/mod.ts"
+import { FinancialMajorAmount } from "../../kernel/mod.ts"
 
 const Uuid = Schema.String.check(Schema.isUUID())
-const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
+const Money = FinancialMajorAmount
 
 export const SalesOrderConfirmedEventPayload = Schema.Struct({
   orderId: Uuid,

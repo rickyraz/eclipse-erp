@@ -64,5 +64,6 @@ current system; ADRs preserve decision history.
 | [`0039`](./0039-select-postgresql-wait-for-for-replica-read-your-writes.md) | Select PostgreSQL `WAIT FOR` for replica read-your-writes | Accepted |
 | [`0040`](./0040-adopt-tigerbeetle-financial-ledger.md)                 | Adopt TigerBeetle as the financial ledger execution engine     | Accepted   |
 | [`0041`](./0041-separate-deployment-profile-and-financial-authority.md) | Separate deployment profile from financial authority          | Accepted   |
+| [`0042`](./0042-exact-financial-amount-boundary.md)                 | Set an exact financial amount boundary above the target       | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

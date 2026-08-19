@@ -9,12 +9,18 @@ import { customers, orderLines, orders, quotations } from "../../../db/schema/sa
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
 import { SalesCapabilities } from "./capabilities.ts"
-import { Database, DatabaseFailure, isDatabaseConstraint } from "../../kernel/mod.ts"
+import {
+  Database,
+  DatabaseFailure,
+  FinancialMajorAmount,
+  isDatabaseConstraint,
+  requireExactMajorToMinor,
+} from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderConfirmedEvent, SalesOrderConfirmedEventPayload } from "./events.ts"
 
 const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
-const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
+const Money = FinancialMajorAmount
 const Quantity = Schema.String.check(Schema.isPattern(/^[1-9]\d*$/))
 
 export const Customer = Schema.Struct({
@@ -217,10 +223,10 @@ const toSalesOrder = (row: {
 })
 
 const deriveTotal = (lines: ReadonlyArray<SalesOrderLine>): string => {
-  const cents = lines.reduce((total, line) => {
-    const [whole, fraction = ""] = line.unitPrice.split(".")
-    return total + BigInt(line.quantity) * (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, "0")))
-  }, 0n)
+  const cents = lines.reduce(
+    (total, line) => total + BigInt(line.quantity) * requireExactMajorToMinor(line.unitPrice, 2),
+    0n,
+  )
   return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`
 }
 
@@ -290,6 +296,8 @@ export const makeSalesService = Effect.gen(function* () {
           tenantId: decoded.tenantId,
           capability: SalesCapabilities.orderCreate,
         })
+        const total = deriveTotal(decoded.lines)
+        yield* Schema.decodeUnknownEffect(FinancialMajorAmount)(total)
         return yield* database.transaction(
           async (tx) => {
             const [order] = await tx.insert(orders)
@@ -297,7 +305,7 @@ export const makeSalesService = Effect.gen(function* () {
                 tenantId: decoded.tenantId,
                 customerId: decoded.customerId,
                 quotationId: decoded.quotationId,
-                total: deriveTotal(decoded.lines),
+                total,
               })
               .returning(orderSelection)
             const lines = await tx.insert(orderLines)

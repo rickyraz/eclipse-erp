@@ -25,6 +25,7 @@ import {
   DurableJobEnqueuer,
   DurableJobInput,
   isDatabaseConstraint,
+  requireExactMajorToMinor,
 } from "../../kernel/mod.ts"
 import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import {
@@ -640,10 +641,7 @@ type ConfirmationIdentity = Pick<
   "tenantId" | "orderId" | "warehouseId" | "legalEntityId" | "idempotencyKey"
 >
 
-const moneyToMinor = (value: string) => {
-  const [whole, fraction = ""] = value.split(".")
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"))
-}
+const moneyToMinor = (value: string) => requireExactMajorToMinor(value, 2)
 
 const journalLinesAreInverse = (
   source: JournalEntry,

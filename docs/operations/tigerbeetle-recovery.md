@@ -224,10 +224,10 @@ evidence. Production must supply a custody-approved `FinancialVerificationSigner
 current TigerBeetle readiness gate requires KMS/HSM or an explicitly approved equivalent custody
 profile. Retain the public-key resolution record and verify the signature during release review.
 
-Latest local evidence (2026-08-17): the official TigerBeetle binary `0.17.9+cc1c06a` passed the
-scoped one-replica integration test, including a linked accepted journal, deterministic replay path,
-and account-constraint rejection. PostgreSQL-backed repository validation passed with 184 tests and
-1 intentional skip. This is adapter and database evidence only; it is not quorum, production outage,
+Latest local evidence (2026-08-19): the official TigerBeetle binary `0.17.9+cc1c06a` passed the
+scoped one-replica integration test, including the exact `500,000,000,000,000.00` amount boundary,
+linked accepted journal, deterministic replay path, balance read, U128 overflow rejection, and
+account-constraint rejection. Repository validation passed with 207 tests and 1 intentional skip. This is adapter and database evidence only; it is not quorum, production outage,
 backup/restore, or cutover evidence.
 
 Safe automated evidence:

@@ -11,6 +11,8 @@
 >   [`../decisions/0040-adopt-tigerbeetle-financial-ledger.md`](../decisions/0040-adopt-tigerbeetle-financial-ledger.md)
 > - Runtime authority separation:
 >   [`../decisions/0041-separate-deployment-profile-and-financial-authority.md`](../decisions/0041-separate-deployment-profile-and-financial-authority.md)
+> - Exact amount boundary:
+>   [`../decisions/0042-exact-financial-amount-boundary.md`](../decisions/0042-exact-financial-amount-boundary.md)
 > - Previous ledger decision:
 >   [`../decisions/0011-financial-ledger-engine.md`](../decisions/0011-financial-ledger-engine.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
@@ -51,6 +53,21 @@ submission. Historical rows are marked `engine_verified = false` during migratio
 treated as proven TigerBeetle work. Unverified, cross-engine, or routing-drifted operations are
 fenced into manual recovery. Once any Legal Entity for a tenant is routed to TigerBeetle, the legacy
 tenant-scoped PostgreSQL journal path is rejected rather than allowing two authorities.
+
+## Exact amount boundary
+
+The public and domain ERP amount contract is an exact, non-negative decimal string with at most
+18 integer digits and two fractional digits. Its supported maximum is
+`999,999,999,999,999,999.99`, so the required `500,000,000,000,000.00` value has substantial
+operational headroom. PostgreSQL stores the owning ERP money columns as `NUMERIC(24,2)`, leaving
+four additional integer-digit positions above the public boundary. Existing ledger minor amounts
+remain exact integer strings in `NUMERIC(39,0)`.
+
+All application arithmetic uses `bigint`; financial values never use JavaScript `number`, floating
+point, or implicit rounding. The minor-unit boundary rejects fractional precision loss and values
+above TigerBeetle's U128 maximum. The current accounting profile has no currency metadata registry
+and fixes precision at two, so exponent-aware conversion is a generic primitive only: exponent 0,
+2, or 3 does not by itself activate support for a currency with that exponent.
 
 ## Authority Matrix
 

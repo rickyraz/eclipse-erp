@@ -12,4 +12,6 @@ export const createdAt = () =>
   timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 export const updatedAt = () =>
   timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
-export const money = (name: string) => numeric(name, { precision: 14, scale: 2 }).notNull()
+// NUMERIC(24, 2) leaves four integer-digit positions above the 18-digit
+// public amount boundary while preserving exact decimal storage.
+export const money = (name: string) => numeric(name, { precision: 24, scale: 2 }).notNull()

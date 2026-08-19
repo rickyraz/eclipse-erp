@@ -704,6 +704,10 @@ export const financialOperationTransfers = accountingSchema.table(
     check("financial_operation_transfers_position_check", sql`${table.position} >= 0`),
     check("financial_operation_transfers_amount_check", sql`${table.amountMinor} > 0`),
     check(
+      "financial_operation_transfers_amount_u128_check",
+      sql`${table.amountMinor} <= 340282366920938463463374607431768211455`,
+    ),
+    check(
       "financial_operation_transfers_accounts_different_check",
       sql`${table.debitAccountId} <> ${table.creditAccountId}`,
     ),

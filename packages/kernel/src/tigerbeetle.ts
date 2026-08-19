@@ -326,6 +326,9 @@ const journalValidation = (
     }
     debit += lineDebit
     credit += lineCredit
+    if (debit > U128_MAX || credit > U128_MAX) {
+      return { _tag: "rejected", operationId: input.operationId, reason: "invalid_amount" }
+    }
   }
   return debit === credit
     ? undefined

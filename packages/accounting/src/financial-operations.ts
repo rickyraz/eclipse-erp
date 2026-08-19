@@ -26,7 +26,10 @@ import {
   Database,
   DatabaseFailure,
   DurableJobEnqueuer,
+  FINANCIAL_LEDGER_MAX_MINOR,
+  FinancialMajorAmount,
   isDatabaseConstraint,
+  requireExactMajorToMinor,
 } from "../../kernel/mod.ts"
 import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
@@ -60,7 +63,7 @@ const PositiveInt = Schema.Int.check(
 const NonNegativeInt = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
 )
-const Money = Schema.String.check(Schema.isPattern(/^\d{1,12}(\.\d{1,2})?$/))
+const Money = FinancialMajorAmount
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 
 export const FinancialOperationStatus = Schema.Literals([
@@ -636,10 +639,7 @@ const toCheckpoint = (row: {
   checkedAt: row.checkedAt.toISOString(),
 })
 
-const toMinor = (value: string): string => {
-  const [whole, fraction = ""] = value.split(".")
-  return (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, "0"))).toString()
-}
+const toMinor = (value: string): string => requireExactMajorToMinor(value, 2).toString()
 
 type FinancialIntentFingerprintInput =
   & Omit<
@@ -681,6 +681,9 @@ const validateLines = (
       }
       debit += debitMinor
       credit += creditMinor
+      if (debit > FINANCIAL_LEDGER_MAX_MINOR || credit > FINANCIAL_LEDGER_MAX_MINOR) {
+        return yield* Effect.fail(new InvalidJournalLine({ index: lines.indexOf(line) }))
+      }
     }
     if (debit !== credit) {
       return yield* Effect.fail(
