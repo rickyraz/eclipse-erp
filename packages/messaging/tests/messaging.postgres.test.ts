@@ -254,6 +254,20 @@ it.effect.skipIf(databaseUrl === undefined)(
           eventId: source.eventId,
         }
         yield* messaging.consumeOnce(input, Effect.succeed("completed"))
+        const completedAtFailure = yield* postgresFailure(() =>
+          client`
+            update messaging.consumer_receipts
+            set completed_at = completed_at + interval '1 second'
+            where tenant_id = ${tenant!.id}
+              and consumer_id = ${input.consumerId}
+              and event_id = ${input.eventId}
+          `
+        )
+        assert.strictEqual((completedAtFailure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (completedAtFailure as { constraint_name?: string }).constraint_name,
+          "consumer_receipts_immutable_identity_check",
+        )
         const failure = yield* postgresFailure(() =>
           client`
             update messaging.consumer_receipts
