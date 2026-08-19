@@ -450,6 +450,17 @@ it.effect.skipIf(databaseUrl === undefined)(
             (immutableOperation as { constraint_name?: string }).constraint_name,
             "financial_operations_immutable_fields_check",
           )
+          const immutableReconciledEventId = yield* postgresFailure(() =>
+            client`
+              update accounting.financial_operations
+              set reconciled_event_id = ${crypto.randomUUID()}
+              where tenant_id = ${tenant!.id} and id = ${posted.id}
+            `
+          )
+          assert.strictEqual(
+            (immutableReconciledEventId as { constraint_name?: string }).constraint_name,
+            "financial_operations_immutable_fields_check",
+          )
           const immutableTransfer = yield* postgresFailure(() =>
             client`
               update accounting.financial_operation_transfers
