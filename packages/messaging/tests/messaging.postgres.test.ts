@@ -1006,6 +1006,23 @@ it.effect.skipIf(databaseUrl === undefined)(
         ], { concurrency: "unbounded" })
         assert.strictEqual(results.filter((result) => !result.duplicate).length, 1)
         assert.strictEqual(results.filter((result) => result.duplicate).length, 1)
+        const first = results.find((result) => !result.duplicate)!
+        const duplicate = results.find((result) => result.duplicate)!
+        const [storedReceipt] = yield* Effect.promise(() =>
+          client<{ completed_at: string }[]>`
+            select completed_at
+            from messaging.consumer_receipts
+            where tenant_id = ${tenant!.id}
+              and consumer_id = ${input.consumerId}
+              and event_id = ${source.eventId}
+          `
+        )
+        assert.isDefined(storedReceipt)
+        assert.strictEqual(
+          new Date(String(storedReceipt!.completed_at)).toISOString(),
+          first.receipt.completedAt,
+        )
+        assert.strictEqual(duplicate.receipt.completedAt, first.receipt.completedAt)
 
         const rows = yield* Effect.promise(() =>
           client<{ events: number; receipts: number }[]>`
