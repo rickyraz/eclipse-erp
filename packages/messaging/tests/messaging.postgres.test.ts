@@ -132,7 +132,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and event_id = ${eventId}`
             ),
-            "consumer_receipts_consumer_id_check",
+            "consumer_receipts_immutable_identity_check",
           ],
           [
             yield* postgresFailure(() =>
@@ -140,7 +140,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and event_id = ${eventId}`
             ),
-            "consumer_receipts_event_type_check",
+            "consumer_receipts_immutable_identity_check",
           ],
           [
             yield* postgresFailure(() =>
@@ -148,7 +148,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and event_id = ${eventId}`
             ),
-            "consumer_receipts_event_version_check",
+            "consumer_receipts_immutable_identity_check",
           ],
           [
             yield* postgresFailure(() =>
@@ -156,7 +156,7 @@ it.effect.skipIf(databaseUrl === undefined)(
                 tenant!.id
               } and event_id = ${eventId}`
             ),
-            "consumer_receipts_idempotency_key_check",
+            "consumer_receipts_immutable_identity_check",
           ],
         ] as const
 
@@ -216,6 +216,49 @@ it.effect.skipIf(databaseUrl === undefined)(
         assert.strictEqual(rows[0]!.idempotency_key, input.idempotencyKey)
         const replayed = yield* messaging.append(input)
         assert.strictEqual(replayed.eventId, input.eventId)
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "keeps completed receipt identity immutable for duplicate suppression",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const [tenant] = yield* Effect.promise(() =>
+          client<{ id: string }[]>`
+            insert into auth.tenants (slug) values (${crypto.randomUUID()}) returning id
+          `
+        )
+        const database = makePostgresDatabase(client)
+        const messaging = yield* makeMessagingService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const source = yield* messaging.append(event(tenant!.id))
+        const input = {
+          tenantId: tenant!.id,
+          consumerId: "accounting.receipt-identity",
+          eventId: source.eventId,
+        }
+        yield* messaging.consumeOnce(input, Effect.succeed("completed"))
+        const failure = yield* postgresFailure(() =>
+          client`
+            update messaging.consumer_receipts
+            set consumer_id = 'tampered-consumer'
+            where tenant_id = ${tenant!.id}
+              and consumer_id = ${input.consumerId}
+              and event_id = ${input.eventId}
+          `
+        )
+        assert.strictEqual((failure as { code?: string }).code, "23514")
+        assert.strictEqual(
+          (failure as { constraint_name?: string }).constraint_name,
+          "consumer_receipts_immutable_identity_check",
+        )
+        let executions = 0
+        const replay = yield* messaging.consumeOnce(input, Effect.sync(() => ++executions))
+        assert.isTrue(replay.duplicate)
+        assert.strictEqual(executions, 0)
       })),
 )
 
