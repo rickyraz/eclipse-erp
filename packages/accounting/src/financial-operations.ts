@@ -1669,7 +1669,19 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             quarantinedOperations += 1
             continue
           }
-          yield* rebuildAcceptedProjection(decoded.tenantId, operation.operationId, outcome)
+          const rebuilt = yield* rebuildAcceptedProjection(
+            decoded.tenantId,
+            operation.operationId,
+            outcome,
+          ).pipe(Effect.result)
+          if (Result.isFailure(rebuilt)) {
+            if (rebuilt.failure instanceof EventIdempotencyConflict) {
+              yield* quarantineProjection(decoded.tenantId, operation.operationId)
+              quarantinedOperations += 1
+              continue
+            }
+            return yield* Effect.fail(rebuilt.failure)
+          }
           rebuiltOperations += 1
           continue
         }

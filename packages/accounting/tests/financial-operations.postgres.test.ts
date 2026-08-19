@@ -331,6 +331,45 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(rebuiltReconciledEvent!.id, reconciledEventId)
           assert.strictEqual(rebuiltReconciledEvent!.aggregate_id, revenue.id)
 
+          yield* Effect.promise(() =>
+            client`
+              update messaging.event_outbox
+              set payload = jsonb_set(payload, '{mappingVersion}', '2'::jsonb)
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          const quarantinedProjection = yield* service.rebuildFinancialProjections({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+          })
+          assert.strictEqual(quarantinedProjection.rebuiltOperations, 0)
+          assert.strictEqual(quarantinedProjection.quarantinedOperations, 1)
+          const [quarantinedOperation] = yield* Effect.promise(() =>
+            client<
+              { status: string; recovery_reason: string | null; reconciled_at: Date | null }[]
+            >`
+              select status, recovery_reason, reconciled_at
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+            `
+          )
+          assert.strictEqual(quarantinedOperation!.status, "manual_recovery")
+          assert.strictEqual(quarantinedOperation!.recovery_reason, "mapping_mismatch")
+          assert.isNull(quarantinedOperation!.reconciled_at)
+          const [corruptReconciledEvent] = yield* Effect.promise(() =>
+            client<{ id: string; payload: unknown }[]>`
+              select id, payload
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          assert.strictEqual(corruptReconciledEvent!.id, reconciledEventId)
+          const corruptPayload = yield* Schema.decodeUnknownEffect(
+            AccountingFinancialOperationReconciledEvent.payloadSchema,
+          )(corruptReconciledEvent!.payload)
+          assert.strictEqual(corruptPayload.mappingVersion, 2)
+
           const revenuePrincipal = {
             userAccountId: crypto.randomUUID(),
             sessionId: crypto.randomUUID(),
