@@ -1663,23 +1663,11 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             projected.map((transfer) => [transfer.position, transfer]),
           )
           let projectionMismatch = false
+          const missingTransfers: typeof expectedPairs = []
           for (const expectedPair of expectedPairs) {
             const existing = projectedByPosition.get(expectedPair.position)
             if (existing === undefined) {
-              yield* database.query(
-                (db) =>
-                  db.insert(financialOperationTransfers).values({
-                    tenantId: decoded.tenantId,
-                    operationId: operation.id,
-                    position: expectedPair.position,
-                    debitAccountId: expectedPair.debitAccountId,
-                    creditAccountId: expectedPair.creditAccountId,
-                    amountMinor: expectedPair.amountMinor,
-                    engineTransferId: outcome.transferIds[expectedPair.position],
-                    status: "unresolved",
-                  }),
-                "accounting.financial_projection_rebuild.transfer_insert",
-              )
+              missingTransfers.push(expectedPair)
               continue
             }
             if (
@@ -1700,10 +1688,31 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             quarantinedOperations += 1
             continue
           }
-          const rebuilt = yield* rebuildAcceptedProjection(
-            decoded.tenantId,
-            operation.operationId,
-            outcome,
+          const rebuilt = yield* database.withTransaction(
+            Effect.gen(function* () {
+              for (const expectedPair of missingTransfers) {
+                yield* database.query(
+                  (db) =>
+                    db.insert(financialOperationTransfers).values({
+                      tenantId: decoded.tenantId,
+                      operationId: operation.id,
+                      position: expectedPair.position,
+                      debitAccountId: expectedPair.debitAccountId,
+                      creditAccountId: expectedPair.creditAccountId,
+                      amountMinor: expectedPair.amountMinor,
+                      engineTransferId: outcome.transferIds[expectedPair.position],
+                      status: "unresolved",
+                    }),
+                  "accounting.financial_projection_rebuild.transfer_insert",
+                )
+              }
+              return yield* rebuildAcceptedProjection(
+                decoded.tenantId,
+                operation.operationId,
+                outcome,
+              )
+            }),
+            "accounting.financial_projection_rebuild.operation",
           ).pipe(Effect.result)
           if (Result.isFailure(rebuilt)) {
             if (rebuilt.failure instanceof EventIdempotencyConflict) {

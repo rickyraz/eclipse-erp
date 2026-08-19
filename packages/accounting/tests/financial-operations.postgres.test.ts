@@ -334,6 +334,112 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.isDefined(rebuiltReconciledEvent)
           assert.strictEqual(rebuiltReconciledEvent!.id, reconciledEventId)
           assert.strictEqual(rebuiltReconciledEvent!.aggregate_id, revenue.id)
+          const [beforeFailedRebuild] = yield* Effect.promise(() =>
+            client<
+              {
+                status: string
+                engine_accepted_at: string | null
+                observed_engine: string | null
+              }[]
+            >`
+              select status, engine_accepted_at, observed_engine
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              delete from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              delete from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          const failingRebuildMessaging = {
+            ...messaging,
+            append: (_event: unknown) =>
+              Effect.fail(
+                new DatabaseFailure({
+                  operation: "financial-operation.test.rebuild-append",
+                  cause: null,
+                }),
+              ),
+          } as typeof messaging
+          const failingRebuildService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, failingRebuildMessaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, ledger),
+            ),
+          )
+          const failedRebuild = yield* Effect.flip(
+            failingRebuildService.rebuildFinancialProjections({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+            }),
+          )
+          assert.instanceOf(failedRebuild, DatabaseFailure)
+          const [afterFailedRebuild] = yield* Effect.promise(() =>
+            client<
+              {
+                status: string
+                engine_accepted_at: string | null
+                observed_engine: string | null
+              }[]
+            >`
+              select status, engine_accepted_at, observed_engine
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${revenue.id}
+            `
+          )
+          assert.deepStrictEqual(afterFailedRebuild, beforeFailedRebuild)
+          const [failedTransfers] = yield* Effect.promise(() =>
+            client<{ count: number }[]>`
+              select count(*)::integer as count
+              from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
+            `
+          )
+          assert.strictEqual(failedTransfers!.count, 0)
+          const [failedEvents] = yield* Effect.promise(() =>
+            client<{ count: number }[]>`
+              select count(*)::integer as count
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          assert.strictEqual(failedEvents!.count, 0)
+          const retriedRebuild = yield* service.rebuildFinancialProjections({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+          })
+          assert.strictEqual(retriedRebuild.rebuiltOperations, 1)
+          const [retriedTransfer] = yield* Effect.promise(() =>
+            client<{ count: number }[]>`
+              select count(*)::integer as count
+              from accounting.financial_operation_transfers
+              where tenant_id = ${tenant!.id} and operation_id = ${revenue.id}
+            `
+          )
+          assert.strictEqual(retriedTransfer!.count, 1)
+          const [retriedEvent] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              select id
+              from messaging.event_outbox
+              where tenant_id = ${tenant!.id} and id = ${reconciledEventId}
+            `
+          )
+          assert.strictEqual(retriedEvent!.id, reconciledEventId)
 
           yield* Effect.promise(() =>
             client`
