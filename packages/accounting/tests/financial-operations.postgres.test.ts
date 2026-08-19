@@ -461,6 +461,45 @@ it.effect.skipIf(databaseUrl === undefined)(
             (immutableReconciledEventId as { constraint_name?: string }).constraint_name,
             "financial_operations_immutable_fields_check",
           )
+          const [postedEventIdentity] = yield* Effect.promise(() =>
+            client<{ reconciled_event_id: string }[]>`
+              select reconciled_event_id
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${posted.id}
+            `
+          )
+          const [duplicateJournal] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.journal_entries (tenant_id, reference, status)
+              values (${tenant!.id}, ${`duplicate-event-${crypto.randomUUID()}`}, 'draft')
+              returning id
+            `
+          )
+          const duplicateReconciledEvent = yield* postgresFailure(() =>
+            client`
+              insert into accounting.financial_operations (
+                tenant_id, legal_entity_id, period_id, operation_id, operation_type,
+                journal_id, source_journal_id, reference, currency, mapping_version,
+                engine, engine_verified, request_fingerprint, actor_principal_id,
+                actor_session_id, status, attempts, scheduled_at, submitted_at,
+                engine_accepted_at, rejection_reason, recovery_reason, observed_engine,
+                last_error, reconciled_at, reconciled_event_id
+              )
+              select tenant_id, legal_entity_id, period_id, ${`duplicate-${crypto.randomUUID()}`},
+                operation_type, ${duplicateJournal!.id}, source_journal_id,
+                ${`duplicate-reference-${crypto.randomUUID()}`}, currency, mapping_version,
+                engine, engine_verified, request_fingerprint, actor_principal_id,
+                actor_session_id, status, attempts, scheduled_at, submitted_at,
+                engine_accepted_at, rejection_reason, recovery_reason, observed_engine,
+                last_error, reconciled_at, ${postedEventIdentity!.reconciled_event_id}
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${posted.id}
+            `
+          )
+          assert.strictEqual(
+            (duplicateReconciledEvent as { constraint_name?: string }).constraint_name,
+            "financial_operations_tenant_reconciled_event_key",
+          )
           const immutableTransfer = yield* postgresFailure(() =>
             client`
               update accounting.financial_operation_transfers

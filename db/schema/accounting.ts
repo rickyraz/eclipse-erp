@@ -467,6 +467,10 @@ export const financialOperations = accountingSchema.table("financial_operations"
 }, (table) => [
   unique("financial_operations_tenant_id_id_key").on(table.tenantId, table.id),
   unique("financial_operations_tenant_operation_key").on(table.tenantId, table.operationId),
+  unique("financial_operations_tenant_reconciled_event_key").on(
+    table.tenantId,
+    table.reconciledEventId,
+  ),
   unique("financial_operations_tenant_journal_key").on(table.tenantId, table.journalId),
   unique("financial_operations_tenant_source_journal_key").on(
     table.tenantId,
