@@ -188,6 +188,13 @@ it.effect.skipIf(databaseUrl === undefined)(
           }))
           assert.instanceOf(blocked, FinancialVerificationArtifactInvalid)
           assert.strictEqual(blocked.reason, "mismatch")
+          const wrongCurrency = yield* Effect.flip(service.recordFinancialVerificationArtifact({
+            principal,
+            tenantId: tenant!.id,
+            evidence: { ...evidence, currency: "EUR", mismatchCount: 0 },
+          }))
+          assert.instanceOf(wrongCurrency, FinancialVerificationArtifactInvalid)
+          assert.strictEqual(wrongCurrency.reason, "scope_mismatch")
 
           const verified = yield* service.recordFinancialVerificationArtifact({
             principal,

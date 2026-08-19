@@ -767,6 +767,27 @@ export const makeAccountingService = Effect.gen(function* () {
             }),
           )
         }
+        const [configuration] = yield* database.query(
+          (db) =>
+            db.select({ baseCurrency: legalEntityAccountingConfigurations.baseCurrency })
+              .from(legalEntityAccountingConfigurations).where(and(
+                eq(legalEntityAccountingConfigurations.tenantId, decoded.tenantId),
+                eq(
+                  legalEntityAccountingConfigurations.legalEntityId,
+                  decoded.evidence.legalEntityId,
+                ),
+              )),
+          "accounting.financial_verification_artifact.configuration",
+        )
+        if (configuration?.baseCurrency !== decoded.evidence.currency) {
+          return yield* Effect.fail(
+            new FinancialVerificationArtifactInvalid({
+              tenantId: decoded.tenantId,
+              legalEntityId: decoded.evidence.legalEntityId,
+              reason: "scope_mismatch",
+            }),
+          )
+        }
         const startedAt = new Date(decoded.evidence.startedAt)
         const completedAt = new Date(decoded.evidence.completedAt)
         if (!Number.isFinite(startedAt.getTime()) || !Number.isFinite(completedAt.getTime())) {
@@ -2237,6 +2258,18 @@ export const makeAccountingTestLayer = () =>
               capability: AccountingCapabilities.financialEvidenceRecord,
             })
             if (decoded.evidence.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new FinancialVerificationArtifactInvalid({
+                  tenantId: decoded.tenantId,
+                  legalEntityId: decoded.evidence.legalEntityId,
+                  reason: "scope_mismatch",
+                }),
+              )
+            }
+            const configuration = configurations.get(
+              `${decoded.tenantId}:${decoded.evidence.legalEntityId}`,
+            )
+            if (configuration?.baseCurrency !== decoded.evidence.currency) {
               return yield* Effect.fail(
                 new FinancialVerificationArtifactInvalid({
                   tenantId: decoded.tenantId,
