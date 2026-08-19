@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=227
+total=228
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -236,6 +236,7 @@ gate bash -c 'grep -Fq "reason: Schema.Literals([\"not_found\", \"scope_mismatch
 gate bash -c 'grep -Fq "financial_verification_artifact.configuration" packages/accounting/src/service.ts && grep -Fq "configuration?.baseCurrency !== decoded.evidence.currency" packages/accounting/src/service.ts && grep -Fq "wrongCurrency.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "artifact.evidence.currency !== configuration.baseCurrency" packages/accounting/src/service.ts && grep -Fq "driftedApproval.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "driftedCheckpoint.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "sourceProjections" packages/accounting/src/financial-operations.ts && grep -Fq "targetProjections" packages/accounting/src/financial-operations.ts && grep -Fq "expectedPairs = pairMinorTransfers" packages/accounting/src/financial-operations.ts && grep -Fq "missingProjectionCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
+gate bash -c 'grep -Fq "sourceBalanceTotals" packages/accounting/src/financial-operations.ts && grep -Fq "ledgerOption.value.getBalance" packages/accounting/src/financial-operations.ts && grep -Fq "balanceMismatchCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

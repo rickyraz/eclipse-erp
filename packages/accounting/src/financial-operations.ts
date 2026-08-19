@@ -1440,6 +1440,13 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       )
       const sourceOperations: Array<FinancialFactSnapshot["operations"][number]> = []
       const targetOperations: Array<FinancialFactSnapshot["operations"][number]> = []
+      const sourceBalanceTotals = new Map<string, {
+        readonly accountId: string
+        readonly currency: string
+        readonly mappingVersion: number
+        debitsPostedMinor: bigint
+        creditsPostedMinor: bigint
+      }>()
       const sourceTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
       const targetTransfers: Array<FinancialFactSnapshot["transfers"][number]> = []
       const sourceProjections: Array<FinancialFactSnapshot["projections"][number]> = []
@@ -1491,6 +1498,19 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             debitMinor: toMinor(line.debit),
             creditMinor: toMinor(line.credit),
           })),
+        }
+        for (const line of journalInput.lines) {
+          const key = `${line.accountId}:${operation.currency}:${operation.mappingVersion}`
+          const current = sourceBalanceTotals.get(key) ?? {
+            accountId: line.accountId,
+            currency: operation.currency,
+            mappingVersion: operation.mappingVersion,
+            debitsPostedMinor: 0n,
+            creditsPostedMinor: 0n,
+          }
+          current.debitsPostedMinor += BigInt(line.debitMinor)
+          current.creditsPostedMinor += BigInt(line.creditMinor)
+          sourceBalanceTotals.set(key, current)
         }
         const expectedTransferIds = yield* ledgerOption.value.expectedTransferIds(journalInput)
         const outcome = yield* ledgerOption.value.reconcileJournal(journalInput)
@@ -1581,16 +1601,44 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           }
         }
       }
+      const sourceBalances: Array<FinancialFactSnapshot["balances"][number]> = []
+      const targetBalances: Array<FinancialFactSnapshot["balances"][number]> = []
+      for (const balance of sourceBalanceTotals.values()) {
+        const sourceBalance = {
+          accountId: balance.accountId,
+          currency: balance.currency,
+          mappingVersion: balance.mappingVersion,
+          debitsPostedMinor: balance.debitsPostedMinor.toString(),
+          creditsPostedMinor: balance.creditsPostedMinor.toString(),
+        }
+        sourceBalances.push(sourceBalance)
+        const outcome = yield* ledgerOption.value.getBalance({
+          tenantId: decoded.tenantId,
+          legalEntityId: decoded.legalEntityId,
+          accountId: balance.accountId,
+          currency: balance.currency,
+          mappingVersion: balance.mappingVersion,
+        })
+        if (outcome._tag === "available") {
+          targetBalances.push({
+            accountId: outcome.accountId,
+            currency: balance.currency,
+            mappingVersion: outcome.mappingVersion,
+            debitsPostedMinor: outcome.debitsPostedMinor,
+            creditsPostedMinor: outcome.creditsPostedMinor,
+          })
+        }
+      }
       const source: FinancialFactSnapshot = {
         operations: sourceOperations,
         transfers: sourceTransfers,
-        balances: [],
+        balances: sourceBalances,
         projections: sourceProjections,
       }
       const target: FinancialFactSnapshot = {
         operations: targetOperations,
         transfers: targetTransfers,
-        balances: [],
+        balances: targetBalances,
         projections: targetProjections,
       }
       const uniqueOrphans = [...new Map(

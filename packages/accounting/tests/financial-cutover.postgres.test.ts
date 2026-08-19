@@ -5,6 +5,7 @@ import * as Layer from "effect/Layer"
 
 import {
   AccountingCapabilities,
+  FinancialLedgerPort,
   FinancialReconciliationCheckpointEvidenceInvalid,
   FinancialVerificationArtifactInvalid,
   makeAccountingService,
@@ -310,16 +311,21 @@ it.effect.skipIf(databaseUrl === undefined)(
             Effect.provideService(Database, database),
           )
           const operationLedger = makeFinancialLedgerTestLayer()
+          const operationLedgerService = yield* Effect.provide(
+            Effect.service(FinancialLedgerPort),
+            operationLedger,
+          )
+          const operationDependencies = Layer.mergeAll(
+            Layer.succeed(Database, database),
+            authorization,
+            Layer.succeed(MessagingService, messaging),
+            Layer.succeed(DurableJobEnqueuer, jobs),
+            Layer.succeed(SalesService, sales),
+            Layer.succeed(FinancialLedgerPort, operationLedgerService),
+          )
           const operationService = yield* Effect.provide(
             makeFinancialOperationService,
-            Layer.mergeAll(
-              Layer.succeed(Database, database),
-              authorization,
-              Layer.succeed(MessagingService, messaging),
-              Layer.succeed(DurableJobEnqueuer, jobs),
-              Layer.succeed(SalesService, sales),
-              operationLedger,
-            ),
+            operationDependencies,
           )
           const operationInput = {
             principal,
@@ -397,6 +403,45 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidenceArtifactId: verified.id,
           })
           assert.strictEqual(checkpoint.status, "verified")
+          const balanceMismatchLedger = {
+            ...operationLedgerService,
+            getBalance: (input: unknown) =>
+              operationLedgerService.getBalance(input).pipe(
+                Effect.map((outcome) =>
+                  outcome._tag === "available"
+                    ? {
+                      ...outcome,
+                      debitsPostedMinor: (BigInt(outcome.debitsPostedMinor) + 1n).toString(),
+                    }
+                    : outcome
+                ),
+              ),
+          }
+          const balanceMismatchService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, messaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, balanceMismatchLedger),
+            ),
+          )
+          const balanceMismatchCheckpoint = yield* balanceMismatchService
+            .reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `balance-mismatch-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:balance-mismatch",
+              targetWatermark: "tigerbeetle:balance-mismatch",
+              sourceSnapshotRef: "postgres:balance-mismatch-snapshot",
+              targetSnapshotRef: "tigerbeetle:balance-mismatch-snapshot",
+              evidenceArtifactId: null,
+            })
+          assert.strictEqual(balanceMismatchCheckpoint.status, "blocked")
+          assert.isAbove(balanceMismatchCheckpoint.mismatchCount, 0)
           const provenanceMismatch = yield* Effect.flip(
             operationService.reconcileFinancialCheckpoint({
               principal,
