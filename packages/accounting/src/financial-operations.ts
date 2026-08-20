@@ -382,6 +382,7 @@ export class FinancialReconciliationCheckpointEvidenceInvalid
         "scope_mismatch",
         "provenance_mismatch",
         "mapping_version_mismatch",
+        "hash_mismatch",
         "rejected",
       ]),
     },
@@ -1309,6 +1310,12 @@ export const makeFinancialOperationService = Effect.gen(function* () {
       }
       const authority = ledgerOption.value.authority
       let evidenceArtifactMappingVersion: number | undefined
+      let evidenceArtifactFactHashes: {
+        readonly operationSetHash: string
+        readonly accountBalanceHash: string
+        readonly transferSetHash: string
+        readonly projectionHash: string | null
+      } | undefined
       const [configuration] = yield* database.query(
         (db) =>
           db.select({ baseCurrency: legalEntityAccountingConfigurations.baseCurrency })
@@ -1339,6 +1346,10 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               targetWatermark: financialVerificationArtifacts.targetWatermark,
               sourceSnapshotRef: financialVerificationArtifacts.sourceSnapshotRef,
               targetSnapshotRef: financialVerificationArtifacts.targetSnapshotRef,
+              operationSetHash: financialVerificationArtifacts.operationSetHash,
+              accountBalanceHash: financialVerificationArtifacts.accountBalanceHash,
+              transferSetHash: financialVerificationArtifacts.transferSetHash,
+              projectionHash: financialVerificationArtifacts.projectionHash,
             }).from(financialVerificationArtifacts).where(and(
               eq(financialVerificationArtifacts.tenantId, decoded.tenantId),
               eq(financialVerificationArtifacts.id, decoded.evidenceArtifactId!),
@@ -1382,6 +1393,12 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           )
         }
         evidenceArtifactMappingVersion = artifact.mappingVersion
+        evidenceArtifactFactHashes = {
+          operationSetHash: artifact.operationSetHash,
+          accountBalanceHash: artifact.accountBalanceHash,
+          transferSetHash: artifact.transferSetHash,
+          projectionHash: artifact.projectionHash,
+        }
         const provenanceMatches = artifact.sourceWatermark === decoded.sourceWatermark &&
           artifact.targetWatermark === decoded.targetWatermark &&
           artifact.sourceSnapshotRef === decoded.sourceSnapshotRef &&
@@ -1729,6 +1746,21 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           )
         ),
       )
+      if (
+        evidenceArtifactFactHashes !== undefined &&
+        (evidenceArtifactFactHashes.operationSetHash !== evidence.operationSetHash ||
+          evidenceArtifactFactHashes.accountBalanceHash !== evidence.accountBalanceHash ||
+          evidenceArtifactFactHashes.transferSetHash !== evidence.transferSetHash ||
+          evidenceArtifactFactHashes.projectionHash !== evidence.projectionHash)
+      ) {
+        return yield* Effect.fail(
+          new FinancialReconciliationCheckpointEvidenceInvalid({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            reason: "hash_mismatch",
+          }),
+        )
+      }
       const status = evidence.mismatchCount === 0 && uniqueOrphans.length === 0
         ? "verified"
         : "blocked"

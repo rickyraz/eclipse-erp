@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=235
+total=236
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -244,6 +244,7 @@ gate bash -c 'grep -A5 -F "inArray(financialOperations.status" packages/accounti
 gate bash -c 'grep -Fq "inArray(financialOperations.status" packages/accounting/src/financial-operations.ts && grep -Fq "\"intent\"" packages/accounting/src/financial-operations.ts && grep -Fq "\"unknown\"" packages/accounting/src/financial-operations.ts && grep -Fq "manualRecoveryCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "evidenceArtifactMappingVersion" packages/accounting/src/financial-operations.ts && grep -Fq "mappingVersion: financialVerificationArtifacts.mappingVersion" packages/accounting/src/financial-operations.ts && grep -Fq "mappingMismatchCheckpoint.reason, \"mapping_version_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "mapping-artifact-snapshot" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "pendingCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "pendingIntent.status, \"intent\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "\"submitted\"" packages/accounting/src/financial-readiness.ts'
+gate bash -c 'grep -Fq "hash_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "operationSetHash: financialVerificationArtifacts.operationSetHash" packages/accounting/src/financial-operations.ts && grep -Fq "hashMismatchCheckpoint.reason, \"hash_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

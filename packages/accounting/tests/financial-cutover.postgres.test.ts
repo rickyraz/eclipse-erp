@@ -402,9 +402,27 @@ it.effect.skipIf(databaseUrl === undefined)(
             targetWatermark: "tigerbeetle:test:1",
             sourceSnapshotRef: "postgres:test-snapshot",
             targetSnapshotRef: "tigerbeetle:test-snapshot",
-            evidenceArtifactId: verified.id,
+            evidenceArtifactId: null,
           })
           assert.strictEqual(checkpoint.status, "verified")
+          const hashMismatchCheckpoint = yield* Effect.flip(
+            operationService.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `hash-mismatch-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:test:1",
+              targetWatermark: "tigerbeetle:test:1",
+              sourceSnapshotRef: "postgres:test-snapshot",
+              targetSnapshotRef: "tigerbeetle:test-snapshot",
+              evidenceArtifactId: verified.id,
+            }),
+          )
+          assert.instanceOf(
+            hashMismatchCheckpoint,
+            FinancialReconciliationCheckpointEvidenceInvalid,
+          )
+          assert.strictEqual(hashMismatchCheckpoint.reason, "hash_mismatch")
           const pendingIntent = yield* operationService.createJournalIntent({
             ...operationInput,
             operationId: `cutover-pending-intent-${crypto.randomUUID()}`,
