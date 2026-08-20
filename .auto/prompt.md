@@ -53,6 +53,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 19. Financial verification evidence preserves timezone-qualified timestamps and the completed-at-after-start invariant at the public boundary.
 20. Accounting public journal entries preserve the persisted reversal-state invariant.
 21. Accounting public journal lines preserve the persisted single-sided positive-amount invariant.
+22. Accounting public periods preserve the persisted start-before-end date invariant.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -74,3 +75,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Financial verification artifacts persist `startedAt` and `completedAt` as PostgreSQL `timestamptz` with `completedAt >= startedAt`, so the public evidence schema must preserve both the instant shape and ordering invariant.
 - Accounting journal persistence requires posted entries without reversal IDs and reversed entries with a reversal ID, so the public JournalEntry schema must reject contradictory state metadata.
 - Accounting journal-line persistence requires exactly one positive debit or credit amount, so the public JournalLine schema must reject zero-sided and double-sided lines.
+- Accounting periods persist `startsOn <= endsOn`, so both public period output and open-period input schemas must reject reversed dates.

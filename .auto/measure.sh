@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=244
+total=245
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -253,6 +253,7 @@ gate bash -c 'grep -Fq "scheduledAt: InstantString" packages/accounting/src/fina
 gate bash -c 'grep -Fq "const InstantString = EventEnvelope.fields.occurredAt" packages/accounting/src/financial-readiness.ts && grep -Fq "startedAt: InstantString" packages/accounting/src/financial-readiness.ts && grep -Fq "completedAt: InstantString" packages/accounting/src/financial-readiness.ts && grep -Fq "Date.parse(evidence.completedAt) >= Date.parse(evidence.startedAt)" packages/accounting/src/financial-readiness.ts && grep -q "rejects verification evidence that completes before it starts" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_verification_artifacts_time_check" db/schema/accounting.ts && grep -Fq "financial_verification_artifacts_time_check" db/migrations/20260818012847_financial_verification_evidence/migration.sql'
 gate bash -c 'grep -Fq "journal reversal state consistent with its status" packages/accounting/src/service.ts && grep -q "rejects contradictory journal reversal state" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(JournalEntry)" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_entries_reversal_state_check" db/schema/accounting.ts && grep -Fq "journal_entries_reversal_state_check" db/migrations/20260816110509_constrain_journal_reversal_state/migration.sql'
 gate bash -c 'grep -Fq "const debit = requireExactMajorToMinor(line.debit, 2)" packages/accounting/src/service.ts && grep -Fq "exactly one journal line amount must be positive" packages/accounting/src/service.ts && grep -q "rejects zero-sided and double-sided journal lines" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(JournalLine)" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_lines_amount_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"journal_lines_amount_check\"" db/migrations/20260801133932_hardened_foundation/migration.sql'
+gate bash -c 'grep -Fq "accounting periods must end on or after they start" packages/accounting/src/service.ts && test "$(grep -Fc "period.startsOn <= period.endsOn" packages/accounting/src/service.ts)" -eq 2 && grep -q "rejects reversed accounting period dates" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(OpenPeriodInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(AccountingPeriod)" packages/accounting/tests/accounting.test.ts && grep -Fq "accounting_periods_dates_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"accounting_periods_dates_check\"" db/migrations/20260809171716_accounting_revenue_posting/migration.sql'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

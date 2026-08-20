@@ -19,6 +19,7 @@ import {
 import {
   AccountingCapabilities,
   AccountingConfigurationAlreadyExists,
+  AccountingPeriod,
   AccountingPeriodNotOpen,
   AccountingService,
   AccountNotFound,
@@ -31,6 +32,7 @@ import {
   JournalIdempotencyConflict,
   JournalLine,
   makeAccountingTestLayer,
+  OpenPeriodInput,
   PostRevenueForOrderInput,
   ReverseRevenueForOrderInput,
   UnbalancedJournal,
@@ -380,6 +382,31 @@ describe("accounting contract", () => {
         }),
       )
       assert.strictEqual(unexpectedSource._tag, "SchemaError")
+    }))
+
+  it.effect("rejects reversed accounting period dates", () =>
+    Effect.gen(function* () {
+      const inputFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(OpenPeriodInput)({
+          principal,
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          startsOn: "2026-08-20",
+          endsOn: "2026-08-19",
+        }),
+      )
+      assert.strictEqual(inputFailure._tag, "SchemaError")
+      const outputFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(AccountingPeriod)({
+          id: "period-1",
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          startsOn: "2026-08-20",
+          endsOn: "2026-08-19",
+          status: "open",
+        }),
+      )
+      assert.strictEqual(outputFailure._tag, "SchemaError")
     }))
 
   it.effect("rejects zero-sided and double-sided journal lines", () =>

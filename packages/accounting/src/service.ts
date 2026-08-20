@@ -119,7 +119,10 @@ export const AccountingPeriod = Schema.Struct({
   startsOn: IsoDate,
   endsOn: IsoDate,
   status: Schema.Literals(["open", "closed"]),
-})
+}).check(Schema.makeFilter(
+  (period) => period.startsOn <= period.endsOn,
+  { expected: "accounting periods must end on or after they start" },
+))
 
 export const RevenuePostingProfile = Schema.Struct({
   tenantId: Schema.String,
@@ -234,7 +237,10 @@ export const OpenPeriodInput = Schema.Struct({
   legalEntityId: Schema.String,
   startsOn: IsoDate,
   endsOn: IsoDate,
-})
+}).check(Schema.makeFilter(
+  (period) => period.startsOn <= period.endsOn,
+  { expected: "accounting periods must end on or after they start" },
+))
 
 export const ClosePeriodInput = Schema.Struct({
   ...ScopedInput,
