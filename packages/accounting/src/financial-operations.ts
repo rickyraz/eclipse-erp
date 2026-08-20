@@ -1429,7 +1429,16 @@ export const makeFinancialOperationService = Effect.gen(function* () {
 
       const operations = yield* database.query(
         (db) =>
-          db.select(operationSelection).from(financialOperations).where(and(
+          db.select({
+            ...operationSelection,
+            journalStatus: journalEntries.status,
+          }).from(financialOperations).innerJoin(
+            journalEntries,
+            and(
+              eq(journalEntries.tenantId, financialOperations.tenantId),
+              eq(journalEntries.id, financialOperations.journalId),
+            ),
+          ).where(and(
             eq(financialOperations.tenantId, decoded.tenantId),
             eq(financialOperations.legalEntityId, decoded.legalEntityId),
             eq(financialOperations.engine, authority),
@@ -1542,10 +1551,12 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             mappingVersion: operation.mappingVersion,
           })
         }
-        const journalStatus = operation.operationType === "journal_reverse" ? "reversed" : "posted"
+        const expectedJournalStatus = operation.operationType === "journal_reverse"
+          ? "reversed"
+          : "posted"
         sourceProjections.push({
           operationId: operation.operationId,
-          journalStatus,
+          journalStatus: operation.journalStatus,
           transferIds: projected.map((transfer) =>
             transfer.engineTransferId ?? expectedTransferIds[transfer.position] ??
               `missing:${transfer.position}`
@@ -1561,7 +1572,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           const expectedPairs = pairMinorTransfers(journalInput.lines)
           targetProjections.push({
             operationId: outcome.operationId,
-            journalStatus,
+            journalStatus: expectedJournalStatus,
             transferIds: outcome.transferIds,
           })
           for (const expectedPair of expectedPairs) {

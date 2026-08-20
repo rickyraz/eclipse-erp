@@ -15,6 +15,7 @@ import {
 import { makeAuthorizationTestLayer } from "../../authorization/mod.ts"
 import {
   Database,
+  DatabaseFailure,
   DurableJobEnqueuer,
   FinancialVerificationSigner,
   generateEd25519FinancialVerificationSigner,
@@ -403,6 +404,84 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidenceArtifactId: verified.id,
           })
           assert.strictEqual(checkpoint.status, "verified")
+
+          let failReceipt = true
+          const failingMessaging = {
+            ...messaging,
+            append: (event: unknown) =>
+              failReceipt
+                ? Effect.fail(
+                  new DatabaseFailure({
+                    operation: "financial-cutover.test.receipt",
+                    cause: null,
+                  }),
+                )
+                : messaging.append(event),
+          } as typeof messaging
+          const failingService = yield* Effect.provide(
+            makeFinancialOperationService,
+            Layer.mergeAll(
+              Layer.succeed(Database, database),
+              authorization,
+              Layer.succeed(MessagingService, failingMessaging),
+              Layer.succeed(DurableJobEnqueuer, jobs),
+              Layer.succeed(SalesService, sales),
+              Layer.succeed(FinancialLedgerPort, operationLedgerService),
+            ),
+          )
+          const failedInput = {
+            ...operationInput,
+            operationId: `cutover-draft-${crypto.randomUUID()}`,
+            reference: `cutover-draft-${crypto.randomUUID()}`,
+          }
+          yield* failingService.createJournalIntent(failedInput)
+          const receiptFailure = yield* Effect.flip(failingService.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: failedInput.operationId,
+          }))
+          assert.instanceOf(receiptFailure, DatabaseFailure)
+          const [failedState] = yield* Effect.promise(() =>
+            client<{
+              status: string
+              journal_status: string
+              transfer_status: string
+            }[]>`
+              select operation.status, journal.status as journal_status,
+                transfer.status as transfer_status
+              from accounting.financial_operations operation
+              join accounting.journal_entries journal
+                on journal.tenant_id = operation.tenant_id and journal.id = operation.journal_id
+              join accounting.financial_operation_transfers transfer
+                on transfer.tenant_id = operation.tenant_id and transfer.operation_id = operation.id
+              where operation.tenant_id = ${tenant!.id}
+                and operation.operation_id = ${failedInput.operationId}
+            `
+          )
+          assert.deepStrictEqual(failedState, {
+            status: "accepted",
+            journal_status: "draft",
+            transfer_status: "unresolved",
+          })
+          const draftCheckpoint = yield* failingService.reconcileFinancialCheckpoint({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            recoveryWatermark: `draft-journal-${crypto.randomUUID()}`,
+            sourceWatermark: "postgres:draft-journal",
+            targetWatermark: "tigerbeetle:draft-journal",
+            sourceSnapshotRef: "postgres:draft-journal-snapshot",
+            targetSnapshotRef: "tigerbeetle:draft-journal-snapshot",
+            evidenceArtifactId: null,
+          })
+          assert.strictEqual(draftCheckpoint.status, "blocked")
+          assert.isAbove(draftCheckpoint.mismatchCount, 0)
+          failReceipt = false
+          const recovered = yield* failingService.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: failedInput.operationId,
+          })
+          assert.strictEqual(recovered.status, "reconciled")
+
           const balanceMismatchLedger = {
             ...operationLedgerService,
             getBalance: (input: unknown) =>
