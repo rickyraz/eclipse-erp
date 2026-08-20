@@ -395,7 +395,10 @@ export const FinancialTransferFact = Schema.Struct({
   amountMinor: MinorAmount,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
-})
+}).check(Schema.makeFilter(
+  (transfer) => transfer.debitAccountId !== transfer.creditAccountId,
+  { expected: "financial transfer accounts must be distinct" },
+))
 export type FinancialTransferFact = Schema.Schema.Type<typeof FinancialTransferFact>
 
 export const FinancialBalanceFact = Schema.Struct({

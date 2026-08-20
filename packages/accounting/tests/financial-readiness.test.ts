@@ -7,6 +7,7 @@ import {
   compareFinancialFactSnapshots,
   financialFailureExecutionMatrix,
   financialFailureMatrix,
+  FinancialTransferFact,
   FinancialVerificationEvidence,
   hashFinancialFactSnapshot,
   verifyOpeningBalances,
@@ -69,6 +70,24 @@ describe("financial readiness proofs", () => {
         Schema.decodeUnknownEffect(FinancialVerificationEvidence.fields.accountCount)(
           2_147_483_648,
         ),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects financial transfers with identical accounts", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact)({
+          operationId: "operation-1",
+          position: 0,
+          status: "accepted",
+          transferId: "transfer-1",
+          debitAccountId: "account-1",
+          creditAccountId: "account-1",
+          amountMinor: "1",
+          currency: "USD",
+          mappingVersion: 1,
+        }),
       )
       assert.strictEqual(failure._tag, "SchemaError")
     }))
