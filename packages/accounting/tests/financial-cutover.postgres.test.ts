@@ -405,6 +405,38 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidenceArtifactId: verified.id,
           })
           assert.strictEqual(checkpoint.status, "verified")
+          const mappingMismatchArtifact = yield* service.recordFinancialVerificationArtifact({
+            principal,
+            tenantId: tenant!.id,
+            evidence: {
+              ...evidence,
+              mappingVersion: 2,
+              mismatchCount: 0,
+              sourceWatermark: "postgres:mapping-artifact",
+              targetWatermark: "tigerbeetle:mapping-artifact",
+              sourceSnapshotRef: "postgres:mapping-artifact-snapshot",
+              targetSnapshotRef: "tigerbeetle:mapping-artifact-snapshot",
+            },
+          })
+          assert.strictEqual(mappingMismatchArtifact.status, "verified")
+          const mappingMismatchCheckpoint = yield* Effect.flip(
+            operationService.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `mapping-artifact-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:mapping-artifact",
+              targetWatermark: "tigerbeetle:mapping-artifact",
+              sourceSnapshotRef: "postgres:mapping-artifact-snapshot",
+              targetSnapshotRef: "tigerbeetle:mapping-artifact-snapshot",
+              evidenceArtifactId: mappingMismatchArtifact.id,
+            }),
+          )
+          assert.instanceOf(
+            mappingMismatchCheckpoint,
+            FinancialReconciliationCheckpointEvidenceInvalid,
+          )
+          assert.strictEqual(mappingMismatchCheckpoint.reason, "mapping_version_mismatch")
 
           let failReceipt = true
           const failingMessaging = {

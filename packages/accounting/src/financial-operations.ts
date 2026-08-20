@@ -1308,6 +1308,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         return yield* Effect.fail(new FinancialLedgerNotConfigured({}))
       }
       const authority = ledgerOption.value.authority
+      let evidenceArtifactMappingVersion: number | undefined
       const [configuration] = yield* database.query(
         (db) =>
           db.select({ baseCurrency: legalEntityAccountingConfigurations.baseCurrency })
@@ -1332,6 +1333,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             db.select({
               legalEntityId: financialVerificationArtifacts.legalEntityId,
               status: financialVerificationArtifacts.status,
+              mappingVersion: financialVerificationArtifacts.mappingVersion,
               currency: financialVerificationArtifacts.currency,
               sourceWatermark: financialVerificationArtifacts.sourceWatermark,
               targetWatermark: financialVerificationArtifacts.targetWatermark,
@@ -1379,6 +1381,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             }),
           )
         }
+        evidenceArtifactMappingVersion = artifact.mappingVersion
         const provenanceMatches = artifact.sourceWatermark === decoded.sourceWatermark &&
           artifact.targetWatermark === decoded.targetWatermark &&
           artifact.sourceSnapshotRef === decoded.sourceSnapshotRef &&
@@ -1454,7 +1457,13 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         "accounting.financial_reconciliation_checkpoint.operations",
       )
       const mappingVersions = new Set(operations.map((operation) => operation.mappingVersion))
-      if (mappingVersions.size > 1) {
+      const [checkpointMappingVersion] = mappingVersions
+      if (
+        mappingVersions.size > 1 ||
+        (checkpointMappingVersion !== undefined &&
+          evidenceArtifactMappingVersion !== undefined &&
+          checkpointMappingVersion !== evidenceArtifactMappingVersion)
+      ) {
         return yield* Effect.fail(
           new FinancialReconciliationCheckpointEvidenceInvalid({
             tenantId: decoded.tenantId,
