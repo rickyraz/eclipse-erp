@@ -85,6 +85,42 @@ export const FinancialOperationStatus = Schema.Literals([
 ])
 export type FinancialOperationStatus = Schema.Schema.Type<typeof FinancialOperationStatus>
 
+const financialOperationStatusMatchesMetadata = (operation: {
+  readonly status: FinancialOperationStatus
+  readonly engineAcceptedAt: string | null
+  readonly rejectionReason: string | null
+  readonly recoveryReason: string | null
+  readonly reconciledAt: string | null
+}) => {
+  const hasNoTerminalMetadata = operation.engineAcceptedAt === null &&
+    operation.rejectionReason === null &&
+    operation.recoveryReason === null &&
+    operation.reconciledAt === null
+  switch (operation.status) {
+    case "intent":
+    case "submitted":
+    case "unknown":
+      return hasNoTerminalMetadata
+    case "accepted":
+      return operation.engineAcceptedAt !== null &&
+        operation.rejectionReason === null &&
+        operation.recoveryReason === null &&
+        operation.reconciledAt === null
+    case "rejected":
+      return operation.engineAcceptedAt === null &&
+        operation.rejectionReason !== null &&
+        operation.recoveryReason === null &&
+        operation.reconciledAt === null
+    case "manual_recovery":
+      return operation.recoveryReason !== null && operation.reconciledAt === null
+    case "reconciled":
+      return operation.engineAcceptedAt !== null &&
+        operation.rejectionReason === null &&
+        operation.recoveryReason === null &&
+        operation.reconciledAt !== null
+  }
+}
+
 export const FinancialOperationFailpointName = Schema.Literals([
   "before_intent_commit",
   "after_intent_commit",
@@ -156,6 +192,9 @@ export const FinancialOperation = Schema.Struct({
 }).check(Schema.makeFilter(
   operationTypeMatchesSourceJournal,
   { expected: "financial operation type matches source journal" },
+)).check(Schema.makeFilter(
+  financialOperationStatusMatchesMetadata,
+  { expected: "financial operation status matches terminal metadata" },
 ))
 export type FinancialOperation = Schema.Schema.Type<typeof FinancialOperation>
 

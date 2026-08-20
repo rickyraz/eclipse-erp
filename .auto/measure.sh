@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=247
+total=248
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -256,6 +256,7 @@ gate bash -c 'grep -Fq "const debit = requireExactMajorToMinor(line.debit, 2)" p
 gate bash -c 'grep -Fq "accounting periods must end on or after they start" packages/accounting/src/service.ts && test "$(grep -Fc "period.startsOn <= period.endsOn" packages/accounting/src/service.ts)" -eq 2 && grep -q "rejects reversed accounting period dates" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(OpenPeriodInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(AccountingPeriod)" packages/accounting/tests/accounting.test.ts && grep -Fq "accounting_periods_dates_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"accounting_periods_dates_check\"" db/migrations/20260809171716_accounting_revenue_posting/migration.sql'
 gate bash -c 'grep -Fq "revenue posting accounts must be distinct" packages/accounting/src/service.ts && test "$(grep -Fc "profile.receivableAccountId !== profile.revenueAccountId" packages/accounting/src/service.ts)" -eq 2 && grep -q "rejects duplicate revenue posting accounts" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(ConfigureRevenuePostingInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(RevenuePostingProfile)" packages/accounting/tests/accounting.test.ts && grep -Fq "revenue_posting_profiles_accounts_different_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"revenue_posting_profiles_accounts_different_check\"" db/migrations/20260809171716_accounting_revenue_posting/migration.sql'
 gate bash -c 'grep -Fq "financial operation type matches source journal" packages/accounting/src/financial-operations.ts && test "$(grep -Fc "operationTypeMatchesSourceJournal" packages/accounting/src/financial-operations.ts)" -eq 3 && grep -q "rejects mismatched financial operation source identities" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(FinancialOperation)" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_operations_operation_type_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operations_operation_type_check\"" db/migrations/20260817080713_far_the_professor/migration.sql'
+gate bash -c 'grep -Fq "financial operation status matches terminal metadata" packages/accounting/src/financial-operations.ts && grep -Fq "financialOperationStatusMatchesMetadata" packages/accounting/src/financial-operations.ts && grep -q "rejects financial operation status metadata contradictions" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_operations_state_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operations_state_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

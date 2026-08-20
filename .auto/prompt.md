@@ -56,6 +56,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 22. Accounting public periods preserve the persisted start-before-end date invariant.
 23. Accounting public revenue-posting profiles preserve distinct receivable and revenue account identities.
 24. Accounting public financial-operation schemas preserve the operation-type/source-journal relationship enforced by PostgreSQL.
+25. Accounting public financial-operation schemas preserve the status/terminal-metadata relationship enforced by PostgreSQL.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -80,3 +81,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Accounting periods persist `startsOn <= endsOn`, so both public period output and open-period input schemas must reject reversed dates.
 - Accounting revenue-posting profiles persist distinct receivable and revenue account IDs, so both configuration input and public profile schemas must reject equal IDs.
 - Financial operations persist `journal_reverse` only with a source journal and `journal_post`/`revenue_post` only without one, so public operation and journal-intent schemas must reject mismatched type/source metadata.
+- Financial operations persist status-specific acceptance, rejection, recovery, and reconciliation metadata, so the public operation schema must reject contradictory terminal-state fields.

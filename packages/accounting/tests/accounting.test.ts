@@ -572,6 +572,49 @@ describe("accounting contract", () => {
       assert.strictEqual(postedIntentWithSource._tag, "SchemaError")
     }))
 
+  it.effect("rejects financial operation status metadata contradictions", () =>
+    Effect.gen(function* () {
+      const operation = {
+        id: "00000000-0000-4000-8000-000000000030",
+        tenantId,
+        legalEntityId: "00000000-0000-4000-8000-000000000031",
+        periodId: "00000000-0000-4000-8000-000000000032",
+        operationId: "operation-status-1",
+        operationType: "journal_post",
+        engine: "postgresql",
+        engineVerified: true,
+        journalId: "00000000-0000-4000-8000-000000000033",
+        sourceJournalId: null,
+        reference: "reference-status-1",
+        currency: "USD",
+        mappingVersion: 1,
+        status: "intent",
+        attempts: 0,
+        scheduledAt: "2026-08-20T00:00:00.000Z",
+        submittedAt: null,
+        engineAcceptedAt: null,
+        rejectionReason: null,
+        recoveryReason: null,
+        observedEngine: null,
+        lastError: null,
+        reconciledAt: null,
+      }
+      for (
+        const invalidState of [
+          { status: "accepted" },
+          { status: "rejected" },
+          { status: "manual_recovery" },
+          { status: "reconciled" },
+          { status: "intent", recoveryReason: "unexpected-recovery" },
+        ]
+      ) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(FinancialOperation)({ ...operation, ...invalidState }),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects financial operation attempts outside PostgreSQL integer range", () =>
     Effect.gen(function* () {
       const negative = yield* Effect.flip(
