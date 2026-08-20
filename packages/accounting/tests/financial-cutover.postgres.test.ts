@@ -405,6 +405,25 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidenceArtifactId: verified.id,
           })
           assert.strictEqual(checkpoint.status, "verified")
+          const pendingIntent = yield* operationService.createJournalIntent({
+            ...operationInput,
+            operationId: `cutover-pending-intent-${crypto.randomUUID()}`,
+            reference: `cutover-pending-intent-${crypto.randomUUID()}`,
+          })
+          const pendingCheckpoint = yield* operationService.reconcileFinancialCheckpoint({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: legalEntity!.id,
+            recoveryWatermark: `pending-intent-${crypto.randomUUID()}`,
+            sourceWatermark: "postgres:pending-intent",
+            targetWatermark: "tigerbeetle:pending-intent",
+            sourceSnapshotRef: "postgres:pending-intent-snapshot",
+            targetSnapshotRef: "tigerbeetle:pending-intent-snapshot",
+            evidenceArtifactId: null,
+          })
+          assert.strictEqual(pendingCheckpoint.status, "blocked")
+          assert.isAbove(pendingCheckpoint.mismatchCount, 0)
+          assert.strictEqual(pendingIntent.status, "intent")
           const mappingMismatchArtifact = yield* service.recordFinancialVerificationArtifact({
             principal,
             tenantId: tenant!.id,

@@ -1452,7 +1452,14 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             eq(financialOperations.legalEntityId, decoded.legalEntityId),
             eq(financialOperations.engine, authority),
             eq(financialOperations.engineVerified, true),
-            inArray(financialOperations.status, ["accepted", "reconciled", "manual_recovery"]),
+            inArray(financialOperations.status, [
+              "intent",
+              "submitted",
+              "accepted",
+              "unknown",
+              "manual_recovery",
+              "reconciled",
+            ]),
           )).orderBy(financialOperations.createdAt),
         "accounting.financial_reconciliation_checkpoint.operations",
       )
@@ -1503,11 +1510,17 @@ export const makeFinancialOperationService = Effect.gen(function* () {
         }
         sourceOperations.push({
           operationId: operation.operationId,
-          status: operation.status === "accepted"
+          status: operation.status === "intent"
+            ? "intent"
+            : operation.status === "submitted"
+            ? "submitted"
+            : operation.status === "accepted"
             ? "accepted"
-            : operation.status === "reconciled"
-            ? "reconciled"
-            : "manual_recovery",
+            : operation.status === "unknown"
+            ? "unknown"
+            : operation.status === "manual_recovery"
+            ? "manual_recovery"
+            : "reconciled",
           currency: operation.currency,
           mappingVersion: operation.mappingVersion,
         })
