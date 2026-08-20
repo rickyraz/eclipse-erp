@@ -364,6 +364,18 @@ describe("accounting contract", () => {
       )
     })))
 
+  it.effect("rejects non-timezone-qualified journal posted timestamps", () =>
+    Effect.gen(function* () {
+      const dateOnly = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalEntry.fields.postedAt)("2026-08-20"),
+      )
+      assert.strictEqual(dateOnly._tag, "SchemaError")
+      const malformed = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalEntry.fields.postedAt)("not-a-timestamp"),
+      )
+      assert.strictEqual(malformed._tag, "SchemaError")
+    }))
+
   it.effect("rejects contradictory journal reversal state", () =>
     Effect.gen(function* () {
       const base = {

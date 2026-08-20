@@ -32,7 +32,7 @@ import {
   isDatabaseConstraint,
   requireExactMajorToMinor,
 } from "../../kernel/mod.ts"
-import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingRevenuePostedEvent, RevenuePostedEventPayload } from "./events.ts"
 import {
@@ -64,6 +64,7 @@ const FinancialCutoverStatus = Schema.Literals([
 const Precision = Schema.Literal(2)
 const FiscalYearStartMonth = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 12 }))
 const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/))
+const InstantString = EventEnvelope.fields.occurredAt
 
 export const AccountingConfiguration = Schema.Struct({
   tenantId: Schema.String,
@@ -101,7 +102,7 @@ export const JournalEntry = Schema.Struct({
   tenantId: Schema.String,
   reference: NonEmptyString,
   status: Schema.Literals(["posted", "reversed"]),
-  postedAt: Schema.String,
+  postedAt: InstantString,
   reversesEntryId: Schema.optional(Schema.String),
   lines: Schema.Array(JournalLine),
 }).check(Schema.makeFilter(
