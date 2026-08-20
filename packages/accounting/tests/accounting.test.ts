@@ -29,6 +29,7 @@ import {
   FinancialReconciliationCheckpoint,
   JournalEntry,
   JournalIdempotencyConflict,
+  JournalLine,
   makeAccountingTestLayer,
   PostRevenueForOrderInput,
   ReverseRevenueForOrderInput,
@@ -379,6 +380,26 @@ describe("accounting contract", () => {
         }),
       )
       assert.strictEqual(unexpectedSource._tag, "SchemaError")
+    }))
+
+  it.effect("rejects zero-sided and double-sided journal lines", () =>
+    Effect.gen(function* () {
+      const zeroSided = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalLine)({
+          accountId: "account-1",
+          debit: "0.00",
+          credit: "0",
+        }),
+      )
+      assert.strictEqual(zeroSided._tag, "SchemaError")
+      const doubleSided = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalLine)({
+          accountId: "account-1",
+          debit: "1.00",
+          credit: "0.01",
+        }),
+      )
+      assert.strictEqual(doubleSided._tag, "SchemaError")
     }))
 
   it.effect("rejects blank journal references", () =>

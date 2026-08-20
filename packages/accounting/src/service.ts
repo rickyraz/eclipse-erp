@@ -87,7 +87,14 @@ export const JournalLine = Schema.Struct({
   accountId: Schema.String,
   debit: Money,
   credit: Money,
-})
+}).check(Schema.makeFilter(
+  (line) => {
+    const debit = requireExactMajorToMinor(line.debit, 2)
+    const credit = requireExactMajorToMinor(line.credit, 2)
+    return (debit > 0n && credit === 0n) || (credit > 0n && debit === 0n)
+  },
+  { expected: "exactly one journal line amount must be positive" },
+))
 
 export const JournalEntry = Schema.Struct({
   id: Schema.String,
