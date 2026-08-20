@@ -63,6 +63,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 29. Accounting public financial facts preserve the positive PostgreSQL integer mapping-version invariant.
 30. Accounting public cutover controls preserve status-specific approval and activation metadata invariants.
 31. Accounting public journal entries preserve timezone-qualified posted timestamps.
+32. Accounting public cutover controls preserve timezone-qualified approval and activation timestamps.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -94,3 +95,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Financial operation and transfer facts carry persisted positive PostgreSQL integer mapping versions, so both public fact schemas must reject mapping-version overflow.
 - Financial cutover controls require approval metadata for approved/activating/tigerbeetle states and activation metadata for tigerbeetle, so the public control schema must reject contradictory status metadata.
 - Accounting journal entries persist postedAt as PostgreSQL `timestamptz`, so the public JournalEntry schema must reject date-only and malformed posted timestamps.
+- Accounting cutover controls persist approvedAt and activatedAt as PostgreSQL `timestamptz`, so the public control schema must reject date-only and malformed lifecycle timestamps.

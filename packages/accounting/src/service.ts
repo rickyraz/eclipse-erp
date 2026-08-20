@@ -159,9 +159,9 @@ export const FinancialCutoverControl = Schema.Struct({
   evidenceArtifactId: Schema.NullOr(Uuid),
   unresolvedAcceptedOperations: NonNegativeInt,
   approvedBy: Schema.NullOr(NonEmptyString),
-  approvedAt: Schema.NullOr(Schema.String),
+  approvedAt: Schema.NullOr(InstantString),
   activatedBy: Schema.NullOr(NonEmptyString),
-  activatedAt: Schema.NullOr(Schema.String),
+  activatedAt: Schema.NullOr(InstantString),
   lastError: Schema.NullOr(NonEmptyString),
 }).check(Schema.makeFilter(
   (control) =>

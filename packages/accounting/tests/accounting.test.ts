@@ -584,6 +584,20 @@ describe("accounting contract", () => {
       assert.strictEqual(postedIntentWithSource._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed cutover control timestamps", () =>
+    Effect.gen(function* () {
+      const dateOnly = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl.fields.approvedAt)("2026-08-20"),
+      )
+      assert.strictEqual(dateOnly._tag, "SchemaError")
+      const malformed = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl.fields.activatedAt)(
+          "not-a-timestamp",
+        ),
+      )
+      assert.strictEqual(malformed._tag, "SchemaError")
+    }))
+
   it.effect("rejects contradictory cutover control status metadata", () =>
     Effect.gen(function* () {
       const base = {
