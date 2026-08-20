@@ -394,7 +394,7 @@ export type FinancialOperationFact = Schema.Schema.Type<typeof FinancialOperatio
 
 export const FinancialTransferFact = Schema.Struct({
   operationId: Schema.String.check(Schema.isPattern(/\S/)),
-  position: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  position: Count,
   status: Schema.Literals(["unresolved", "accepted", "rejected", "manual_recovery"]),
   transferId: Schema.String.check(Schema.isPattern(/\S/)),
   debitAccountId: Schema.String.check(Schema.isPattern(/\S/)),

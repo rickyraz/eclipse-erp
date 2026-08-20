@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=250
+total=251
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -259,6 +259,7 @@ gate bash -c 'grep -Fq "financial operation type matches source journal" package
 gate bash -c 'grep -Fq "financial operation status matches terminal metadata" packages/accounting/src/financial-operations.ts && grep -Fq "financialOperationStatusMatchesMetadata" packages/accounting/src/financial-operations.ts && grep -q "rejects financial operation status metadata contradictions" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_operations_state_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operations_state_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
 gate bash -c 'grep -Fq "financial transfer accounts must be distinct" packages/accounting/src/financial-readiness.ts && grep -Fq "debitAccountId !== transfer.creditAccountId" packages/accounting/src/financial-readiness.ts && grep -q "rejects financial transfers with identical accounts" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "Schema.decodeUnknownEffect(FinancialTransferFact)" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_accounts_different_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operation_transfers_accounts_different_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
 gate bash -c 'grep -Fq "const PositiveMinorAmount" packages/accounting/src/financial-readiness.ts && grep -Fq "amountMinor: PositiveMinorAmount" packages/accounting/src/financial-readiness.ts && grep -q "rejects financial transfer amounts outside the positive U128 range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialTransferFact.fields.amountMinor" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_amount_check" db/schema/accounting.ts && grep -Fq "financial_operation_transfers_amount_u128_check" db/schema/accounting.ts && grep -Fq "financial_operation_transfers_amount_u128_check" db/migrations/20260819004908_fantastic_unus/migration.sql'
+gate bash -c 'grep -Fq "position: Count" packages/accounting/src/financial-readiness.ts && grep -q "rejects financial transfer positions outside PostgreSQL integer range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialTransferFact.fields.position" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_position_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operation_transfers_position_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

@@ -92,6 +92,18 @@ describe("financial readiness proofs", () => {
       assert.strictEqual(failure._tag, "SchemaError")
     }))
 
+  it.effect("rejects financial transfer positions outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const negative = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact.fields.position)(-1),
+      )
+      assert.strictEqual(negative._tag, "SchemaError")
+      const overflow = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact.fields.position)(2_147_483_648),
+      )
+      assert.strictEqual(overflow._tag, "SchemaError")
+    }))
+
   it.effect("rejects financial transfer amounts outside the positive U128 range", () =>
     Effect.gen(function* () {
       const zero = yield* Effect.flip(

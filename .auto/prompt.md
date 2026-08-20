@@ -59,6 +59,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 25. Accounting public financial-operation schemas preserve the status/terminal-metadata relationship enforced by PostgreSQL.
 26. Accounting public financial-transfer facts preserve distinct debit and credit account identities.
 27. Accounting public financial-transfer facts preserve the positive U128 amount invariant.
+28. Accounting public financial-transfer facts preserve the non-negative PostgreSQL integer position invariant.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -86,3 +87,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Financial operations persist status-specific acceptance, rejection, recovery, and reconciliation metadata, so the public operation schema must reject contradictory terminal-state fields.
 - Financial operation transfers persist distinct debit and credit account IDs, so the public financial-transfer fact schema must reject self-transfers.
 - Financial operation transfers persist `amountMinor > 0` within the U128 maximum, so the public financial-transfer fact schema must reject zero and overflow amounts.
+- Financial operation transfers persist non-negative PostgreSQL integer positions, so the public financial-transfer fact schema must reject negative and overflowing positions.
