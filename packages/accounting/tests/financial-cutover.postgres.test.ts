@@ -262,6 +262,23 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
 
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.financial_reconciliation_checkpoints (
+                tenant_id, legal_entity_id, engine, status, recovery_watermark,
+                source_watermark, target_watermark, source_snapshot_ref, target_snapshot_ref,
+                operation_set_hash, account_balance_hash, transfer_set_hash, projection_hash,
+                evidence_artifact_id, mismatch_count, orphan_count, checked_by, checked_at
+              ) values (
+                ${tenant!.id}, ${legalEntity!.id}, 'tigerbeetle', 'verified',
+                'approval-checkpoint', ${evidence.sourceWatermark}, ${evidence.targetWatermark},
+                ${evidence.sourceSnapshotRef}, ${evidence.targetSnapshotRef},
+                ${evidence.operationSetHash}, ${evidence.accountBalanceHash},
+                ${evidence.transferSetHash}, ${evidence.projectionHash}, ${verified.id},
+                0, 0, ${principal.userAccountId}, now()
+              )
+            `
+          )
           const approved = yield* service.approveTigerBeetleCutover({
             principal,
             tenantId: tenant!.id,
@@ -737,6 +754,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             evidence: otherEvidence,
           })
           assert.strictEqual(otherArtifact.status, "verified")
+          const missingCheckpointApproval = yield* Effect.flip(
+            service.approveTigerBeetleCutover({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: otherEntity!.id,
+              evidenceArtifactId: otherArtifact.id,
+            }),
+          )
+          assert.instanceOf(missingCheckpointApproval, FinancialEngineCutoverBlocked)
+          assert.strictEqual(missingCheckpointApproval.reason, "verification_mismatch")
           const [otherPeriod] = yield* Effect.promise(() =>
             client<{ id: string }[]>`
               insert into accounting.accounting_periods

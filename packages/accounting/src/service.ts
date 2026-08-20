@@ -13,6 +13,7 @@ import {
   accounts,
   financialCutoverControls,
   financialOperations,
+  financialReconciliationCheckpoints,
   financialVerificationArtifacts,
   journalEntries,
   journalLines,
@@ -1123,6 +1124,47 @@ export const makeAccountingService = Effect.gen(function* () {
                 decoded.tenantId,
                 decoded.legalEntityId,
                 "unresolved_operations",
+              )
+            }
+            const [checkpoint] = yield* database.query(
+              (db) =>
+                db.select({
+                  sourceWatermark: financialReconciliationCheckpoints.sourceWatermark,
+                  targetWatermark: financialReconciliationCheckpoints.targetWatermark,
+                  sourceSnapshotRef: financialReconciliationCheckpoints.sourceSnapshotRef,
+                  targetSnapshotRef: financialReconciliationCheckpoints.targetSnapshotRef,
+                  operationSetHash: financialReconciliationCheckpoints.operationSetHash,
+                  accountBalanceHash: financialReconciliationCheckpoints.accountBalanceHash,
+                  transferSetHash: financialReconciliationCheckpoints.transferSetHash,
+                  projectionHash: financialReconciliationCheckpoints.projectionHash,
+                  mismatchCount: financialReconciliationCheckpoints.mismatchCount,
+                  orphanCount: financialReconciliationCheckpoints.orphanCount,
+                }).from(financialReconciliationCheckpoints).where(and(
+                  eq(financialReconciliationCheckpoints.tenantId, decoded.tenantId),
+                  eq(financialReconciliationCheckpoints.legalEntityId, decoded.legalEntityId),
+                  eq(financialReconciliationCheckpoints.engine, "tigerbeetle"),
+                  eq(financialReconciliationCheckpoints.status, "verified"),
+                  eq(financialReconciliationCheckpoints.evidenceArtifactId, artifact.id),
+                )),
+              "accounting.financial_cutover.approve.checkpoint",
+            )
+            if (
+              checkpoint === undefined ||
+              checkpoint.sourceWatermark !== artifact.evidence.sourceWatermark ||
+              checkpoint.targetWatermark !== artifact.evidence.targetWatermark ||
+              checkpoint.sourceSnapshotRef !== artifact.evidence.sourceSnapshotRef ||
+              checkpoint.targetSnapshotRef !== artifact.evidence.targetSnapshotRef ||
+              checkpoint.operationSetHash !== artifact.evidence.operationSetHash ||
+              checkpoint.accountBalanceHash !== artifact.evidence.accountBalanceHash ||
+              checkpoint.transferSetHash !== artifact.evidence.transferSetHash ||
+              checkpoint.projectionHash !== artifact.evidence.projectionHash ||
+              checkpoint.mismatchCount !== 0 ||
+              checkpoint.orphanCount !== 0
+            ) {
+              return yield* cutoverBlocked(
+                decoded.tenantId,
+                decoded.legalEntityId,
+                "verification_mismatch",
               )
             }
             const [approved] = yield* database.query(
