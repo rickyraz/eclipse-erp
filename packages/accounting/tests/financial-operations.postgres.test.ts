@@ -1057,6 +1057,27 @@ it.effect.skipIf(databaseUrl === undefined)(
             (checkpointMutation as { constraint_name?: string }).constraint_name,
             "financial_reconciliation_checkpoints_immutable",
           )
+          const invalidVerifiedCounts = yield* postgresFailure(() =>
+            client`
+              insert into accounting.financial_reconciliation_checkpoints (
+                tenant_id, legal_entity_id, engine, status, recovery_watermark,
+                source_watermark, target_watermark, source_snapshot_ref, target_snapshot_ref,
+                operation_set_hash, account_balance_hash, transfer_set_hash, projection_hash,
+                evidence_artifact_id, mismatch_count, orphan_count, checked_by, checked_at
+              )
+              select tenant_id, legal_entity_id, engine, 'verified',
+                ${`invalid-verified-count-${crypto.randomUUID()}`},
+                source_watermark, target_watermark, source_snapshot_ref, target_snapshot_ref,
+                operation_set_hash, account_balance_hash, transfer_set_hash, projection_hash,
+                evidence_artifact_id, 1, orphan_count, checked_by, checked_at
+              from accounting.financial_reconciliation_checkpoints
+              where tenant_id = ${tenant!.id} and id = ${checkpoint.id}
+            `
+          )
+          assert.strictEqual(
+            (invalidVerifiedCounts as { constraint_name?: string }).constraint_name,
+            "financial_reconciliation_checkpoints_verified_counts_check",
+          )
 
           const makeMatrixService = (
             databaseLayer: Layer.Layer<DatabaseService> = Layer.succeed(Database, database),

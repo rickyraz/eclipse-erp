@@ -596,6 +596,11 @@ export const financialReconciliationCheckpoints = accountingSchema.table(
       "financial_reconciliation_checkpoints_count_check",
       sql`${table.mismatchCount} >= 0 and ${table.orphanCount} >= 0`,
     ),
+    check(
+      "financial_reconciliation_checkpoints_verified_counts_check",
+      sql`${table.status} <> 'verified' or
+        (${table.mismatchCount} = 0 and ${table.orphanCount} = 0)`,
+    ),
     index("financial_reconciliation_checkpoints_scope_index").on(
       table.tenantId,
       table.legalEntityId,
