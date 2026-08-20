@@ -588,6 +588,35 @@ it.effect.skipIf(databaseUrl === undefined)(
               where tenant_id = ${tenant!.id} and legal_entity_id = ${legalEntity!.id}
             `
           )
+          const mixedMappingOperation = yield* operationService.createJournalIntent({
+            ...operationInput,
+            operationId: `cutover-mapping-v2-${crypto.randomUUID()}`,
+            reference: `cutover-mapping-v2-${crypto.randomUUID()}`,
+            mappingVersion: 2,
+          })
+          const mixedMappingAccepted = yield* operationService.submitFinancialOperation({
+            tenantId: tenant!.id,
+            operationId: mixedMappingOperation.operationId,
+          })
+          assert.strictEqual(mixedMappingAccepted.status, "reconciled")
+          const mixedMappingCheckpoint = yield* Effect.flip(
+            operationService.reconcileFinancialCheckpoint({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: legalEntity!.id,
+              recoveryWatermark: `mixed-mapping-${crypto.randomUUID()}`,
+              sourceWatermark: "postgres:mixed-mapping",
+              targetWatermark: "tigerbeetle:mixed-mapping",
+              sourceSnapshotRef: "postgres:mixed-mapping-snapshot",
+              targetSnapshotRef: "tigerbeetle:mixed-mapping-snapshot",
+              evidenceArtifactId: null,
+            }),
+          )
+          assert.instanceOf(
+            mixedMappingCheckpoint,
+            FinancialReconciliationCheckpointEvidenceInvalid,
+          )
+          assert.strictEqual(mixedMappingCheckpoint.reason, "mapping_version_mismatch")
 
           const [otherOrganization] = yield* Effect.promise(() =>
             client<{ id: string }[]>`

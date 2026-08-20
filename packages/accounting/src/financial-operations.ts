@@ -377,7 +377,13 @@ export class FinancialReconciliationCheckpointEvidenceInvalid
     {
       tenantId: Uuid,
       legalEntityId: Uuid,
-      reason: Schema.Literals(["not_found", "scope_mismatch", "provenance_mismatch", "rejected"]),
+      reason: Schema.Literals([
+        "not_found",
+        "scope_mismatch",
+        "provenance_mismatch",
+        "mapping_version_mismatch",
+        "rejected",
+      ]),
     },
   ) {}
 
@@ -1447,6 +1453,16 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           )).orderBy(financialOperations.createdAt),
         "accounting.financial_reconciliation_checkpoint.operations",
       )
+      const mappingVersions = new Set(operations.map((operation) => operation.mappingVersion))
+      if (mappingVersions.size > 1) {
+        return yield* Effect.fail(
+          new FinancialReconciliationCheckpointEvidenceInvalid({
+            tenantId: decoded.tenantId,
+            legalEntityId: decoded.legalEntityId,
+            reason: "mapping_version_mismatch",
+          }),
+        )
+      }
       const sourceOperations: Array<FinancialFactSnapshot["operations"][number]> = []
       const targetOperations: Array<FinancialFactSnapshot["operations"][number]> = []
       const sourceBalanceTotals = new Map<string, {

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=230
+total=231
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -232,13 +232,14 @@ gate bash -c 'grep -Fq "outcome.operationId !== current.operationId" packages/ac
 gate bash -c 'grep -Fq "const missingTransfers" packages/accounting/src/financial-operations.ts && grep -Fq "financial_projection_rebuild.operation" packages/accounting/src/financial-operations.ts && grep -Fq "failingRebuildMessaging" packages/accounting/tests/financial-operations.postgres.test.ts && grep -Fq "failedTransfers!.count, 0" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "FinancialReconciliationCheckpointConflict" packages/accounting/src/financial-operations.ts && grep -Fq "matchesCheckpointRequest" packages/accounting/src/financial-operations.ts && grep -Fq "checkpointConflict" packages/accounting/tests/financial-operations.postgres.test.ts'
 gate bash -c 'grep -Fq "operationId: outcome.operationId" packages/accounting/src/financial-operations.ts && grep -Fq "mappingVersion: outcome.mappingVersion" packages/accounting/src/financial-operations.ts && grep -Fq "mismatchedCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-operations.postgres.test.ts'
-gate bash -c 'grep -Fq "reason: Schema.Literals([\"not_found\", \"scope_mismatch\", \"provenance_mismatch\", \"rejected\"])" packages/accounting/src/financial-operations.ts && grep -Fq "provenanceMatches" packages/accounting/src/financial-operations.ts && grep -Fq "provenanceMismatch.reason, \"provenance_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
+gate bash -c 'grep -Fq "mapping_version_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "provenanceMatches" packages/accounting/src/financial-operations.ts && grep -Fq "provenanceMismatch.reason, \"provenance_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "financial_verification_artifact.configuration" packages/accounting/src/service.ts && grep -Fq "configuration?.baseCurrency !== decoded.evidence.currency" packages/accounting/src/service.ts && grep -Fq "wrongCurrency.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "artifact.evidence.currency !== configuration.baseCurrency" packages/accounting/src/service.ts && grep -Fq "driftedApproval.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "driftedCheckpoint.reason, \"scope_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "sourceProjections" packages/accounting/src/financial-operations.ts && grep -Fq "targetProjections" packages/accounting/src/financial-operations.ts && grep -Fq "expectedPairs = pairMinorTransfers" packages/accounting/src/financial-operations.ts && grep -Fq "missingProjectionCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "sourceBalanceTotals" packages/accounting/src/financial-operations.ts && grep -Fq "ledgerOption.value.getBalance" packages/accounting/src/financial-operations.ts && grep -Fq "balanceMismatchCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "journalStatus: journalEntries.status" packages/accounting/src/financial-operations.ts && grep -Fq "draftCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "journal_status: \"draft\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "status: financialOperationTransfers.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: transfer.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: \"accepted\"" packages/accounting/src/financial-operations.ts && grep -Fq "quarantinedTransferCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "status: \"unresolved\"" packages/accounting/tests/financial-readiness.test.ts'
+gate bash -c 'grep -Fq "mapping_version_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "const mappingVersions = new Set" packages/accounting/src/financial-operations.ts && grep -Fq "mixedMappingCheckpoint.reason, \"mapping_version_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "mappingVersion: 2" packages/accounting/tests/financial-cutover.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
