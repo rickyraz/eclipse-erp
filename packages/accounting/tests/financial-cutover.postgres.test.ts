@@ -700,6 +700,19 @@ it.effect.skipIf(databaseUrl === undefined)(
               )
             `
           )
+          const manualRecoveryCheckpoint = yield* operationService.reconcileFinancialCheckpoint({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: otherEntity!.id,
+            recoveryWatermark: `manual-recovery-checkpoint-${crypto.randomUUID()}`,
+            sourceWatermark: "postgres:manual-recovery-checkpoint",
+            targetWatermark: "tigerbeetle:manual-recovery-checkpoint",
+            sourceSnapshotRef: "postgres:manual-recovery-checkpoint-snapshot",
+            targetSnapshotRef: "tigerbeetle:manual-recovery-checkpoint-snapshot",
+            evidenceArtifactId: null,
+          })
+          assert.strictEqual(manualRecoveryCheckpoint.status, "blocked")
+          assert.isAbove(manualRecoveryCheckpoint.mismatchCount, 0)
           const manualRecoveryApproval = yield* Effect.flip(
             service.approveTigerBeetleCutover({
               principal,

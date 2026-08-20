@@ -366,7 +366,7 @@ const sum = (entries: readonly OpeningBalance[], field: "debitsMinor" | "credits
 /** Exact account-level comparison; no tolerance is applied to integer ledger amounts. */
 export const FinancialOperationFact = Schema.Struct({
   operationId: Schema.String.check(Schema.isPattern(/\S/)),
-  status: Schema.Literals(["accepted", "reconciled"]),
+  status: Schema.Literals(["accepted", "reconciled", "manual_recovery"]),
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
 })

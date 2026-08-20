@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=232
+total=233
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -241,6 +241,7 @@ gate bash -c 'grep -Fq "journalStatus: journalEntries.status" packages/accountin
 gate bash -c 'grep -Fq "status: financialOperationTransfers.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: transfer.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: \"accepted\"" packages/accounting/src/financial-operations.ts && grep -Fq "quarantinedTransferCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "status: \"unresolved\"" packages/accounting/tests/financial-readiness.test.ts'
 gate bash -c 'grep -Fq "mapping_version_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "const mappingVersions = new Set" packages/accounting/src/financial-operations.ts && grep -Fq "mixedMappingCheckpoint.reason, \"mapping_version_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "mappingVersion: 2" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -A5 -F "inArray(financialOperations.status" packages/accounting/src/service.ts | grep -Fq "manual_recovery" && grep -Fq "manualRecoveryApproval.reason, \"unresolved_operations\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "manual-recovery-approval-operation" packages/accounting/tests/financial-cutover.postgres.test.ts'
+gate bash -c 'grep -Fq "inArray(financialOperations.status, [\"accepted\", \"reconciled\", \"manual_recovery\"])" packages/accounting/src/financial-operations.ts && grep -Fq "status: Schema.Literals([\"accepted\", \"reconciled\", \"manual_recovery\"])" packages/accounting/src/financial-readiness.ts && grep -Fq "manualRecoveryCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
