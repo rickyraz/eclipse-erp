@@ -442,6 +442,22 @@ describe("accounting contract", () => {
       assert.strictEqual(malformed._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed financial operation timestamps", () =>
+    Effect.gen(function* () {
+      const scheduled = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation.fields.scheduledAt)("2026-08-20"),
+      )
+      assert.strictEqual(scheduled._tag, "SchemaError")
+      const submitted = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation.fields.submittedAt)("not-a-timestamp"),
+      )
+      assert.strictEqual(submitted._tag, "SchemaError")
+      const reconciled = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation.fields.reconciledAt)("2026-08-20"),
+      )
+      assert.strictEqual(reconciled._tag, "SchemaError")
+    }))
+
   it.effect("accepts revenue posting without a caller amount", () =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(PostRevenueForOrderInput)({

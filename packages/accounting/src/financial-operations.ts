@@ -138,14 +138,14 @@ export const FinancialOperation = Schema.Struct({
   mappingVersion: PositiveInt,
   status: FinancialOperationStatus,
   attempts: NonNegativeInt,
-  scheduledAt: Schema.String,
-  submittedAt: Schema.NullOr(Schema.String),
+  scheduledAt: InstantString,
+  submittedAt: Schema.NullOr(InstantString),
   engineAcceptedAt: Schema.NullOr(NonEmptyString),
   rejectionReason: Schema.NullOr(NonEmptyString),
   recoveryReason: Schema.NullOr(NonEmptyString),
   observedEngine: Schema.NullOr(Schema.Literals(["postgresql", "tigerbeetle"])),
   lastError: Schema.NullOr(NonEmptyString),
-  reconciledAt: Schema.NullOr(Schema.String),
+  reconciledAt: Schema.NullOr(InstantString),
 })
 export type FinancialOperation = Schema.Schema.Type<typeof FinancialOperation>
 
