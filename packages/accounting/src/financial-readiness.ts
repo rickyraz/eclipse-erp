@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
+import { FINANCIAL_LEDGER_MAX_MINOR } from "../../kernel/mod.ts"
 import { EventEnvelope } from "../../messaging/mod.ts"
 
 export const FinancialFailurePoint = Schema.Literals([
@@ -253,6 +254,12 @@ export type OpeningBalanceMismatch = Readonly<{
 
 const Hash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9][0-9]*)$/))
+const PositiveMinorAmount = Schema.String.check(
+  Schema.makeFilter(
+    (value) => /^[1-9][0-9]*$/.test(value) && BigInt(value) <= FINANCIAL_LEDGER_MAX_MINOR,
+    { expected: "a positive unsigned 128-bit minor amount" },
+  ),
+)
 const Count = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
 )
@@ -392,7 +399,7 @@ export const FinancialTransferFact = Schema.Struct({
   transferId: Schema.String.check(Schema.isPattern(/\S/)),
   debitAccountId: Schema.String.check(Schema.isPattern(/\S/)),
   creditAccountId: Schema.String.check(Schema.isPattern(/\S/)),
-  amountMinor: MinorAmount,
+  amountMinor: PositiveMinorAmount,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
 }).check(Schema.makeFilter(

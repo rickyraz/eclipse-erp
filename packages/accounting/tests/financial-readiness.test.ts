@@ -92,6 +92,20 @@ describe("financial readiness proofs", () => {
       assert.strictEqual(failure._tag, "SchemaError")
     }))
 
+  it.effect("rejects financial transfer amounts outside the positive U128 range", () =>
+    Effect.gen(function* () {
+      const zero = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact.fields.amountMinor)("0"),
+      )
+      assert.strictEqual(zero._tag, "SchemaError")
+      const overflow = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact.fields.amountMinor)(
+          "340282366920938463463374607431768211456",
+        ),
+      )
+      assert.strictEqual(overflow._tag, "SchemaError")
+    }))
+
   it.effect("rejects verification evidence that completes before it starts", () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
