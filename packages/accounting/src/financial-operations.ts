@@ -65,6 +65,13 @@ const NonNegativeInt = Schema.Int.check(
 )
 const InstantString = EventEnvelope.fields.occurredAt
 const Money = FinancialMajorAmount
+const operationTypeMatchesSourceJournal = (operation: {
+  readonly operationType: string
+  readonly sourceJournalId: string | null
+}) =>
+  operation.operationType === "journal_reverse"
+    ? operation.sourceJournalId !== null
+    : operation.sourceJournalId === null
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 
 export const FinancialOperationStatus = Schema.Literals([
@@ -146,7 +153,10 @@ export const FinancialOperation = Schema.Struct({
   observedEngine: Schema.NullOr(Schema.Literals(["postgresql", "tigerbeetle"])),
   lastError: Schema.NullOr(NonEmptyString),
   reconciledAt: Schema.NullOr(InstantString),
-})
+}).check(Schema.makeFilter(
+  operationTypeMatchesSourceJournal,
+  { expected: "financial operation type matches source journal" },
+))
 export type FinancialOperation = Schema.Schema.Type<typeof FinancialOperation>
 
 export const FinancialOperationJournalLine = Schema.Struct({
@@ -171,7 +181,10 @@ export const CreateFinancialJournalIntentInput = Schema.Struct({
   ),
   lines: Schema.Array(FinancialOperationJournalLine),
   correlationId: NonEmptyString,
-})
+}).check(Schema.makeFilter(
+  operationTypeMatchesSourceJournal,
+  { expected: "financial operation type matches source journal" },
+))
 
 export const CreateFinancialRevenueIntentInput = Schema.Struct({
   principal: Principal,

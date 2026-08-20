@@ -24,6 +24,7 @@ import {
   AccountingService,
   AccountNotFound,
   ConfigureRevenuePostingInput,
+  CreateFinancialJournalIntentInput,
   CreateFinancialRevenueIntentInput,
   FinancialCutoverControl,
   FinancialEngineCutoverBlocked,
@@ -494,6 +495,81 @@ describe("accounting contract", () => {
         ),
       )
       assert.strictEqual(overflow._tag, "SchemaError")
+    }))
+
+  it.effect("rejects mismatched financial operation source identities", () =>
+    Effect.gen(function* () {
+      const operation = {
+        id: "00000000-0000-4000-8000-000000000020",
+        tenantId,
+        legalEntityId: "00000000-0000-4000-8000-000000000021",
+        periodId: "00000000-0000-4000-8000-000000000022",
+        operationId: "operation-1",
+        engine: "postgresql",
+        engineVerified: true,
+        journalId: "00000000-0000-4000-8000-000000000023",
+        reference: "reference-1",
+        currency: "USD",
+        mappingVersion: 1,
+        status: "intent",
+        attempts: 0,
+        scheduledAt: "2026-08-20T00:00:00.000Z",
+        submittedAt: null,
+        engineAcceptedAt: null,
+        rejectionReason: null,
+        recoveryReason: null,
+        observedEngine: null,
+        lastError: null,
+        reconciledAt: null,
+      }
+      const reversedWithoutSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation)({
+          ...operation,
+          operationType: "journal_reverse",
+          sourceJournalId: null,
+        }),
+      )
+      assert.strictEqual(reversedWithoutSource._tag, "SchemaError")
+      const postedWithSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperation)({
+          ...operation,
+          operationType: "journal_post",
+          sourceJournalId: "00000000-0000-4000-8000-000000000024",
+        }),
+      )
+      assert.strictEqual(postedWithSource._tag, "SchemaError")
+
+      const intent = {
+        principal,
+        tenantId,
+        legalEntityId: "00000000-0000-4000-8000-000000000021",
+        operationId: "operation-1",
+        reference: "reference-1",
+        currency: "USD",
+        mappingVersion: 1,
+        lines: [{
+          accountId: "00000000-0000-4000-8000-000000000025",
+          debit: "1",
+          credit: "0",
+        }],
+        correlationId: "correlation-1",
+      }
+      const reversedIntentWithoutSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)({
+          ...intent,
+          operationType: "journal_reverse",
+          sourceJournalId: null,
+        }),
+      )
+      assert.strictEqual(reversedIntentWithoutSource._tag, "SchemaError")
+      const postedIntentWithSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)({
+          ...intent,
+          operationType: "journal_post",
+          sourceJournalId: "00000000-0000-4000-8000-000000000024",
+        }),
+      )
+      assert.strictEqual(postedIntentWithSource._tag, "SchemaError")
     }))
 
   it.effect("rejects financial operation attempts outside PostgreSQL integer range", () =>
