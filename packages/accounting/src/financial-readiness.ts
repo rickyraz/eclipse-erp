@@ -263,6 +263,9 @@ const PositiveMinorAmount = Schema.String.check(
 const Count = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
 )
+const PositiveInt = Schema.Int.check(
+  Schema.isBetween({ minimum: 1, maximum: 0x7fffffff }),
+)
 const PositiveSmallInt = Schema.Int.check(
   Schema.isBetween({ minimum: 1, maximum: 0x7fff }),
 )
@@ -388,7 +391,7 @@ export const FinancialOperationFact = Schema.Struct({
     "reconciled",
   ]),
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
-  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  mappingVersion: PositiveInt,
 })
 export type FinancialOperationFact = Schema.Schema.Type<typeof FinancialOperationFact>
 
@@ -401,7 +404,7 @@ export const FinancialTransferFact = Schema.Struct({
   creditAccountId: Schema.String.check(Schema.isPattern(/\S/)),
   amountMinor: PositiveMinorAmount,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
-  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  mappingVersion: PositiveInt,
 }).check(Schema.makeFilter(
   (transfer) => transfer.debitAccountId !== transfer.creditAccountId,
   { expected: "financial transfer accounts must be distinct" },

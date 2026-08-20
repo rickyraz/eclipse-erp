@@ -7,6 +7,7 @@ import {
   compareFinancialFactSnapshots,
   financialFailureExecutionMatrix,
   financialFailureMatrix,
+  FinancialOperationFact,
   FinancialTransferFact,
   FinancialVerificationEvidence,
   hashFinancialFactSnapshot,
@@ -90,6 +91,22 @@ describe("financial readiness proofs", () => {
         }),
       )
       assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects financial fact mapping versions outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const operationFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialOperationFact.fields.mappingVersion)(
+          2_147_483_648,
+        ),
+      )
+      assert.strictEqual(operationFailure._tag, "SchemaError")
+      const transferFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialTransferFact.fields.mappingVersion)(
+          2_147_483_648,
+        ),
+      )
+      assert.strictEqual(transferFailure._tag, "SchemaError")
     }))
 
   it.effect("rejects financial transfer positions outside PostgreSQL integer range", () =>
