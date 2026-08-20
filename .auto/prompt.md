@@ -50,6 +50,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 16. Accounting reconciliation checkpoint counts preserve the PostgreSQL non-negative integer invariant at the public boundary.
 17. Accounting reconciliation checkpoint timestamps preserve the persisted timezone-qualified instant contract at the public boundary.
 18. Accounting financial-operation timestamps preserve the persisted timezone-qualified instant contract at the public boundary.
+19. Financial verification evidence preserves timezone-qualified timestamps and the completed-at-after-start invariant at the public boundary.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -68,3 +69,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Reconciliation checkpoints persist mismatch and orphan counts as non-negative PostgreSQL `integer` values, so the public checkpoint schema must reject negative and overflowing counts.
 - Reconciliation checkpoints persist `checkedAt` as PostgreSQL `timestamptz`, so the public checkpoint schema must reject date-only and malformed timestamp strings.
 - Financial operations persist scheduled, submitted, and reconciled timestamps as PostgreSQL `timestamptz`, so the public operation schema must reject date-only and malformed timestamp strings.
+- Financial verification artifacts persist `startedAt` and `completedAt` as PostgreSQL `timestamptz` with `completedAt >= startedAt`, so the public evidence schema must preserve both the instant shape and ordering invariant.

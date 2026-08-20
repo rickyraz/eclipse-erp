@@ -1,6 +1,8 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
+import { EventEnvelope } from "../../messaging/mod.ts"
+
 export const FinancialFailurePoint = Schema.Literals([
   "A_before_intent_commit",
   "B_after_intent_before_submission",
@@ -257,6 +259,7 @@ const Count = Schema.Int.check(
 const PositiveSmallInt = Schema.Int.check(
   Schema.isBetween({ minimum: 1, maximum: 0x7fff }),
 )
+const InstantString = EventEnvelope.fields.occurredAt
 
 export const FinancialVerificationEvidence = Schema.Struct({
   tenantId: Schema.String.check(Schema.isUUID()),
@@ -291,9 +294,12 @@ export const FinancialVerificationEvidence = Schema.Struct({
   operationCount: Count,
   transferCount: Count,
   mismatchCount: Count,
-  startedAt: Schema.String.check(Schema.isPattern(/\S/)),
-  completedAt: Schema.String.check(Schema.isPattern(/\S/)),
-})
+  startedAt: InstantString,
+  completedAt: InstantString,
+}).check(Schema.makeFilter(
+  (evidence) => Date.parse(evidence.completedAt) >= Date.parse(evidence.startedAt),
+  { expected: "completedAt at or after startedAt" },
+))
 export type FinancialVerificationEvidence = Schema.Schema.Type<typeof FinancialVerificationEvidence>
 
 const evidenceKeys = [

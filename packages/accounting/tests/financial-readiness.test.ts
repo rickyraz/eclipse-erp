@@ -73,6 +73,41 @@ describe("financial readiness proofs", () => {
       assert.strictEqual(failure._tag, "SchemaError")
     }))
 
+  it.effect("rejects verification evidence that completes before it starts", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationEvidence)({
+          tenantId: "00000000-0000-4000-8000-000000000001",
+          legalEntityId: "00000000-0000-4000-8000-000000000002",
+          kind: "cutover_rehearsal",
+          completeness: "bounded",
+          scope: "test",
+          schemaVersion: 1,
+          mappingVersion: 1,
+          currency: "USD",
+          sourceWatermark: "source",
+          targetWatermark: "target",
+          sourceSnapshotRef: "source",
+          targetSnapshotRef: "target",
+          operationSetHash: "0".repeat(64),
+          accountBalanceHash: "0".repeat(64),
+          transferSetHash: "0".repeat(64),
+          projectionHash: null,
+          sourceDebitMinor: "0",
+          sourceCreditMinor: "0",
+          targetDebitMinor: "0",
+          targetCreditMinor: "0",
+          accountCount: 0,
+          operationCount: 0,
+          transferCount: 0,
+          mismatchCount: 0,
+          startedAt: "2026-08-18T00:01:00.000Z",
+          completedAt: "2026-08-18T00:00:00.000Z",
+        }),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
   it.effect("rebuilds the same cross-store facts to the same hash", () =>
     Effect.gen(function* () {
       const source = {
