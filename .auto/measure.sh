@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=229
+total=230
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -238,6 +238,7 @@ gate bash -c 'grep -Fq "artifact.evidence.currency !== configuration.baseCurrenc
 gate bash -c 'grep -Fq "sourceProjections" packages/accounting/src/financial-operations.ts && grep -Fq "targetProjections" packages/accounting/src/financial-operations.ts && grep -Fq "expectedPairs = pairMinorTransfers" packages/accounting/src/financial-operations.ts && grep -Fq "missingProjectionCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "sourceBalanceTotals" packages/accounting/src/financial-operations.ts && grep -Fq "ledgerOption.value.getBalance" packages/accounting/src/financial-operations.ts && grep -Fq "balanceMismatchCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "journalStatus: journalEntries.status" packages/accounting/src/financial-operations.ts && grep -Fq "draftCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "journal_status: \"draft\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
+gate bash -c 'grep -Fq "status: financialOperationTransfers.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: transfer.status" packages/accounting/src/financial-operations.ts && grep -Fq "status: \"accepted\"" packages/accounting/src/financial-operations.ts && grep -Fq "quarantinedTransferCheckpoint.status, \"blocked\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "status: \"unresolved\"" packages/accounting/tests/financial-readiness.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

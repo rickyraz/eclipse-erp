@@ -85,6 +85,7 @@ describe("financial readiness proofs", () => {
         transfers: [{
           operationId: "op-1",
           position: 0,
+          status: "accepted" as const,
           transferId: "transfer-1",
           debitAccountId: "cash",
           creditAccountId: "revenue",
@@ -142,6 +143,12 @@ describe("financial readiness proofs", () => {
       })
       assert.isFalse(mismatch.ok)
       assert.strictEqual(mismatch.mismatches[0]!.kind, "transfer_mismatch")
+      const statusMismatch = compareFinancialFactSnapshots(source, {
+        ...target,
+        transfers: [{ ...target.transfers[0]!, status: "unresolved" }],
+      })
+      assert.isFalse(statusMismatch.ok)
+      assert.strictEqual(statusMismatch.mismatches[0]!.kind, "transfer_mismatch")
     }))
 
   it("requires exact account-level opening-balance equality", () => {

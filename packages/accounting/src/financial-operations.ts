@@ -1531,6 +1531,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
               creditAccountId: financialOperationTransfers.creditAccountId,
               amountMinor: financialOperationTransfers.amountMinor,
               engineTransferId: financialOperationTransfers.engineTransferId,
+              status: financialOperationTransfers.status,
             }).from(financialOperationTransfers).where(and(
               eq(financialOperationTransfers.tenantId, decoded.tenantId),
               eq(financialOperationTransfers.operationId, operation.id),
@@ -1542,6 +1543,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
           sourceTransfers.push({
             operationId: operation.operationId,
             position: transfer.position,
+            status: transfer.status,
             transferId: transfer.engineTransferId ?? expectedTransferIds[transfer.position] ??
               `missing:${transfer.position}`,
             debitAccountId: transfer.debitAccountId,
@@ -1580,6 +1582,7 @@ export const makeFinancialOperationService = Effect.gen(function* () {
             targetTransfers.push({
               operationId: outcome.operationId,
               position: expectedPair.position,
+              status: "accepted",
               transferId: transferId ?? `missing:${expectedPair.position}`,
               debitAccountId: expectedPair.debitAccountId,
               creditAccountId: expectedPair.creditAccountId,

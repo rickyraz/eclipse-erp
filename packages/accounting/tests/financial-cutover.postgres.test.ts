@@ -481,6 +481,29 @@ it.effect.skipIf(databaseUrl === undefined)(
             operationId: failedInput.operationId,
           })
           assert.strictEqual(recovered.status, "reconciled")
+          yield* Effect.promise(() =>
+            client`
+              update accounting.financial_operation_transfers
+              set status = 'manual_recovery'
+              where tenant_id = ${tenant!.id} and operation_id = ${operation.id}
+            `
+          )
+          const quarantinedTransferCheckpoint = yield* operationService
+            .reconcileFinancialCheckpoint(
+              {
+                principal,
+                tenantId: tenant!.id,
+                legalEntityId: legalEntity!.id,
+                recoveryWatermark: `quarantined-transfer-${crypto.randomUUID()}`,
+                sourceWatermark: "postgres:quarantined-transfer",
+                targetWatermark: "tigerbeetle:quarantined-transfer",
+                sourceSnapshotRef: "postgres:quarantined-transfer-snapshot",
+                targetSnapshotRef: "tigerbeetle:quarantined-transfer-snapshot",
+                evidenceArtifactId: null,
+              },
+            )
+          assert.strictEqual(quarantinedTransferCheckpoint.status, "blocked")
+          assert.isAbove(quarantinedTransferCheckpoint.mismatchCount, 0)
 
           const balanceMismatchLedger = {
             ...operationLedgerService,
