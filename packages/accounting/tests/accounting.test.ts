@@ -26,6 +26,7 @@ import {
   FinancialCutoverControl,
   FinancialEngineCutoverBlocked,
   FinancialOperation,
+  FinancialReconciliationCheckpoint,
   JournalEntry,
   JournalIdempotencyConflict,
   makeAccountingTestLayer,
@@ -407,6 +408,20 @@ describe("accounting contract", () => {
       assert.strictEqual(negative._tag, "SchemaError")
       const overflow = yield* Effect.flip(
         Schema.decodeUnknownEffect(FinancialOperation.fields.attempts)(2_147_483_648),
+      )
+      assert.strictEqual(overflow._tag, "SchemaError")
+    }))
+
+  it.effect("rejects financial checkpoint counts outside PostgreSQL integer range", () =>
+    Effect.gen(function* () {
+      const negative = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialReconciliationCheckpoint.fields.mismatchCount)(-1),
+      )
+      assert.strictEqual(negative._tag, "SchemaError")
+      const overflow = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialReconciliationCheckpoint.fields.orphanCount)(
+          2_147_483_648,
+        ),
       )
       assert.strictEqual(overflow._tag, "SchemaError")
     }))

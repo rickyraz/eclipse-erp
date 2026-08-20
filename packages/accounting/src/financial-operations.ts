@@ -251,8 +251,8 @@ export const FinancialReconciliationCheckpoint = Schema.Struct({
   transferSetHash: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/)),
   projectionHash: Schema.NullOr(Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))),
   evidenceArtifactId: Schema.NullOr(Uuid),
-  mismatchCount: Schema.Int,
-  orphanCount: Schema.Int,
+  mismatchCount: NonNegativeInt,
+  orphanCount: NonNegativeInt,
   checkedBy: NonEmptyString,
   checkedAt: Schema.String,
 })

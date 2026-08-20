@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=238
+total=239
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -247,6 +247,7 @@ gate bash -c 'grep -Fq "pendingCheckpoint.status, \"blocked\"" packages/accounti
 gate bash -c 'grep -Fq "hash_mismatch" packages/accounting/src/financial-operations.ts && grep -Fq "operationSetHash: financialVerificationArtifacts.operationSetHash" packages/accounting/src/financial-operations.ts && grep -Fq "hashMismatchCheckpoint.reason, \"hash_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "financialReconciliationCheckpoints" packages/accounting/src/service.ts && grep -Fq "accounting.financial_cutover.approve.checkpoint" packages/accounting/src/service.ts && grep -Fq "missingCheckpointApproval.reason, \"verification_mismatch\"" packages/accounting/tests/financial-cutover.postgres.test.ts && grep -Fq "approval-checkpoint" packages/accounting/tests/financial-cutover.postgres.test.ts'
 gate bash -c 'grep -Fq "financial_reconciliation_checkpoints_verified_counts_check" db/schema/accounting.ts && grep -Fq "financial_reconciliation_checkpoints_verified_counts_check" db/migrations/20260820*/*.sql && grep -Fq "invalidVerifiedCounts" packages/accounting/tests/financial-operations.postgres.test.ts'
+gate bash -c 'grep -Fq "mismatchCount: NonNegativeInt" packages/accounting/src/financial-operations.ts && grep -Fq "orphanCount: NonNegativeInt" packages/accounting/src/financial-operations.ts && grep -q "rejects financial checkpoint counts outside PostgreSQL integer range" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialReconciliationCheckpoint.fields.mismatchCount" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialReconciliationCheckpoint.fields.orphanCount" packages/accounting/tests/accounting.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
