@@ -48,6 +48,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 14. Accounting cutover control unresolved-operation counts preserve the PostgreSQL non-negative integer invariant.
 15. Accounting financial-operation attempt counts preserve the PostgreSQL non-negative integer invariant.
 16. Accounting reconciliation checkpoint counts preserve the PostgreSQL non-negative integer invariant at the public boundary.
+17. Accounting reconciliation checkpoint timestamps preserve the persisted timezone-qualified instant contract at the public boundary.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -64,3 +65,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Cutover controls persist unresolved accepted-operation counts as non-negative PostgreSQL `integer` values, so the public control schema must reject negative and overflowing counts.
 - Financial operations persist retry attempts as non-negative PostgreSQL `integer` values, so the public operation schema must reject negative and overflowing attempts.
 - Reconciliation checkpoints persist mismatch and orphan counts as non-negative PostgreSQL `integer` values, so the public checkpoint schema must reject negative and overflowing counts.
+- Reconciliation checkpoints persist `checkedAt` as PostgreSQL `timestamptz`, so the public checkpoint schema must reject date-only and malformed timestamp strings.

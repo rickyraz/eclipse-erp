@@ -31,7 +31,7 @@ import {
   isDatabaseConstraint,
   requireExactMajorToMinor,
 } from "../../kernel/mod.ts"
-import { EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
+import { EventEnvelope, EventIdempotencyConflict, MessagingService } from "../../messaging/mod.ts"
 import { SalesOrderInvalidState, SalesOrderNotFound, SalesService } from "../../sales/mod.ts"
 import { AccountingCapabilities } from "./capabilities.ts"
 import {
@@ -63,6 +63,7 @@ const PositiveInt = Schema.Int.check(
 const NonNegativeInt = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 0x7fffffff }),
 )
+const InstantString = EventEnvelope.fields.occurredAt
 const Money = FinancialMajorAmount
 const CurrencyCode = Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/))
 
@@ -254,7 +255,7 @@ export const FinancialReconciliationCheckpoint = Schema.Struct({
   mismatchCount: NonNegativeInt,
   orphanCount: NonNegativeInt,
   checkedBy: NonEmptyString,
-  checkedAt: Schema.String,
+  checkedAt: InstantString,
 })
 
 export type CreateFinancialJournalIntentInput = Schema.Schema.Type<
