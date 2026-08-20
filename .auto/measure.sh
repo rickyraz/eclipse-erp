@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=242
+total=243
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -251,6 +251,7 @@ gate bash -c 'grep -Fq "mismatchCount: NonNegativeInt" packages/accounting/src/f
 gate bash -c 'grep -Fq "const InstantString = EventEnvelope.fields.occurredAt" packages/accounting/src/financial-operations.ts && grep -Fq "checkedAt: InstantString" packages/accounting/src/financial-operations.ts && grep -q "rejects malformed financial checkpoint timestamps" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialReconciliationCheckpoint.fields.checkedAt" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "scheduledAt: InstantString" packages/accounting/src/financial-operations.ts && grep -Fq "submittedAt: Schema.NullOr(InstantString)" packages/accounting/src/financial-operations.ts && grep -Fq "reconciledAt: Schema.NullOr(InstantString)" packages/accounting/src/financial-operations.ts && grep -q "rejects malformed financial operation timestamps" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialOperation.fields.scheduledAt" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialOperation.fields.submittedAt" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialOperation.fields.reconciledAt" packages/accounting/tests/accounting.test.ts'
 gate bash -c 'grep -Fq "const InstantString = EventEnvelope.fields.occurredAt" packages/accounting/src/financial-readiness.ts && grep -Fq "startedAt: InstantString" packages/accounting/src/financial-readiness.ts && grep -Fq "completedAt: InstantString" packages/accounting/src/financial-readiness.ts && grep -Fq "Date.parse(evidence.completedAt) >= Date.parse(evidence.startedAt)" packages/accounting/src/financial-readiness.ts && grep -q "rejects verification evidence that completes before it starts" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_verification_artifacts_time_check" db/schema/accounting.ts && grep -Fq "financial_verification_artifacts_time_check" db/migrations/20260818012847_financial_verification_evidence/migration.sql'
+gate bash -c 'grep -Fq "journal reversal state consistent with its status" packages/accounting/src/service.ts && grep -q "rejects contradictory journal reversal state" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(JournalEntry)" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_entries_reversal_state_check" db/schema/accounting.ts && grep -Fq "journal_entries_reversal_state_check" db/migrations/20260816110509_constrain_journal_reversal_state/migration.sql'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

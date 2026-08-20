@@ -358,6 +358,29 @@ describe("accounting contract", () => {
       )
     })))
 
+  it.effect("rejects contradictory journal reversal state", () =>
+    Effect.gen(function* () {
+      const base = {
+        id: "journal-1",
+        tenantId: "tenant-1",
+        reference: "journal-1",
+        postedAt: "2026-08-20T00:00:00.000Z",
+        lines: [{ accountId: "account-1", debit: "1", credit: "0" }],
+      }
+      const missingSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalEntry)({ ...base, status: "reversed" }),
+      )
+      assert.strictEqual(missingSource._tag, "SchemaError")
+      const unexpectedSource = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalEntry)({
+          ...base,
+          status: "posted",
+          reversesEntryId: "source-1",
+        }),
+      )
+      assert.strictEqual(unexpectedSource._tag, "SchemaError")
+    }))
+
   it.effect("rejects blank journal references", () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(

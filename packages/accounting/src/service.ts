@@ -97,7 +97,13 @@ export const JournalEntry = Schema.Struct({
   postedAt: Schema.String,
   reversesEntryId: Schema.optional(Schema.String),
   lines: Schema.Array(JournalLine),
-})
+}).check(Schema.makeFilter(
+  (entry) =>
+    entry.status === "reversed"
+      ? entry.reversesEntryId !== undefined
+      : entry.reversesEntryId === undefined,
+  { expected: "journal reversal state consistent with its status" },
+))
 
 export const AccountingPeriod = Schema.Struct({
   id: Schema.String,
