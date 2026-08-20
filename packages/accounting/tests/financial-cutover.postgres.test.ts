@@ -5,6 +5,7 @@ import * as Layer from "effect/Layer"
 
 import {
   AccountingCapabilities,
+  FinancialEngineCutoverBlocked,
   FinancialLedgerPort,
   FinancialReconciliationCheckpointEvidenceInvalid,
   FinancialVerificationArtifactInvalid,
@@ -638,6 +639,78 @@ it.effect.skipIf(databaseUrl === undefined)(
             values (${tenant!.id}, ${otherEntity!.id}, 'USD', 2, 1, true)
           `
           )
+          const otherPrepared = yield* service.prepareTigerBeetleCutover({
+            principal,
+            tenantId: tenant!.id,
+            legalEntityId: otherEntity!.id,
+          })
+          assert.strictEqual(otherPrepared.status, "preparing_tigerbeetle")
+          const otherEvidence = {
+            ...evidence,
+            legalEntityId: otherEntity!.id,
+            scope: `tenant:${tenant!.id}/legal-entity:${otherEntity!.id}`,
+            sourceWatermark: "postgres:manual-recovery-approval",
+            targetWatermark: "tigerbeetle:manual-recovery-approval",
+            sourceSnapshotRef: "postgres:manual-recovery-approval-snapshot",
+            targetSnapshotRef: "tigerbeetle:manual-recovery-approval-snapshot",
+            sourceDebitMinor: "0",
+            sourceCreditMinor: "0",
+            targetDebitMinor: "0",
+            targetCreditMinor: "0",
+            accountCount: 0,
+            operationCount: 0,
+            transferCount: 0,
+            mismatchCount: 0,
+          }
+          const otherArtifact = yield* service.recordFinancialVerificationArtifact({
+            principal,
+            tenantId: tenant!.id,
+            evidence: otherEvidence,
+          })
+          assert.strictEqual(otherArtifact.status, "verified")
+          const [otherPeriod] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.accounting_periods
+                (tenant_id, legal_entity_id, starts_on, ends_on, status)
+              values (${tenant!.id}, ${otherEntity!.id}, '1900-01-01', '2100-12-31', 'open')
+              returning id
+            `
+          )
+          const [otherJournal] = yield* Effect.promise(() =>
+            client<{ id: string }[]>`
+              insert into accounting.journal_entries (tenant_id, reference, status)
+              values (${tenant!.id}, 'manual-recovery-approval-journal', 'draft')
+              returning id
+            `
+          )
+          yield* Effect.promise(() =>
+            client`
+              insert into accounting.financial_operations (
+                tenant_id, legal_entity_id, period_id, operation_id, operation_type,
+                journal_id, reference, currency, mapping_version, engine, engine_verified,
+                request_fingerprint, actor_principal_id, actor_session_id, status,
+                recovery_reason, observed_engine, last_error
+              ) values (
+                ${tenant!.id}, ${otherEntity!.id}, ${otherPeriod!.id},
+                'manual-recovery-approval-operation', 'journal_post', ${otherJournal!.id},
+                'manual-recovery-approval-reference', 'USD', 1, 'tigerbeetle', true,
+                'manual-recovery-approval-fingerprint', ${principal.userAccountId},
+                ${principal.sessionId}, 'manual_recovery', 'mapping_mismatch',
+                'tigerbeetle', 'manual-recovery-approval-test'
+              )
+            `
+          )
+          const manualRecoveryApproval = yield* Effect.flip(
+            service.approveTigerBeetleCutover({
+              principal,
+              tenantId: tenant!.id,
+              legalEntityId: otherEntity!.id,
+              evidenceArtifactId: otherArtifact.id,
+            }),
+          )
+          assert.instanceOf(manualRecoveryApproval, FinancialEngineCutoverBlocked)
+          assert.strictEqual(manualRecoveryApproval.reason, "unresolved_operations")
+
           const bypass = yield* Effect.flip(Effect.tryPromise({
             try: () =>
               client`

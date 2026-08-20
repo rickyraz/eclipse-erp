@@ -1113,6 +1113,7 @@ export const makeAccountingService = Effect.gen(function* () {
                     "submitted",
                     "accepted",
                     "unknown",
+                    "manual_recovery",
                   ]),
                 )),
               "accounting.financial_cutover.approve.unresolved",
