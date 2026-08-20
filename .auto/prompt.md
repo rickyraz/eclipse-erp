@@ -54,6 +54,7 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 20. Accounting public journal entries preserve the persisted reversal-state invariant.
 21. Accounting public journal lines preserve the persisted single-sided positive-amount invariant.
 22. Accounting public periods preserve the persisted start-before-end date invariant.
+23. Accounting public revenue-posting profiles preserve distinct receivable and revenue account identities.
 
 ## Current status
 - The bounded P3 implementation gates above are present in the current tree.
@@ -76,3 +77,4 @@ Keep the bounded PostgreSQL-internal P3 and ADR-0033 order-lifecycle baseline tr
 - Accounting journal persistence requires posted entries without reversal IDs and reversed entries with a reversal ID, so the public JournalEntry schema must reject contradictory state metadata.
 - Accounting journal-line persistence requires exactly one positive debit or credit amount, so the public JournalLine schema must reject zero-sided and double-sided lines.
 - Accounting periods persist `startsOn <= endsOn`, so both public period output and open-period input schemas must reject reversed dates.
+- Accounting revenue-posting profiles persist distinct receivable and revenue account IDs, so both configuration input and public profile schemas must reject equal IDs.

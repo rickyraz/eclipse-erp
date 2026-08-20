@@ -23,6 +23,7 @@ import {
   AccountingPeriodNotOpen,
   AccountingService,
   AccountNotFound,
+  ConfigureRevenuePostingInput,
   CreateFinancialRevenueIntentInput,
   FinancialCutoverControl,
   FinancialEngineCutoverBlocked,
@@ -34,6 +35,7 @@ import {
   makeAccountingTestLayer,
   OpenPeriodInput,
   PostRevenueForOrderInput,
+  RevenuePostingProfile,
   ReverseRevenueForOrderInput,
   UnbalancedJournal,
 } from "../mod.ts"
@@ -382,6 +384,29 @@ describe("accounting contract", () => {
         }),
       )
       assert.strictEqual(unexpectedSource._tag, "SchemaError")
+    }))
+
+  it.effect("rejects duplicate revenue posting accounts", () =>
+    Effect.gen(function* () {
+      const inputFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(ConfigureRevenuePostingInput)({
+          principal,
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          receivableAccountId: "account-1",
+          revenueAccountId: "account-1",
+        }),
+      )
+      assert.strictEqual(inputFailure._tag, "SchemaError")
+      const outputFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(RevenuePostingProfile)({
+          tenantId,
+          legalEntityId: "legal-entity-a",
+          receivableAccountId: "account-1",
+          revenueAccountId: "account-1",
+        }),
+      )
+      assert.strictEqual(outputFailure._tag, "SchemaError")
     }))
 
   it.effect("rejects reversed accounting period dates", () =>

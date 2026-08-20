@@ -129,7 +129,10 @@ export const RevenuePostingProfile = Schema.Struct({
   legalEntityId: Schema.String,
   receivableAccountId: Schema.String,
   revenueAccountId: Schema.String,
-})
+}).check(Schema.makeFilter(
+  (profile) => profile.receivableAccountId !== profile.revenueAccountId,
+  { expected: "revenue posting accounts must be distinct" },
+))
 
 export type AccountingConfiguration = Schema.Schema.Type<typeof AccountingConfiguration>
 export type Account = Schema.Schema.Type<typeof Account>
@@ -230,7 +233,10 @@ export const ConfigureRevenuePostingInput = Schema.Struct({
   legalEntityId: Schema.String,
   receivableAccountId: Schema.String,
   revenueAccountId: Schema.String,
-})
+}).check(Schema.makeFilter(
+  (profile) => profile.receivableAccountId !== profile.revenueAccountId,
+  { expected: "revenue posting accounts must be distinct" },
+))
 
 export const OpenPeriodInput = Schema.Struct({
   ...ScopedInput,
