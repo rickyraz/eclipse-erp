@@ -572,6 +572,52 @@ describe("accounting contract", () => {
       assert.strictEqual(postedIntentWithSource._tag, "SchemaError")
     }))
 
+  it.effect("rejects contradictory cutover control status metadata", () =>
+    Effect.gen(function* () {
+      const base = {
+        tenantId,
+        legalEntityId: "00000000-0000-4000-8000-000000000041",
+        sourceEngine: "postgresql",
+        targetEngine: "tigerbeetle",
+        cutoverWatermark: null,
+        verificationHash: null,
+        openingBalanceVerified: false,
+        historicalBoundaryVerified: false,
+        reconciliationHealthy: false,
+        backupRecoveryVerified: false,
+        evidenceArtifactId: null,
+        unresolvedAcceptedOperations: 0,
+        approvedBy: null,
+        approvedAt: null,
+        activatedBy: null,
+        activatedAt: null,
+        lastError: null,
+      }
+      const invalidApproval = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl)({
+          ...base,
+          status: "approved",
+        }),
+      )
+      assert.strictEqual(invalidApproval._tag, "SchemaError")
+      const invalidActivation = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialCutoverControl)({
+          ...base,
+          status: "tigerbeetle",
+          cutoverWatermark: "watermark-1",
+          verificationHash: "hash-1",
+          openingBalanceVerified: true,
+          historicalBoundaryVerified: true,
+          reconciliationHealthy: true,
+          backupRecoveryVerified: true,
+          evidenceArtifactId: "00000000-0000-4000-8000-000000000042",
+          approvedBy: "accountant",
+          approvedAt: "2026-08-20T00:00:00.000Z",
+        }),
+      )
+      assert.strictEqual(invalidActivation._tag, "SchemaError")
+    }))
+
   it.effect("rejects financial operation status metadata contradictions", () =>
     Effect.gen(function* () {
       const operation = {

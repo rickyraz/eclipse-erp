@@ -162,7 +162,28 @@ export const FinancialCutoverControl = Schema.Struct({
   activatedBy: Schema.NullOr(NonEmptyString),
   activatedAt: Schema.NullOr(Schema.String),
   lastError: Schema.NullOr(NonEmptyString),
-})
+}).check(Schema.makeFilter(
+  (control) =>
+    !["approved", "activating", "tigerbeetle"].includes(control.status) ||
+    (
+      control.openingBalanceVerified &&
+      control.historicalBoundaryVerified &&
+      control.reconciliationHealthy &&
+      control.backupRecoveryVerified &&
+      control.unresolvedAcceptedOperations === 0 &&
+      control.cutoverWatermark !== null &&
+      control.verificationHash !== null &&
+      control.evidenceArtifactId !== null &&
+      control.approvedBy !== null &&
+      control.approvedAt !== null
+    ),
+  { expected: "cutover approval metadata consistent with status" },
+)).check(Schema.makeFilter(
+  (control) =>
+    control.status !== "tigerbeetle" ||
+    (control.activatedBy !== null && control.activatedAt !== null),
+  { expected: "cutover activation metadata consistent with status" },
+))
 export type FinancialCutoverControl = Schema.Schema.Type<typeof FinancialCutoverControl>
 
 export const FinancialVerificationArtifact = Schema.Struct({

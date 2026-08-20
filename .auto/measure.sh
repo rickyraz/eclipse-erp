@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=252
+total=253
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -261,6 +261,7 @@ gate bash -c 'grep -Fq "financial transfer accounts must be distinct" packages/a
 gate bash -c 'grep -Fq "const PositiveMinorAmount" packages/accounting/src/financial-readiness.ts && grep -Fq "amountMinor: PositiveMinorAmount" packages/accounting/src/financial-readiness.ts && grep -q "rejects financial transfer amounts outside the positive U128 range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialTransferFact.fields.amountMinor" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_amount_check" db/schema/accounting.ts && grep -Fq "financial_operation_transfers_amount_u128_check" db/schema/accounting.ts && grep -Fq "financial_operation_transfers_amount_u128_check" db/migrations/20260819004908_fantastic_unus/migration.sql'
 gate bash -c 'grep -Fq "position: Count" packages/accounting/src/financial-readiness.ts && grep -q "rejects financial transfer positions outside PostgreSQL integer range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialTransferFact.fields.position" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_position_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operation_transfers_position_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
 gate bash -c 'grep -Fq "const PositiveInt" packages/accounting/src/financial-readiness.ts && test "$(grep -Fc "mappingVersion: PositiveInt" packages/accounting/src/financial-readiness.ts)" -eq 2 && grep -q "rejects financial fact mapping versions outside PostgreSQL integer range" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialOperationFact.fields.mappingVersion" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialTransferFact.fields.mappingVersion" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operations_mapping_version_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_operations_mapping_version_check\"" db/migrations/20260817071634_lowly_reavers/migration.sql'
+gate bash -c 'grep -Fq "cutover approval metadata consistent with status" packages/accounting/src/service.ts && grep -Fq "cutover activation metadata consistent with status" packages/accounting/src/service.ts && grep -q "rejects contradictory cutover control status metadata" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_cutover_controls_approval_check" db/schema/accounting.ts && grep -Fq "financial_cutover_controls_activation_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_cutover_controls_approval_check\"" db/migrations/20260817121245_tigerbeetle_controlled_activation/migration.sql && grep -Fq "CONSTRAINT \"financial_cutover_controls_activation_check\"" db/migrations/20260817121245_tigerbeetle_controlled_activation/migration.sql'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
