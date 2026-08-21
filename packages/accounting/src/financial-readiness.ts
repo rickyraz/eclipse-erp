@@ -414,7 +414,7 @@ export type FinancialTransferFact = Schema.Schema.Type<typeof FinancialTransferF
 export const FinancialBalanceFact = Schema.Struct({
   accountId: Schema.String.check(Schema.isPattern(/\S/)),
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
-  mappingVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  mappingVersion: PositiveInt,
   debitsPostedMinor: MinorAmount,
   creditsPostedMinor: MinorAmount,
 })

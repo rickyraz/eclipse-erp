@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 import {
   buildFinancialVerificationEvidence,
   compareFinancialFactSnapshots,
+  FinancialBalanceFact,
   financialFailureExecutionMatrix,
   financialFailureMatrix,
   FinancialOperationFact,
@@ -107,6 +108,12 @@ describe("financial readiness proofs", () => {
         ),
       )
       assert.strictEqual(transferFailure._tag, "SchemaError")
+      const balanceFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialBalanceFact.fields.mappingVersion)(
+          2_147_483_648,
+        ),
+      )
+      assert.strictEqual(balanceFailure._tag, "SchemaError")
     }))
 
   it.effect("rejects financial transfer positions outside PostgreSQL integer range", () =>
