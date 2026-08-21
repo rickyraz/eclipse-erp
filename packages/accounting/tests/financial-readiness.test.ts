@@ -84,14 +84,28 @@ describe("financial readiness proofs", () => {
           position: 0,
           status: "accepted",
           transferId: "transfer-1",
-          debitAccountId: "account-1",
-          creditAccountId: "account-1",
+          debitAccountId: "00000000-0000-4000-8000-000000000001",
+          creditAccountId: "00000000-0000-4000-8000-000000000001",
           amountMinor: "1",
           currency: "USD",
           mappingVersion: 1,
         }),
       )
       assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
+  it.effect("rejects malformed financial fact account identities", () =>
+    Effect.gen(function* () {
+      for (const field of ["debitAccountId", "creditAccountId"] as const) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(FinancialTransferFact.fields[field])("not-a-uuid"),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+      const balanceFailure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialBalanceFact.fields.accountId)("not-a-uuid"),
+      )
+      assert.strictEqual(balanceFailure._tag, "SchemaError")
     }))
 
   it.effect("rejects financial fact mapping versions outside PostgreSQL integer range", () =>

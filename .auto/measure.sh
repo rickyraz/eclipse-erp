@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=265
+total=266
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -274,6 +274,7 @@ gate bash -c 'grep -A2 -F "export const JournalEntry =" packages/accounting/src/
 gate bash -c 'grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "id: Uuid" && grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "tenantId: Uuid" && grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "legalEntityId: Uuid" && grep -q "rejects malformed accounting period identities" packages/accounting/tests/accounting.test.ts && grep -Fq "AccountingPeriod.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "export const accountingPeriods" db/schema/accounting.ts'
 gate bash -c 'test "$(grep -A4 -F "export const RevenuePostingProfile =" packages/accounting/src/service.ts | grep -Fc ": Uuid")" -eq 4 && grep -q "rejects malformed revenue posting profile identities" packages/accounting/tests/accounting.test.ts && grep -Fq "RevenuePostingProfile.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "export const revenuePostingProfiles" db/schema/accounting.ts'
 gate bash -c 'grep -Fq "export const FinancialOperationJournalLine = JournalLine" packages/accounting/src/financial-operations.ts && grep -q "rejects invalid financial intent journal line amounts" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_lines_amount_check" db/schema/accounting.ts'
+gate bash -c 'grep -Fq "debitAccountId: Uuid" packages/accounting/src/financial-readiness.ts && grep -Fq "creditAccountId: Uuid" packages/accounting/src/financial-readiness.ts && grep -A1 -F "export const FinancialBalanceFact =" packages/accounting/src/financial-readiness.ts | grep -Fq "accountId: Uuid" && grep -q "rejects malformed financial fact account identities" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialBalanceFact.fields.accountId" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_debit_account_fkey" db/schema/accounting.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

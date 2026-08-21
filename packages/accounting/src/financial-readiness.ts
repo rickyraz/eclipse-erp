@@ -252,6 +252,7 @@ export type OpeningBalanceMismatch = Readonly<{
   readonly fields?: readonly string[]
 }>
 
+const Uuid = Schema.String.check(Schema.isUUID())
 const Hash = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/))
 const MinorAmount = Schema.String.check(Schema.isPattern(/^(0|[1-9][0-9]*)$/))
 const PositiveMinorAmount = Schema.String.check(
@@ -272,8 +273,8 @@ const PositiveSmallInt = Schema.Int.check(
 const InstantString = EventEnvelope.fields.occurredAt
 
 export const FinancialVerificationEvidence = Schema.Struct({
-  tenantId: Schema.String.check(Schema.isUUID()),
-  legalEntityId: Schema.String.check(Schema.isUUID()),
+  tenantId: Uuid,
+  legalEntityId: Uuid,
   kind: Schema.Literals([
     "opening_balance",
     "historical_boundary",
@@ -400,8 +401,8 @@ export const FinancialTransferFact = Schema.Struct({
   position: Count,
   status: Schema.Literals(["unresolved", "accepted", "rejected", "manual_recovery"]),
   transferId: Schema.String.check(Schema.isPattern(/\S/)),
-  debitAccountId: Schema.String.check(Schema.isPattern(/\S/)),
-  creditAccountId: Schema.String.check(Schema.isPattern(/\S/)),
+  debitAccountId: Uuid,
+  creditAccountId: Uuid,
   amountMinor: PositiveMinorAmount,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   mappingVersion: PositiveInt,
@@ -412,7 +413,7 @@ export const FinancialTransferFact = Schema.Struct({
 export type FinancialTransferFact = Schema.Schema.Type<typeof FinancialTransferFact>
 
 export const FinancialBalanceFact = Schema.Struct({
-  accountId: Schema.String.check(Schema.isPattern(/\S/)),
+  accountId: Uuid,
   currency: Schema.String.check(Schema.isPattern(/^[A-Z]{3}$/)),
   mappingVersion: PositiveInt,
   debitsPostedMinor: MinorAmount,
