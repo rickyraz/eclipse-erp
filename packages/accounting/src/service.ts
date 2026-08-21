@@ -77,8 +77,8 @@ export const AccountingConfiguration = Schema.Struct({
 })
 
 export const Account = Schema.Struct({
-  id: Schema.String,
-  tenantId: Schema.String,
+  id: Uuid,
+  tenantId: Uuid,
   code: Schema.String,
   name: Schema.String,
   type: Schema.Literals(["asset", "liability", "equity", "revenue", "expense"]),

@@ -17,6 +17,7 @@ import {
   MessagingService,
 } from "../../messaging/mod.ts"
 import {
+  Account,
   AccountingCapabilities,
   AccountingConfiguration,
   AccountingConfigurationAlreadyExists,
@@ -684,6 +685,16 @@ describe("accounting contract", () => {
       ) {
         const failure = yield* Effect.flip(
           Schema.decodeUnknownEffect(FinancialOperation)({ ...operation, ...invalidState }),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
+  it.effect("rejects malformed account identities", () =>
+    Effect.gen(function* () {
+      for (const field of ["id", "tenantId"] as const) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(Account.fields[field])("not-a-uuid"),
         )
         assert.strictEqual(failure._tag, "SchemaError")
       }
