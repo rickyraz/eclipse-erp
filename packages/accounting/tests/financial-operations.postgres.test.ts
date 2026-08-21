@@ -802,6 +802,31 @@ it.effect.skipIf(databaseUrl === undefined)(
               returning id
             `
           )
+          const blankOperationId = yield* postgresFailure(() =>
+            client`
+              insert into accounting.financial_operations (
+                tenant_id, legal_entity_id, period_id, operation_id, operation_type,
+                journal_id, source_journal_id, reference, currency, mapping_version,
+                engine, engine_verified, request_fingerprint, actor_principal_id,
+                actor_session_id, status, attempts, scheduled_at, submitted_at,
+                engine_accepted_at, rejection_reason, recovery_reason, observed_engine,
+                last_error, reconciled_at
+              )
+              select tenant_id, legal_entity_id, period_id, '   ', operation_type,
+                ${duplicateJournal!.id}, source_journal_id,
+                ${`blank-operation-reference-${crypto.randomUUID()}`}, currency, mapping_version,
+                engine, engine_verified, request_fingerprint, actor_principal_id,
+                actor_session_id, status, attempts, scheduled_at, submitted_at,
+                engine_accepted_at, rejection_reason, recovery_reason, observed_engine,
+                last_error, reconciled_at
+              from accounting.financial_operations
+              where tenant_id = ${tenant!.id} and id = ${posted.id}
+            `
+          )
+          assert.strictEqual(
+            (blankOperationId as { constraint_name?: string }).constraint_name,
+            "financial_operations_operation_id_check",
+          )
           const duplicateReconciledEvent = yield* postgresFailure(() =>
             client`
               insert into accounting.financial_operations (

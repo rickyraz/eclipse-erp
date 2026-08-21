@@ -511,6 +511,7 @@ export const financialOperations = accountingSchema.table("financial_operations"
   check("financial_operations_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
   check("financial_operations_mapping_version_check", sql`${table.mappingVersion} > 0`),
   check("financial_operations_attempts_check", sql`${table.attempts} >= 0`),
+  check("financial_operations_operation_id_check", sql`${table.operationId} ~ '[^[:space:]]'`),
   check("financial_operations_reference_check", sql`${table.reference} ~ '[^[:space:]]'`),
   check(
     "financial_operations_state_check",

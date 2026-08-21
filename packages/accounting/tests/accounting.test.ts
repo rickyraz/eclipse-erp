@@ -545,6 +545,16 @@ describe("accounting contract", () => {
       assert.strictEqual(failure._tag, "SchemaError")
     }))
 
+  it.effect("rejects blank financial operation identities", () =>
+    Effect.gen(function* () {
+      for (const operationId of ["", "   "]) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(FinancialOperation.fields.operationId)(operationId),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects unresolved cutover operation counts outside PostgreSQL integer range", () =>
     Effect.gen(function* () {
       const negative = yield* Effect.flip(
