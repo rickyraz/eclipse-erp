@@ -67,8 +67,8 @@ const IsoDate = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/))
 const InstantString = EventEnvelope.fields.occurredAt
 
 export const AccountingConfiguration = Schema.Struct({
-  tenantId: Schema.String,
-  legalEntityId: Schema.String,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
   baseCurrency: CurrencyCode,
   precision: Precision,
   fiscalYearStartMonth: FiscalYearStartMonth,

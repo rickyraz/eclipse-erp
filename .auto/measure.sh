@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=258
+total=259
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -267,6 +267,7 @@ gate bash -c 'grep -Fq "approvedAt: Schema.NullOr(InstantString)" packages/accou
 gate bash -c 'grep -Fq "verified financial checkpoints must have zero mismatches and orphans" packages/accounting/src/financial-operations.ts && grep -q "rejects verified financial checkpoints with mismatch evidence" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(FinancialReconciliationCheckpoint)" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_reconciliation_checkpoints_verified_counts_check" db/schema/accounting.ts'
 gate bash -c 'grep -Fq "createdAt: InstantString" packages/accounting/src/service.ts && grep -q "rejects malformed financial verification artifact timestamps" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialVerificationArtifact.fields.createdAt" packages/accounting/tests/accounting.test.ts && grep -Fq "createdAt: createdAt()" db/schema/accounting.ts'
 gate bash -c 'test "$(grep -Fc "mappingVersion: PositiveInt" packages/accounting/src/financial-readiness.ts)" -eq 3 && grep -Fq "FinancialBalanceFact.fields.mappingVersion" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operations_mapping_version_check" db/schema/accounting.ts'
+gate bash -c 'grep -A2 -F "export const AccountingConfiguration" packages/accounting/src/service.ts | grep -Fq "tenantId: Uuid" && grep -A3 -F "export const AccountingConfiguration" packages/accounting/src/service.ts | grep -Fq "legalEntityId: Uuid" && grep -q "rejects malformed accounting configuration identities" packages/accounting/tests/accounting.test.ts && grep -Fq "AccountingConfiguration.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "legalEntityAccountingConfigurations" db/schema/accounting.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"
