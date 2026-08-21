@@ -50,6 +50,7 @@ import {
   AccountNotFound,
   InvalidJournalLine,
   JournalIdempotencyConflict,
+  JournalLine,
   JournalReferenceAlreadyExists,
   RevenuePostingProfileNotFound,
   UnbalancedJournal,
@@ -198,11 +199,7 @@ export const FinancialOperation = Schema.Struct({
 ))
 export type FinancialOperation = Schema.Schema.Type<typeof FinancialOperation>
 
-export const FinancialOperationJournalLine = Schema.Struct({
-  accountId: Uuid,
-  debit: Money,
-  credit: Money,
-})
+export const FinancialOperationJournalLine = JournalLine
 
 export const CreateFinancialJournalIntentInput = Schema.Struct({
   principal: Principal,

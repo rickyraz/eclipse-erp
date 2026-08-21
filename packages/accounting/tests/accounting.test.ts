@@ -636,6 +636,33 @@ describe("accounting contract", () => {
       assert.strictEqual(postedIntentWithSource._tag, "SchemaError")
     }))
 
+  it.effect("rejects invalid financial intent journal line amounts", () =>
+    Effect.gen(function* () {
+      const input = {
+        principal,
+        tenantId,
+        legalEntityId: "00000000-0000-4000-8000-000000000021",
+        operationId: "operation-lines-1",
+        reference: "reference-lines-1",
+        currency: "USD",
+        mappingVersion: 1,
+        correlationId: "correlation-lines-1",
+      }
+      for (const [debit, credit] of [["0", "0"], ["1", "1"]] as const) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)({
+            ...input,
+            lines: [{
+              accountId: "00000000-0000-4000-8000-000000000025",
+              debit,
+              credit,
+            }],
+          }),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects malformed cutover control timestamps", () =>
     Effect.gen(function* () {
       const dateOnly = yield* Effect.flip(
