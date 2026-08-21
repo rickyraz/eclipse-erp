@@ -379,14 +379,28 @@ describe("accounting contract", () => {
       assert.strictEqual(malformed._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed journal entry identities", () =>
+    Effect.gen(function* () {
+      for (const field of ["id", "tenantId", "reversesEntryId"] as const) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(JournalEntry.fields[field])("not-a-uuid"),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects contradictory journal reversal state", () =>
     Effect.gen(function* () {
       const base = {
-        id: "journal-1",
-        tenantId: "tenant-1",
+        id: "00000000-0000-4000-8000-000000000030",
+        tenantId,
         reference: "journal-1",
         postedAt: "2026-08-20T00:00:00.000Z",
-        lines: [{ accountId: "account-1", debit: "1", credit: "0" }],
+        lines: [{
+          accountId: "00000000-0000-4000-8000-000000000031",
+          debit: "1",
+          credit: "0",
+        }],
       }
       const missingSource = yield* Effect.flip(
         Schema.decodeUnknownEffect(JournalEntry)({ ...base, status: "reversed" }),
@@ -396,7 +410,7 @@ describe("accounting contract", () => {
         Schema.decodeUnknownEffect(JournalEntry)({
           ...base,
           status: "posted",
-          reversesEntryId: "source-1",
+          reversesEntryId: "00000000-0000-4000-8000-000000000032",
         }),
       )
       assert.strictEqual(unexpectedSource._tag, "SchemaError")

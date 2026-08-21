@@ -98,12 +98,12 @@ export const JournalLine = Schema.Struct({
 ))
 
 export const JournalEntry = Schema.Struct({
-  id: Schema.String,
-  tenantId: Schema.String,
+  id: Uuid,
+  tenantId: Uuid,
   reference: NonEmptyString,
   status: Schema.Literals(["posted", "reversed"]),
   postedAt: InstantString,
-  reversesEntryId: Schema.optional(Schema.String),
+  reversesEntryId: Schema.optional(Uuid),
   lines: Schema.Array(JournalLine),
 }).check(Schema.makeFilter(
   (entry) =>
