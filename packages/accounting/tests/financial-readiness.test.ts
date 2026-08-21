@@ -142,6 +142,17 @@ describe("financial readiness proofs", () => {
       assert.strictEqual(overflow._tag, "SchemaError")
     }))
 
+  it.effect("preserves rejected financial operation fact status", () =>
+    Effect.gen(function* () {
+      const operation = yield* Schema.decodeUnknownEffect(FinancialOperationFact)({
+        operationId: "rejected-operation",
+        status: "rejected",
+        currency: "USD",
+        mappingVersion: 1,
+      })
+      assert.strictEqual(operation.status, "rejected")
+    }))
+
   it.effect("rejects financial transfer amounts outside the positive U128 range", () =>
     Effect.gen(function* () {
       const zero = yield* Effect.flip(

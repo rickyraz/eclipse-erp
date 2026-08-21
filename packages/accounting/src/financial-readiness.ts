@@ -387,6 +387,7 @@ export const FinancialOperationFact = Schema.Struct({
     "intent",
     "submitted",
     "accepted",
+    "rejected",
     "unknown",
     "manual_recovery",
     "reconciled",
