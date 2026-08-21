@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=255
+total=256
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -264,6 +264,7 @@ gate bash -c 'grep -Fq "const PositiveInt" packages/accounting/src/financial-rea
 gate bash -c 'grep -Fq "cutover approval metadata consistent with status" packages/accounting/src/service.ts && grep -Fq "cutover activation metadata consistent with status" packages/accounting/src/service.ts && grep -q "rejects contradictory cutover control status metadata" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_cutover_controls_approval_check" db/schema/accounting.ts && grep -Fq "financial_cutover_controls_activation_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"financial_cutover_controls_approval_check\"" db/migrations/20260817121245_tigerbeetle_controlled_activation/migration.sql && grep -Fq "CONSTRAINT \"financial_cutover_controls_activation_check\"" db/migrations/20260817121245_tigerbeetle_controlled_activation/migration.sql'
 gate bash -c 'grep -Fq "const InstantString = EventEnvelope.fields.occurredAt" packages/accounting/src/service.ts && grep -Fq "postedAt: InstantString" packages/accounting/src/service.ts && grep -q "rejects non-timezone-qualified journal posted timestamps" packages/accounting/tests/accounting.test.ts && grep -Fq "JournalEntry.fields.postedAt" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_entries_posted_at_check" db/schema/accounting.ts && grep -Fq "CONSTRAINT \"journal_entries_posted_at_check\"" db/migrations/20260801133932_hardened_foundation/migration.sql'
 gate bash -c 'grep -Fq "approvedAt: Schema.NullOr(InstantString)" packages/accounting/src/service.ts && grep -Fq "activatedAt: Schema.NullOr(InstantString)" packages/accounting/src/service.ts && grep -q "rejects malformed cutover control timestamps" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialCutoverControl.fields.approvedAt" packages/accounting/tests/accounting.test.ts && grep -Fq "FinancialCutoverControl.fields.activatedAt" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_cutover_controls_approval_check" db/schema/accounting.ts && grep -Fq "financial_cutover_controls_activation_check" db/schema/accounting.ts'
+gate bash -c 'grep -Fq "verified financial checkpoints must have zero mismatches and orphans" packages/accounting/src/financial-operations.ts && grep -q "rejects verified financial checkpoints with mismatch evidence" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(FinancialReconciliationCheckpoint)" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_reconciliation_checkpoints_verified_counts_check" db/schema/accounting.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

@@ -713,6 +713,34 @@ describe("accounting contract", () => {
       assert.strictEqual(overflow._tag, "SchemaError")
     }))
 
+  it.effect("rejects verified financial checkpoints with mismatch evidence", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialReconciliationCheckpoint)({
+          id: "00000000-0000-4000-8000-000000000030",
+          tenantId,
+          legalEntityId: "00000000-0000-4000-8000-000000000031",
+          engine: "tigerbeetle",
+          status: "verified",
+          recoveryWatermark: "recovery-1",
+          sourceWatermark: "source-1",
+          targetWatermark: "target-1",
+          sourceSnapshotRef: "source-snapshot-1",
+          targetSnapshotRef: "target-snapshot-1",
+          operationSetHash: "0".repeat(64),
+          accountBalanceHash: "1".repeat(64),
+          transferSetHash: "2".repeat(64),
+          projectionHash: null,
+          evidenceArtifactId: null,
+          mismatchCount: 1,
+          orphanCount: 0,
+          checkedBy: "principal-1",
+          checkedAt: "2026-08-20T00:00:00.000Z",
+        }),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
   it.effect("rejects malformed financial checkpoint timestamps", () =>
     Effect.gen(function* () {
       const dateOnly = yield* Effect.flip(

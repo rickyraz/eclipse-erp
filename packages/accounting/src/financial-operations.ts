@@ -308,7 +308,12 @@ export const FinancialReconciliationCheckpoint = Schema.Struct({
   orphanCount: NonNegativeInt,
   checkedBy: NonEmptyString,
   checkedAt: InstantString,
-})
+}).check(Schema.makeFilter(
+  (checkpoint) =>
+    checkpoint.status !== "verified" ||
+    (checkpoint.mismatchCount === 0 && checkpoint.orphanCount === 0),
+  { expected: "verified financial checkpoints must have zero mismatches and orphans" },
+))
 
 export type CreateFinancialJournalIntentInput = Schema.Schema.Type<
   typeof CreateFinancialJournalIntentInput
