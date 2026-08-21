@@ -53,8 +53,27 @@ export const makeWorkerFailpointLayer = (points: Iterable<WorkerFailpointName>) 
   })
 }
 
-const errorTag = (error: unknown): string =>
-  typeof error === "object" && error !== null && "_tag" in error ? String(error._tag) : "Unknown"
+type FinancialOperationFailure = Effect.Error<
+  ReturnType<FinancialOperationService["submitFinancialOperation"]>
+>
+
+const isPermanentFinancialOperationFailure = (error: FinancialOperationFailure): boolean => {
+  switch (error._tag) {
+    case "FinancialOperationNotFound":
+    case "SchemaError":
+      return true
+    case "AuthorizationDenied":
+    case "EventIdempotencyConflict":
+    case "FinancialLedgerNotConfigured":
+    case "FinancialLedgerNotActivated":
+    case "FinancialOperationReconciliationConflict":
+    case "DatabaseFailure":
+    case "FinancialOperationInjectedFailure":
+      return false
+  }
+  const exhaustive: never = error
+  return exhaustive
+}
 
 const retryAfter = (milliseconds: number) => new Date(Date.now() + milliseconds).toISOString()
 
@@ -140,15 +159,14 @@ export const runFinancialOperationOnce = (input: unknown) =>
     }
 
     const error = result.failure
-    const permanent = errorTag(error) === "FinancialOperationNotFound" ||
-      errorTag(error) === "SchemaError"
+    const permanent = isPermanentFinancialOperationFailure(error)
     yield* hit("before_job_failure")
     yield* process.failJob({
       tenantId: decoded.tenantId,
       workerId: decoded.workerId,
       jobId: job.jobId,
       leaseToken: job.leaseToken,
-      error: `financial_operation_${errorTag(error)}`,
+      error: `financial_operation_${error._tag}`,
       retryAt: permanent ? null : retryAfter(5_000),
     })
     return {
