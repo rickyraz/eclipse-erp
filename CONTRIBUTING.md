@@ -4,6 +4,7 @@
 >
 > - Agent and repository rules: [`./AGENTS.md`](./AGENTS.md)
 > - Documentation index: [`./docs/README.md`](./docs/README.md)
+> - Commit-message standard: [`./docs/development/commit-message-guidelines.md`](./docs/development/commit-message-guidelines.md)
 > - ADR index: [`./docs/decisions/README.md`](./docs/decisions/README.md)
 
 ## Workflow
@@ -15,6 +16,12 @@
 5. Add or update tests.
 6. Run all available validation.
 7. Update documentation when behavior or architecture changes.
+8. Follow the [commit-message standard](./docs/development/commit-message-guidelines.md).
+
+## Commit messages
+
+Use the [commit-message standard](./docs/development/commit-message-guidelines.md)
+for every commit created in this repository.
 
 ## Pull Request Checklist
 
@@ -25,5 +32,6 @@
 - [ ] Authorization and tenant isolation were reviewed.
 - [ ] Tests cover behavior, edge cases, and failure paths.
 - [ ] Documentation was updated or marked unnecessary.
+- [ ] Commit messages follow the repository standard.
 - [ ] An ADR was added when architecture changed.
 - [ ] No secrets or sensitive data were introduced.

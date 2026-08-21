@@ -53,6 +53,7 @@ source of truth.
 - Do not encode a financial storage engine such as TigerBeetle in orthogonal
   domain primitives; engine selection belongs in the current financial-ledger ADR.
 - Do not activate Zig without benchmark evidence and a safe fallback.
+- Commits created by agents MUST follow the [commit-message standard](./docs/development/commit-message-guidelines.md); do not rewrite shared history without explicit approval.
 
 ## Repository-Native Skills
 
