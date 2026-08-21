@@ -114,9 +114,9 @@ export const JournalEntry = Schema.Struct({
 ))
 
 export const AccountingPeriod = Schema.Struct({
-  id: Schema.String,
-  tenantId: Schema.String,
-  legalEntityId: Schema.String,
+  id: Uuid,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
   startsOn: IsoDate,
   endsOn: IsoDate,
   status: Schema.Literals(["open", "closed"]),

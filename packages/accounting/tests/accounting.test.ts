@@ -439,6 +439,16 @@ describe("accounting contract", () => {
       assert.strictEqual(outputFailure._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed accounting period identities", () =>
+    Effect.gen(function* () {
+      for (const field of ["id", "tenantId", "legalEntityId"] as const) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(AccountingPeriod.fields[field])("not-a-uuid"),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects reversed accounting period dates", () =>
     Effect.gen(function* () {
       const inputFailure = yield* Effect.flip(
@@ -453,9 +463,9 @@ describe("accounting contract", () => {
       assert.strictEqual(inputFailure._tag, "SchemaError")
       const outputFailure = yield* Effect.flip(
         Schema.decodeUnknownEffect(AccountingPeriod)({
-          id: "period-1",
+          id: "00000000-0000-4000-8000-000000000040",
           tenantId,
-          legalEntityId: "legal-entity-a",
+          legalEntityId: "00000000-0000-4000-8000-000000000041",
           startsOn: "2026-08-20",
           endsOn: "2026-08-19",
           status: "open",
