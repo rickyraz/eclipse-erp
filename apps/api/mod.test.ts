@@ -10,14 +10,14 @@ it.effect("accepts the exact large amount at the API journal boundary", () =>
   Effect.sync(() => {
     assert.isTrue(
       Schema.is(JournalLine)({
-        accountId: "account",
+        accountId: "00000000-0000-4000-8000-000000000001",
         debit: "500000000000000.00",
         credit: "0.00",
       }),
     )
     assert.isFalse(
       Schema.is(JournalLine)({
-        accountId: "account",
+        accountId: "00000000-0000-4000-8000-000000000001",
         debit: "1000000000000000000.00",
         credit: "0.00",
       }),

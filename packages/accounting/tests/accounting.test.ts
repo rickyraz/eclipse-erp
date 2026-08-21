@@ -450,6 +450,14 @@ describe("accounting contract", () => {
       assert.strictEqual(outputFailure._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed journal line account identities", () =>
+    Effect.gen(function* () {
+      const failure = yield* Effect.flip(
+        Schema.decodeUnknownEffect(JournalLine.fields.accountId)("not-a-uuid"),
+      )
+      assert.strictEqual(failure._tag, "SchemaError")
+    }))
+
   it.effect("rejects zero-sided and double-sided journal lines", () =>
     Effect.gen(function* () {
       const zeroSided = yield* Effect.flip(

@@ -85,7 +85,7 @@ export const Account = Schema.Struct({
 })
 
 export const JournalLine = Schema.Struct({
-  accountId: Schema.String,
+  accountId: Uuid,
   debit: Money,
   credit: Money,
 }).check(Schema.makeFilter(
