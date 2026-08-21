@@ -3,10 +3,9 @@ import * as Layer from "effect/Layer"
 import * as Redacted from "effect/Redacted"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 
-import { AuthService, InvalidSessionToken } from "../../packages/auth/mod.ts"
+import { AuthService } from "../../packages/auth/mod.ts"
 import {
   AuthorizationCapabilities,
-  AuthorizationDenied,
   AuthorizationService,
 } from "../../packages/authorization/mod.ts"
 import { IdentityCapabilities, UserAccountService } from "../../packages/identity/mod.ts"
@@ -14,13 +13,8 @@ import { DatabaseFailure } from "../../packages/kernel/mod.ts"
 import { PartyService } from "../../packages/party/mod.ts"
 import { SalesService } from "../../packages/sales/mod.ts"
 import { InventoryService } from "../../packages/inventory/mod.ts"
-import {
-  AccountingService,
-  FinancialLedgerNotConfigured,
-  FinancialOperationService,
-  FinancialSalesNotConfigured,
-} from "../../packages/accounting/mod.ts"
-import { ProcessService, WorkflowOutcomeUnknown } from "../../packages/process/mod.ts"
+import { AccountingService, FinancialOperationService } from "../../packages/accounting/mod.ts"
+import { ProcessService } from "../../packages/process/mod.ts"
 import {
   ApiConflict,
   ApiForbidden,
@@ -32,34 +26,139 @@ import {
   RitseiApi,
 } from "./api.ts"
 
-const tagOf = (error: unknown) =>
-  typeof error === "object" && error !== null && "_tag" in error ? String(error._tag) : "Unknown"
+type ApiErrorKind =
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "invalid_request"
+  | "service_unavailable"
 
-const toApiError = (error: unknown) => {
-  if (
-    error instanceof DatabaseFailure ||
-    error instanceof WorkflowOutcomeUnknown ||
-    error instanceof FinancialLedgerNotConfigured ||
-    error instanceof FinancialSalesNotConfigured
-  ) {
-    return new ApiServiceUnavailable({ code: "service_unavailable" })
-  }
-  if (error instanceof InvalidSessionToken) {
-    return new ApiUnauthorized({ code: "unauthorized" })
-  }
-  if (error instanceof AuthorizationDenied) {
-    return new ApiForbidden({ code: "forbidden" })
-  }
+// Closed-world transport policy for routes compiled into RitseiApi. Plugin, connector,
+// and Process Studio failures are normalized by their own versioned contribution boundary.
+const coreApiErrorPolicy = {
+  AccountAlreadyExists: "conflict",
+  AccountNotFound: "not_found",
+  AccountingConfigurationAlreadyExists: "conflict",
+  AccountingLegalEntityNotFound: "not_found",
+  AccountingPeriodNotFound: "not_found",
+  AccountingPeriodNotOpen: "conflict",
+  AccountingPeriodOverlap: "conflict",
+  AuthorizationDenied: "forbidden",
+  BranchAlreadyExists: "conflict",
+  CapabilityAlreadyGranted: "conflict",
+  CustomerAlreadyExists: "conflict",
+  CustomerNotFound: "not_found",
+  DatabaseFailure: "service_unavailable",
+  EventIdempotencyConflict: "conflict",
+  ExternalIdentifierAlreadyAssigned: "conflict",
+  FinancialCurrencyMismatch: "conflict",
+  FinancialEngineActivated: "conflict",
+  FinancialEngineCutoverBlocked: "conflict",
+  FinancialLedgerNotActivated: "conflict",
+  FinancialLedgerNotConfigured: "service_unavailable",
+  FinancialOperationConflict: "conflict",
+  FinancialOperationInjectedFailure: "conflict",
+  FinancialOperationNotFound: "not_found",
+  FinancialOperationReconciliationConflict: "conflict",
+  FinancialOperationsPending: "conflict",
+  FinancialProjectionRebuildBlocked: "conflict",
+  FinancialReconciliationCheckpointConflict: "conflict",
+  FinancialReconciliationCheckpointEvidenceInvalid: "conflict",
+  FinancialRevenueAmountMismatch: "conflict",
+  FinancialReversalAlreadyExists: "conflict",
+  FinancialReversalSourceNotFound: "not_found",
+  FinancialReversalSourceNotPosted: "conflict",
+  FinancialReversalSourceNotReady: "conflict",
+  FinancialReversalSourceRequired: "conflict",
+  FinancialSalesNotConfigured: "service_unavailable",
+  FinancialVerificationArtifactInvalid: "conflict",
+  FinancialVerificationArtifactNotFound: "not_found",
+  FinancialVerificationKeyGenerationFailure: "conflict",
+  FinancialVerificationKeyNotFound: "not_found",
+  FinancialVerificationSigningFailure: "conflict",
+  FinancialVerificationVerificationFailure: "conflict",
+  InvalidJournalLine: "conflict",
+  InvalidRevenuePostingProfile: "conflict",
+  InventoryReferenceNotFound: "not_found",
+  InventoryUnitOfMeasureMismatch: "conflict",
+  ItemAlreadyExists: "conflict",
+  JournalIdempotencyConflict: "conflict",
+  JournalReferenceAlreadyExists: "conflict",
+  LegalEntityAlreadyExists: "conflict",
+  LegalEntityNotFound: "not_found",
+  OrderConfirmationCorrupt: "conflict",
+  OrderConfirmationNotFound: "not_found",
+  OrganizationRequired: "conflict",
+  PartyNotFound: "not_found",
+  PartyRelationshipAlreadyExists: "conflict",
+  PartyRelationshipRoleNotAssigned: "conflict",
+  PartyRepresentationAlreadyExists: "conflict",
+  PartyRepresentationNotFound: "not_found",
+  PartyRepresentationUserAccountNotFound: "not_found",
+  PartyRoleAlreadyAssigned: "conflict",
+  QuotationNotFound: "not_found",
+  RevenueJournalNotFound: "not_found",
+  RevenuePostingProfileAlreadyExists: "conflict",
+  RevenuePostingProfileNotFound: "not_found",
+  SalesOrderConfirmationIdempotencyConflict: "conflict",
+  SalesOrderInvalidState: "conflict",
+  SalesOrderNotFound: "not_found",
+  SchemaError: "invalid_request",
+  StockCorrectionIdempotencyConflict: "conflict",
+  StockReservationIdempotencyConflict: "conflict",
+  StockReservationInvalidState: "conflict",
+  StockReservationLegalEntityMismatch: "conflict",
+  StockReservationNotFound: "not_found",
+  StockTransferDifferentLegalEntity: "conflict",
+  StockTransferDuplicateItem: "conflict",
+  StockTransferInvalidState: "conflict",
+  StockTransferItemNotFound: "not_found",
+  StockTransferNotFound: "not_found",
+  StockTransferSameWarehouse: "conflict",
+  StockTransferWarehouseNotFound: "not_found",
+  StockUnavailable: "conflict",
+  TenantMembershipAlreadyExists: "conflict",
+  TenantMembershipNotActive: "conflict",
+  TenantMembershipNotFound: "not_found",
+  TenantMembershipUserAccountNotFound: "not_found",
+  TigerBeetleConfigurationFailure: "conflict",
+  UnbalancedJournal: "conflict",
+  UserAccountAlreadyExists: "conflict",
+  UserAccountNotFound: "not_found",
+  WarehouseAlreadyExists: "conflict",
+  WarehouseBranchNotFound: "not_found",
+  WarehouseLegalEntityNotFound: "not_found",
+  WorkflowAlreadyCompleted: "conflict",
+  WorkflowAlreadyInProgress: "conflict",
+  WorkflowIdempotencyConflict: "conflict",
+  WorkflowManualRecoveryRequired: "conflict",
+  WorkflowOutcomeUnknown: "service_unavailable",
+  WorkflowResultCorrupt: "conflict",
+  WorkflowRunNotFound: "not_found",
+} as const satisfies Record<string, ApiErrorKind>
 
-  const tag = tagOf(error)
-  if (tag.endsWith("NotFound") || tag === "InventoryReferenceNotFound") {
-    return new ApiNotFound({ code: tag })
-  }
-  return new ApiConflict({ code: tag === "SchemaError" ? "invalid_request" : tag })
+export type CoreApiFailure = {
+  readonly _tag: keyof typeof coreApiErrorPolicy
 }
 
-const apiEffect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Effect.mapError(toApiError))
+export const toCoreApiError = (error: CoreApiFailure) => {
+  const tag = error._tag
+  switch (coreApiErrorPolicy[tag]) {
+    case "forbidden":
+      return new ApiForbidden({ code: "forbidden" })
+    case "not_found":
+      return new ApiNotFound({ code: tag })
+    case "invalid_request":
+      return new ApiConflict({ code: "invalid_request" })
+    case "service_unavailable":
+      return new ApiServiceUnavailable({ code: "service_unavailable" })
+    case "conflict":
+      return new ApiConflict({ code: tag })
+  }
+}
+
+const coreApiEffect = <A, E extends CoreApiFailure, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(Effect.mapError(toCoreApiError))
 
 export const BearerAuthLive = Layer.effect(
   BearerAuth,
@@ -94,7 +193,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("create", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -110,7 +209,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           return userAccount
         })))
       .handle("list", ({ headers }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -124,7 +223,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("get", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -139,7 +238,7 @@ export const UserAccountHandlers = HttpApiBuilder.group(
           return yield* UserAccountService.use((service) => service.getById(params.id))
         })))
       .handle("update", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -163,14 +262,14 @@ export const PartyHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("create", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* PartyService.use((service) =>
             service.create({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
       .handle("assignRole", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           yield* PartyService.use((service) =>
             service.assignRole({
@@ -182,7 +281,7 @@ export const PartyHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("attachIdentifier", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* PartyService.use((service) =>
             service.attachIdentifier({
@@ -194,7 +293,7 @@ export const PartyHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createRelationship", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* PartyService.use((service) =>
             service.createRelationship({
@@ -213,7 +312,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("addMember", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -227,7 +326,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           })
         })))
       .handle("listMembers", ({ headers }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -238,7 +337,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           return yield* authorization.listMembers(headers["x-tenant-id"])
         })))
       .handle("suspendMember", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -252,7 +351,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           })
         })))
       .handle("activateMember", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -266,7 +365,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           })
         })))
       .handle("removeMember", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -280,7 +379,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
           })
         })))
       .handle("grant", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           const authorization = yield* AuthorizationService
           yield* authorization.authorize({
@@ -299,7 +398,7 @@ export const AuthorizationHandlers = HttpApiBuilder.group(
 export const SalesHandlers = HttpApiBuilder.group(RitseiApi, "Sales", (handlers) =>
   handlers
     .handle("createCustomer", ({ headers, payload }) =>
-      apiEffect(Effect.gen(function* () {
+      coreApiEffect(Effect.gen(function* () {
         const principal = yield* CurrentPrincipal
         return yield* SalesService.use((service) =>
           service.createCustomer({
@@ -310,7 +409,7 @@ export const SalesHandlers = HttpApiBuilder.group(RitseiApi, "Sales", (handlers)
         )
       })))
     .handle("createQuotation", ({ headers, payload }) =>
-      apiEffect(Effect.gen(function* () {
+      coreApiEffect(Effect.gen(function* () {
         const principal = yield* CurrentPrincipal
         return yield* SalesService.use((service) =>
           service.createQuotation({
@@ -321,7 +420,7 @@ export const SalesHandlers = HttpApiBuilder.group(RitseiApi, "Sales", (handlers)
         )
       })))
     .handle("createOrder", ({ headers, payload }) =>
-      apiEffect(Effect.gen(function* () {
+      coreApiEffect(Effect.gen(function* () {
         const principal = yield* CurrentPrincipal
         return yield* SalesService.use((service) =>
           service.createOrder({
@@ -338,7 +437,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("createWarehouse", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.createWarehouse({
@@ -349,7 +448,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createItem", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.createItem({
@@ -360,7 +459,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("receiveStock", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.receiveStock({
@@ -371,7 +470,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("reserveStock", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.reserveStock({
@@ -382,7 +481,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createTransfer", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.createTransfer({
@@ -393,7 +492,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("confirmTransfer", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.confirmTransfer({
@@ -404,7 +503,7 @@ export const InventoryHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("completeTransfer", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* InventoryService.use((service) =>
             service.completeTransfer({
@@ -422,35 +521,35 @@ export const ProcessHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("confirmOrder", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* ProcessService.use((service) =>
             service.confirmOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
       .handle("cancelOrder", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* ProcessService.use((service) =>
             service.cancelOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
       .handle("fulfillOrder", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* ProcessService.use((service) =>
             service.fulfillOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
       .handle("recoverOrder", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* ProcessService.use((service) =>
             service.recoverOrder({ principal, tenantId: headers["x-tenant-id"], ...payload })
           )
         })))
       .handle("manualRecovery", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* ProcessService.use((service) =>
             service.markManualRecovery({ principal, tenantId: headers["x-tenant-id"], ...payload })
@@ -464,7 +563,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("prepareTigerBeetleCutover", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.prepareTigerBeetleCutover({
@@ -475,7 +574,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("recordFinancialVerificationArtifact", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.recordFinancialVerificationArtifact({
@@ -486,7 +585,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("approveTigerBeetleCutover", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.approveTigerBeetleCutover({
@@ -498,7 +597,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("activateTigerBeetleCutover", ({ headers, params }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.activateTigerBeetleCutover({
@@ -509,7 +608,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("configureLegalEntity", ({ headers, params, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.configureLegalEntity({
@@ -521,7 +620,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createAccount", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.createAccount({
@@ -532,7 +631,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("postJournal", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* AccountingService.use((service) =>
             service.postJournal({
@@ -543,7 +642,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("rebuildFinancialProjections", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.rebuildFinancialProjections({
@@ -554,7 +653,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("reconcileFinancialCheckpoint", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.reconcileFinancialCheckpoint({
@@ -565,7 +664,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createFinancialJournalIntent", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.createJournalIntent({
@@ -576,7 +675,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createFinancialRevenueIntent", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.createRevenueIntent({
@@ -587,7 +686,7 @@ export const AccountingHandlers = HttpApiBuilder.group(
           )
         })))
       .handle("createFinancialReversalIntent", ({ headers, payload }) =>
-        apiEffect(Effect.gen(function* () {
+        coreApiEffect(Effect.gen(function* () {
           const principal = yield* CurrentPrincipal
           return yield* FinancialOperationService.use((service) =>
             service.createReversalIntent({
