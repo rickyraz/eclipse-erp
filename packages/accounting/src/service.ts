@@ -126,10 +126,10 @@ export const AccountingPeriod = Schema.Struct({
 ))
 
 export const RevenuePostingProfile = Schema.Struct({
-  tenantId: Schema.String,
-  legalEntityId: Schema.String,
-  receivableAccountId: Schema.String,
-  revenueAccountId: Schema.String,
+  tenantId: Uuid,
+  legalEntityId: Uuid,
+  receivableAccountId: Uuid,
+  revenueAccountId: Uuid,
 }).check(Schema.makeFilter(
   (profile) => profile.receivableAccountId !== profile.revenueAccountId,
   { expected: "revenue posting accounts must be distinct" },

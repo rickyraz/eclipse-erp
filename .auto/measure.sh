@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=263
+total=264
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -272,6 +272,7 @@ gate bash -c 'grep -A2 -F "export const Account =" packages/accounting/src/servi
 gate bash -c 'grep -A1 -F "export const JournalLine =" packages/accounting/src/service.ts | grep -Fq "accountId: Uuid" && grep -q "rejects malformed journal line account identities" packages/accounting/tests/accounting.test.ts && grep -Fq "JournalLine.fields.accountId" packages/accounting/tests/accounting.test.ts && grep -Fq "accountId: uuid(\"account_id\")" db/schema/accounting.ts'
 gate bash -c 'grep -A2 -F "export const JournalEntry =" packages/accounting/src/service.ts | grep -Fq "id: Uuid" && grep -A2 -F "export const JournalEntry =" packages/accounting/src/service.ts | grep -Fq "tenantId: Uuid" && grep -Fq "reversesEntryId: Schema.optional(Uuid)" packages/accounting/src/service.ts && grep -q "rejects malformed journal entry identities" packages/accounting/tests/accounting.test.ts && grep -Fq "JournalEntry.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "reversesEntryId: uuid(\"reverses_entry_id\")" db/schema/accounting.ts'
 gate bash -c 'grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "id: Uuid" && grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "tenantId: Uuid" && grep -A3 -F "export const AccountingPeriod =" packages/accounting/src/service.ts | grep -Fq "legalEntityId: Uuid" && grep -q "rejects malformed accounting period identities" packages/accounting/tests/accounting.test.ts && grep -Fq "AccountingPeriod.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "export const accountingPeriods" db/schema/accounting.ts'
+gate bash -c 'test "$(grep -A4 -F "export const RevenuePostingProfile =" packages/accounting/src/service.ts | grep -Fc ": Uuid")" -eq 4 && grep -q "rejects malformed revenue posting profile identities" packages/accounting/tests/accounting.test.ts && grep -Fq "RevenuePostingProfile.fields[field]" packages/accounting/tests/accounting.test.ts && grep -Fq "export const revenuePostingProfiles" db/schema/accounting.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

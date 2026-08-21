@@ -416,6 +416,23 @@ describe("accounting contract", () => {
       assert.strictEqual(unexpectedSource._tag, "SchemaError")
     }))
 
+  it.effect("rejects malformed revenue posting profile identities", () =>
+    Effect.gen(function* () {
+      for (
+        const field of [
+          "tenantId",
+          "legalEntityId",
+          "receivableAccountId",
+          "revenueAccountId",
+        ] as const
+      ) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(RevenuePostingProfile.fields[field])("not-a-uuid"),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects duplicate revenue posting accounts", () =>
     Effect.gen(function* () {
       const inputFailure = yield* Effect.flip(
@@ -431,9 +448,9 @@ describe("accounting contract", () => {
       const outputFailure = yield* Effect.flip(
         Schema.decodeUnknownEffect(RevenuePostingProfile)({
           tenantId,
-          legalEntityId: "legal-entity-a",
-          receivableAccountId: "account-1",
-          revenueAccountId: "account-1",
+          legalEntityId: "00000000-0000-4000-8000-000000000050",
+          receivableAccountId: "00000000-0000-4000-8000-000000000051",
+          revenueAccountId: "00000000-0000-4000-8000-000000000051",
         }),
       )
       assert.strictEqual(outputFailure._tag, "SchemaError")
