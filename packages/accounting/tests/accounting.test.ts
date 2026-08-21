@@ -30,6 +30,7 @@ import {
   FinancialEngineCutoverBlocked,
   FinancialOperation,
   FinancialReconciliationCheckpoint,
+  FinancialVerificationArtifact,
   JournalEntry,
   JournalIdempotencyConflict,
   JournalLine,
@@ -685,6 +686,20 @@ describe("accounting contract", () => {
         )
         assert.strictEqual(failure._tag, "SchemaError")
       }
+    }))
+
+  it.effect("rejects malformed financial verification artifact timestamps", () =>
+    Effect.gen(function* () {
+      const dateOnly = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationArtifact.fields.createdAt)("2026-08-20"),
+      )
+      assert.strictEqual(dateOnly._tag, "SchemaError")
+      const malformed = yield* Effect.flip(
+        Schema.decodeUnknownEffect(FinancialVerificationArtifact.fields.createdAt)(
+          "not-a-timestamp",
+        ),
+      )
+      assert.strictEqual(malformed._tag, "SchemaError")
     }))
 
   it.effect("rejects financial operation attempts outside PostgreSQL integer range", () =>

@@ -198,7 +198,7 @@ export const FinancialVerificationArtifact = Schema.Struct({
   status: Schema.Literals(["verified", "rejected"]),
   evidence: FinancialVerificationEvidence,
   producerPrincipalId: NonEmptyString,
-  createdAt: Schema.String,
+  createdAt: InstantString,
 })
 export type FinancialVerificationArtifact = Schema.Schema.Type<
   typeof FinancialVerificationArtifact
