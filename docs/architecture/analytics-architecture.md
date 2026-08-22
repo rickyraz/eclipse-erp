@@ -513,6 +513,20 @@ evidence makes the recommendation non-actionable while its attempt is unknown, n
 blocked while the unresolved historical attempt is preserved. Manual recovery may fence and reconcile
 the attempt but must not invent its business outcome.
 
+### Outcome-bound compensation
+
+Supersession, withdrawal, changed evidence, or an execution timeout does not itself authorize
+compensation. A compensating action is a new owning-domain business command and is eligible only after
+the original owner confirms an accepted effect and its public contract declares that exact outcome
+compensable. The compensation binds the original recommendation and action attempt, accepted result
+or committed fact identity, action version, and its own canonical input and idempotency identity.
+
+An unknown or rejected attempt cannot be compensated as though it committed. Compensation re-enters
+current authorization, separation-of-duties, admission, invariant, audit, and owner-controlled
+transaction boundaries, and any unknown compensation outcome uses the same owner-reconciliation rule.
+Its success creates new correcting history; it never rewrites the recommendation, cited evidence, or
+original business outcome.
+
 A proposed action re-enters the owning domain's typed public command with current identity,
 authorization, command admission, idempotency, invariant validation, transaction, and audit. If
 canonical state or authorization changed after observation, the command rejects or the evaluator
@@ -656,6 +670,7 @@ Record, subject to redaction:
 | Recommendation lifecycle fails closed | Add newer evidence, correction, policy change, supersession, or withdrawal; review/action rejects while historical evidence remains preserved |
 | Review/action intent is idempotent | Retry identical bound intent after a lost response without another effect; key reuse with changed recommendation, action version, or input rejects |
 | Unknown action outcome is reconciled | Lose responses before and after owner commit; no new identity, compensation, successor effect, or executed state appears until the owning contract confirms the outcome |
+| Compensation is outcome-bound       | Attempt compensation for unknown and rejected actions, then for one owner-confirmed compensable effect; only the confirmed effect creates one separately authorized, idempotent correcting command |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
