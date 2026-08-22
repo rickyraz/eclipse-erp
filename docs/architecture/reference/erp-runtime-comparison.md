@@ -249,9 +249,10 @@ names as addresses, private SQLite state, RPC methods, alarms, and hibernatable 
 fleet uses an S3-compatible bucket for durable cell state and ownership coordination; upstream
 treats the bucket as the durable source of truth for its SQLite state.
 
-That storage authority is `celld` runtime semantics. RITSEI's separate decision is that
-PostgreSQL remains canonical for business facts, so an enabled adapter must classify and reconcile
-its runtime fields under [`state-and-consistency.md`](../state-and-consistency.md).
+That storage authority is `celld` runtime semantics. RITSEI's separate decision keeps PostgreSQL
+canonical for control-plane and non-ledger facts, while an activated financial authority follows
+ADR-0040. An enabled adapter must therefore classify and reconcile its runtime fields under
+[`state-and-consistency.md`](../state-and-consistency.md).
 
 Primary references:
 

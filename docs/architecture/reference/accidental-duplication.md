@@ -66,7 +66,7 @@ The current ownership split is:
 | Event meaning and payload contract            | Publishing domain; Process for Process-namespaced facts | Owning domain contract plus committed outbox row | Messaging append path                       | Messaging infrastructure, PgQue            |
 | Event envelope, outbox, and receipts          | Messaging                                               | `messaging.event_outbox` and receipt tables      | Messaging service / future PgQue adapter    | Domain business meaning                    |
 | Event fan-out and acknowledgement             | Messaging/infrastructure delivery                       | Delivery state and consumer receipt              | PgQue when activated                        | ERP business truth or workflow completion  |
-| Active entity ownership and serialization     | Stateful Entity Runtime contract                        | PostgreSQL remains canonical for business facts  | Runtime adapter, experimentally `celld`     | Domain authorization or business authority |
+| Active entity ownership and serialization     | Stateful Entity Runtime contract                        | Approved authority; PostgreSQL for control-plane and non-ledger facts | Runtime adapter, experimentally `celld`     | Domain authorization or business authority |
 | Deployment and resource isolation             | Operations/workload layer                               | WorkloadCell configuration and admission state   | Deployment/runtime platform                 | Entity ownership or tenant authorization   |
 
 A worker is an **executor**, not the owner of the facts it changes. A `celld` cell is an **adapter
@@ -85,7 +85,8 @@ Process     owns workflow coordination, result, and post-commit work
 Messaging   owns event envelope, append, and receipt mechanics
 PgQue       delivers committed events after activation
 celld       may serialize an approved active entity, if later enabled
-PostgreSQL  commits canonical business facts and constraints
+PostgreSQL  commits control-plane and non-ledger facts and constraints
+ADR-0040    governs activated financial authority
 ```
 
 The Process coordinator may invoke the public Sales, Inventory, and Accounting contracts in one
@@ -98,8 +99,9 @@ caused the command.
 For every durable field, choose one authoritative owner:
 
 ```text
-business fact       -> owning domain PostgreSQL tables
-workflow result     -> process.workflow_runs
+control-plane/non-ledger fact -> owning domain PostgreSQL tables
+accepted financial fact       -> selected FinancialLedgerPort authority
+workflow result                -> process.workflow_runs
 internal work       -> process.jobs
 execution ordering  -> Process-owned relational dependency edges
 publication intent  -> messaging.event_outbox
@@ -148,9 +150,9 @@ workflow_runs + process.jobs + celld workflow state
 ```
 
 That creates competing orchestration state. `celld` state must remain rebuildable, runtime-durable,
-or ephemeral according to the approved state classification; PostgreSQL remains canonical for
-RITSEI business facts. The `celld` adapter is proposed and experimental, not a production
-dependency.
+or ephemeral according to the approved state classification. PostgreSQL remains canonical for
+control-plane and non-ledger facts; an activated financial profile follows ADR-0040. The `celld`
+adapter is proposed and experimental, not a production dependency.
 
 If an entity category declares runtime execution as required, every command crossing that category's
 serialized invariant must use the `StatefulEntityRuntime` contract. A local/direct adapter may

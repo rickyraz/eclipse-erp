@@ -162,8 +162,9 @@ required only for an approved entity category whose execution contract says so.
 
 The repository's binding position is in
 [ADR-0026](../../decisions/0026-evaluate-celld-runtime-adapter.md): `celld` remains
-proposed/experimental, domain packages must not import its APIs, PostgreSQL remains canonical, and a
-local/direct adapter must remain possible.
+proposed/experimental, domain packages must not import its APIs, and a local/direct adapter must
+remain possible. Under the current architecture, PostgreSQL remains canonical for control-plane and
+non-ledger facts while ADR-0040 governs the activated financial authority.
 
 The dependency direction is:
 
