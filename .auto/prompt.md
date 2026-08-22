@@ -52,3 +52,4 @@ activating speculative OLAP infrastructure.
 13. Existing architecture files retain a surgical diff instead of repository-wide Markdown reformatting.
 14. Workload-isolation references preserve the ADR-0040 financial-authority exception.
 15. Runtime comparison references no longer restate the superseded PostgreSQL-only authority model.
+16. Multi-source freshness cannot advance beyond the oldest required source completeness frontier.

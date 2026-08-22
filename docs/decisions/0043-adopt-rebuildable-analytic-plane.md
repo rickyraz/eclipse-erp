@@ -98,7 +98,9 @@ time range, satisfies current authorization behavior, and meets the freshness co
 
 `LIVE`, `NEAR_REALTIME`, or similar labels may be product-level aliases, but RITSEI does not assign
 one universal duration to them. The binding contract uses explicit duration and `dataAsOf` evidence.
-Analytic freshness does not imply read-your-writes or authoritative-current state.
+For a multi-source metric, `dataAsOf` is the conservative frontier supported by every required
+source, not projection or ingestion wall-clock time. Analytic freshness does not imply
+read-your-writes or authoritative-current state.
 
 ### No primary fallback
 

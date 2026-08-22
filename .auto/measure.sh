@@ -42,6 +42,7 @@ existing_churn="$({
 check test "$existing_churn" -le 250
 check grep -q 'activated financial authority follows ADR-0040' docs/architecture/workload-isolation.md
 check bash -c "grep -q 'activated financial profile follows ADR-0040' docs/architecture/reference/accidental-duplication.md && grep -q 'ADR-0040 governs the activated financial authority' docs/architecture/reference/engineering-lineage.md && grep -q 'activated financial authority follows' docs/architecture/reference/erp-runtime-comparison.md"
+check grep -q '^### Conservative multi-source freshness' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((15 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((16 - score))"

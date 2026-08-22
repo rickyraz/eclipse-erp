@@ -292,6 +292,14 @@ transactional
 The normal Analytic Plane contract is eventual or bounded-stale. A request also declares an explicit
 maximum staleness or accepts the route default.
 
+### Conservative multi-source freshness
+
+For a metric with several required sources, each source contributes completeness evidence for the
+requested tenant, scope, and time semantics. The metric-wide `dataAsOf` must not advance beyond the
+oldest required source completeness frontier. It is never derived from query time, projection write
+time, or the newest successful ingestion alone. Late facts or an incomplete required source hold the
+frontier back until replay or correction restores completeness. Source positions remain private.
+
 A provider is eligible only when all are true:
 
 ```text
@@ -520,7 +528,7 @@ Record, subject to redaction:
 | Replay is safe                    | Duplicate and reorder facts within the supported contract; final results remain identical             |
 | Corrections are defined           | Reversal, supersession, cancellation, late arrival, and deletion fixtures match expected history      |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
-| Freshness is honest               | Inject lag and incompleteness; only eligible providers route and responses expose `dataAsOf`          |
+| Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
 | Tenants are isolated              | Cross-tenant keys, filters, files, partitions, and caches cannot return data                          |
 | Primary fallback is absent        | Remove the projection while primary is healthy; the route returns only declared degradation/error     |
