@@ -70,3 +70,4 @@ activating speculative OLAP infrastructure.
 31. Concurrent or recovered dispatch is durably fenced to one exact recommendation-action intent and owner-visible idempotency identity; stale workers cannot dispatch or finalize.
 32. Cancellation stops an undispatched attempt but never claims an already dispatched or unknown owning command was canceled; owner reconciliation and explicit compensation govern possible committed effects.
 33. Recommendation review or action authority does not imply access to protected command results; the owner independently authorizes and redacts disclosure, and coordinators retain only allowlisted receipts and references.
+34. Recommendation-visible failure status and logs expose only stable redacted classes and safe references; raw owner errors, causes, reconciliation details, and existence signals require separate owner-controlled diagnostic access.

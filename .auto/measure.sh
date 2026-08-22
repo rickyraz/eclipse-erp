@@ -61,6 +61,7 @@ check grep -q '^### Approval is not an execution lease' docs/architecture/analyt
 check grep -q '^### Concurrent dispatch and fencing' docs/architecture/analytics-architecture.md
 check grep -q '^### Cancellation does not retract an owning command' docs/architecture/analytics-architecture.md
 check grep -q '^### Action authority does not grant result disclosure' docs/architecture/analytics-architecture.md
+check grep -q '^### Failure status is not diagnostic access' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((33 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((34 - score))"

@@ -592,6 +592,20 @@ execution principal. If a result must become analytic evidence, it enters throug
 Business Fact Contract or a newly authorized observation with its own immutable citation. Outcome
 status may remain visible without disclosing protected result content.
 
+### Failure status is not diagnostic access
+
+Owning-domain denials, business rejections, technical failures, and reconciliation details may contain
+protected identities, values, policy facts, or existence signals. The recommendation boundary maps
+them to the smallest stable status required for review and recovery and never exposes raw tagged-error
+fields, causes, stack traces, provider details, or owner payloads merely because a principal may view
+or execute the recommendation. Where the owner requires it, unauthorized and absent resources remain
+indistinguishable.
+
+Full diagnostics remain owner-controlled operational data with separate current authorization,
+tenant scope, redaction, retention, and audit. Safe correlation references may link the recommendation
+to those diagnostics without embedding them. Internal cause preservation must not turn logs, history,
+notifications, exports, or reconciliation status into a disclosure side channel.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -700,6 +714,7 @@ Record, subject to redaction:
 - authorization denial, stale authorization, and deletion backlog;
 - unresolved recommendation-action age and owner-confirmed reconciliation outcome;
 - result-disclosure denials and allowlisted owner references without raw command payloads;
+- redacted failure classes and safe correlation references without owner diagnostics;
 - per-budget saturation and command-reserve evidence;
 - rebuild, conformance, backup, restore, upgrade, and exit results.
 
@@ -727,6 +742,7 @@ Record, subject to redaction:
 | Concurrent dispatch is fenced        | Race two workers, expire one claim, and resume it after replacement; all permitted calls retain one bound identity and the stale worker cannot dispatch or finalize |
 | Cancellation preserves owner outcome | Cancel before dispatch, during dispatch, and after a lost response; only the undispatched attempt is stopped, while possible effects remain unresolved until owner reconciliation |
 | Result disclosure is owner-controlled | Let a principal execute but deny protected result reads; recommendation state, audit, logs, and observations expose only the allowlisted receipt while owner-authorized readers receive redacted typed output |
+| Failure diagnostics stay protected    | Return sensitive denial, rejection, technical, and reconciliation failures; reviewer-visible status and logs contain only stable redacted classes and safe references, while separately authorized owner diagnostics retain the cause |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
