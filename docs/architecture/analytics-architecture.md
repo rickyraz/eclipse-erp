@@ -245,6 +245,14 @@ reject joins that can silently multiply the source grain.
 Slowly changing dimensions declare whether a query uses the value valid at fact effective time or
 the latest current value. The choice is part of the metric version.
 
+### Total dimension membership
+
+Every metric version declares one outcome for null, missing, orphaned, and late-arriving dimension
+membership at its completeness frontier. A provider must not implicitly discard or duplicate a
+source-grain fact because membership cannot be resolved. The fact uses the contract's declared
+unresolved member or is excluded explicitly by the reviewed metric contract. Later resolution
+follows that metric's declared restatement or as-known-at-frontier correction semantics.
+
 ### Versioning
 
 A semantic change creates a new compatible or breaking version. Provider-only physical tuning does
@@ -535,6 +543,7 @@ Record, subject to redaction:
 | Projection is rebuildable         | Delete it, rebuild from the declared source at the same completeness frontier, and compare deterministic hashes |
 | Replay is safe                    | Duplicate and reorder facts within the supported contract; final results remain identical             |
 | Correction visibility is explicit | Rebuild twice at one frontier, then add a later correction; as-known results stay fixed while declared restated results change |
+| Dimension membership is total     | Null, missing, orphaned, and late membership cases preserve the contract-declared included population before and after resolution |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

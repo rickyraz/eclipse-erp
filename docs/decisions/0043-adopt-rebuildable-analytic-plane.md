@@ -84,7 +84,7 @@ Metric definitions are versioned code or equivalent reviewed artifacts. They dec
 
 - semantic owner and stable versioned identity;
 - source fact versions and grain;
-- dimensions, join cardinality, time semantics, and valid filters;
+- dimensions, join cardinality, unresolved membership behavior, time semantics, and valid filters;
 - additive, semi-additive, non-additive, or derived aggregation behavior;
 - exact arithmetic, unit, and currency rules where applicable;
 - authorization, sensitivity, retention, and freshness requirements;
@@ -195,7 +195,8 @@ Before an analytic route or provider is production-ready, prove:
 - duplicate, reordered, late, reversed, superseded, and deleted facts produce defined results,
   including a correction arriving after a fixed historical frontier;
 - every activated provider passes the same golden semantic dataset, including exact decimal, time
-  zone, null, cardinality, and aggregation cases;
+  zone, aggregation, and null, missing, orphaned, or late dimension-membership cases without
+  implicit source-grain row loss;
 - freshness routing never selects an ineligible provider or falls back to the primary;
 - authorization revocation and tenant-isolation tests fail closed;
 - analytics saturation does not consume the named command reserve;
