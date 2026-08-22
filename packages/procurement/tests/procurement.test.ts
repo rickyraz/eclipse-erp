@@ -12,6 +12,7 @@ import {
   PurchaseOrder,
   PurchaseOrderConfirmationIdempotencyConflict,
   PurchaseOrderInvalidState,
+  PurchaseOrderLineSnapshot,
   PurchaseOrderNotFound,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,
@@ -184,7 +185,13 @@ describe("procurement contract", () => {
 
       assert.strictEqual(order.status, "draft")
       assert.strictEqual(order.total, "37.04")
-      assert.deepStrictEqual(order.lines, lines)
+      for (const line of order.lines) {
+        yield* Schema.decodeUnknownEffect(PurchaseOrderLineSnapshot)(line)
+      }
+      assert.deepStrictEqual(
+        order.lines.map(({ id: _id, ...line }) => line),
+        lines,
+      )
     })))
 
   it.effect("reads draft and confirmed purchase orders", () =>
@@ -297,6 +304,10 @@ describe("procurement contract", () => {
       assert.strictEqual(cancelled.supplierAccountId, confirmed.supplierAccountId)
       assert.strictEqual(cancelled.total, confirmed.total)
       assert.deepStrictEqual(cancelled.lines, confirmed.lines)
+      assert.deepStrictEqual(
+        cancelled.lines.map((line) => line.id),
+        confirmed.lines.map((line) => line.id),
+      )
       assert.deepStrictEqual(replayed, cancelled)
       assert.deepStrictEqual(
         yield* procurement.getPurchaseOrder({
@@ -473,6 +484,15 @@ describe("procurement contract", () => {
       ) {
         assert.instanceOf(yield* Effect.flip(create(lines)), Schema.SchemaError)
       }
+
+      const callerLineId = "00000000-0000-4000-8000-000000000099"
+      const order = yield* create([{
+        id: callerLineId,
+        itemId: "00000000-0000-4000-8000-000000000010",
+        quantity: "1",
+        unitPrice: "1.00",
+      }])
+      assert.notStrictEqual(order.lines[0]?.id, callerLineId)
     })))
 
   it.effect("denies purchase order creation by default", () =>

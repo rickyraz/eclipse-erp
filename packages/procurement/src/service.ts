@@ -52,6 +52,13 @@ export const PurchaseOrderLine = Schema.Struct({
   unitPrice: FinancialMajorAmount,
 })
 
+export const PurchaseOrderLineSnapshot = Schema.Struct({
+  id: Uuid,
+  itemId: Uuid,
+  quantity: Quantity,
+  unitPrice: FinancialMajorAmount,
+})
+
 export const PurchaseOrder = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
@@ -59,7 +66,7 @@ export const PurchaseOrder = Schema.Struct({
   status: Schema.Literals(["draft", "confirmed", "cancelled"]),
   confirmedAt: Schema.NullOr(InstantString),
   total: FinancialMajorAmount,
-  lines: Schema.Array(PurchaseOrderLine),
+  lines: Schema.Array(PurchaseOrderLineSnapshot),
 }).check(Schema.makeFilter(
   (order) =>
     (order.status === "draft" && order.confirmedAt === null) ||
@@ -69,6 +76,7 @@ export const PurchaseOrder = Schema.Struct({
 
 export type SupplierAccount = Schema.Schema.Type<typeof SupplierAccount>
 export type PurchaseOrderLine = Schema.Schema.Type<typeof PurchaseOrderLine>
+export type PurchaseOrderLineSnapshot = Schema.Schema.Type<typeof PurchaseOrderLineSnapshot>
 export type PurchaseOrder = Schema.Schema.Type<typeof PurchaseOrder>
 
 export const CreateSupplierAccountInput = Schema.Struct({
@@ -234,6 +242,7 @@ const purchaseOrderSelection = {
 }
 
 const purchaseOrderLineSelection = {
+  id: purchaseOrderLines.id,
   itemId: purchaseOrderLines.itemId,
   quantity: purchaseOrderLines.quantity,
   unitPrice: purchaseOrderLines.unitPrice,
@@ -246,7 +255,7 @@ const toPurchaseOrder = (row: {
   readonly status: "draft" | "confirmed" | "cancelled"
   readonly confirmedAt: Date | null
   readonly total: string
-}, lines: ReadonlyArray<PurchaseOrderLine>): PurchaseOrder => ({
+}, lines: ReadonlyArray<PurchaseOrderLineSnapshot>): PurchaseOrder => ({
   id: row.id,
   tenantId: row.tenantId,
   supplierAccountId: row.supplierAccountId,
@@ -638,7 +647,7 @@ export const makeProcurementTestLayer = () =>
               status: "draft",
               confirmedAt: null,
               total,
-              lines: decoded.lines,
+              lines: decoded.lines.map((line) => ({ id: crypto.randomUUID(), ...line })),
             }
             storedPurchaseOrders.set(order.id, order)
             return order

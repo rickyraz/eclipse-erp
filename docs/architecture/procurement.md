@@ -93,12 +93,14 @@ A Purchase Order contains:
 - zero confirmation metadata while draft;
 - one immutable confirmation identity and `confirmedAt` after confirmation;
 - at least one line;
+- stable server-owned opaque UUID identity for each line;
 - line snapshots containing opaque item UUID, positive PostgreSQL-bigint quantity, and exact
   non-negative two-decimal unit price;
 - an exact owner-derived two-decimal total.
 
-The public contract does not expose persistence IDs for lines, confirmation idempotency metadata,
-private update timestamps, database constraint names, or driver failures.
+The public snapshot exposes stable line identity because future receipt evidence must reference an
+immutable order line. Create input never accepts or controls that identity. Confirmation idempotency
+metadata, private update timestamps, database constraint names, and driver failures remain private.
 
 The current model has no line position, unit-of-measure registry, currency, tax, discount, requested
 delivery date, warehouse, receipt quantity, supplier document number, amendment version, or
@@ -258,8 +260,9 @@ of the following:
 
 1. **Ownership:** Procurement owns receipt business evidence; Inventory owns physical stock movement.
    Neither domain may write the other's tables.
-2. **Reference:** a receipt references a tenant-local confirmed Purchase Order and stable order-line
-   identity; the current public line DTO does not expose such identity yet.
+2. **Reference foundation (satisfied):** Purchase Order snapshots expose stable server-owned line
+   identity. A receipt contract must still prove that every referenced line belongs to the selected
+   tenant-local confirmed order.
 3. **Eligibility:** cancelled orders reject new receipt work. The transaction must serialize receipt
    eligibility with cancellation rather than trust a stale read.
 4. **Quantity policy:** define partial receipt, repeated receipt, cumulative received quantity,

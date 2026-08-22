@@ -13,6 +13,7 @@ export {
   PurchaseOrderConfirmationIdempotencyConflict,
   PurchaseOrderInvalidState,
   PurchaseOrderLine,
+  PurchaseOrderLineSnapshot,
   PurchaseOrderNotFound,
   SupplierAccount,
   SupplierAccountAlreadyExists,
@@ -23,5 +24,6 @@ export type {
   ProcurementService as ProcurementServiceShape,
   PurchaseOrder as PurchaseOrderType,
   PurchaseOrderLine as PurchaseOrderLineType,
+  PurchaseOrderLineSnapshot as PurchaseOrderLineSnapshotType,
   SupplierAccount as SupplierAccountType,
 } from "./src/service.ts"

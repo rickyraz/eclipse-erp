@@ -176,11 +176,13 @@ it.effect.skipIf(databaseUrl === undefined)(
               id: string
               status: string
               total: string
+              line_id: string
               item_id: string
               quantity: string
               unit_price: string
             }[]>`
-              select po.id, po.status, po.total, pol.item_id, pol.quantity, pol.unit_price
+              select po.id, po.status, po.total, pol.id as line_id,
+                pol.item_id, pol.quantity, pol.unit_price
               from procurement.purchase_orders po
               join procurement.purchase_order_lines pol
                 on pol.tenant_id = po.tenant_id and pol.purchase_order_id = po.id
@@ -191,12 +193,13 @@ it.effect.skipIf(databaseUrl === undefined)(
           assert.strictEqual(persisted.length, 2)
           assert.isTrue(persisted.every((row) => row.status === "draft" && row.total === "37.04"))
           assert.deepStrictEqual(
-            persisted.map(({ item_id, quantity, unit_price }) => ({
+            persisted.map(({ line_id, item_id, quantity, unit_price }) => ({
+              id: line_id,
               itemId: item_id,
               quantity,
               unitPrice: unit_price,
             })),
-            [...lines].sort((left, right) => left.itemId.localeCompare(right.itemId)),
+            [...order.lines].sort((left, right) => left.itemId.localeCompare(right.itemId)),
           )
           assert.strictEqual(
             (yield* procurement.getPurchaseOrder({
