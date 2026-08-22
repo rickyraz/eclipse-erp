@@ -53,3 +53,4 @@ activating speculative OLAP infrastructure.
 14. Workload-isolation references preserve the ADR-0040 financial-authority exception.
 15. Runtime comparison references no longer restate the superseded PostgreSQL-only authority model.
 16. Multi-source freshness cannot advance beyond the oldest required source completeness frontier.
+17. Correction visibility is explicit, and deterministic rebuild proof fixes semantic versions and the source-completeness frontier.

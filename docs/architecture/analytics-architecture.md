@@ -273,6 +273,14 @@ Consumers must:
 A correction is a new owner-controlled fact, reversal, supersession, or deletion instruction. An
 analytic projection never edits canonical history to make a report look right.
 
+### Correction visibility and deterministic replay
+
+Each metric and rebuild contract declares whether historical results are restated with corrections
+known at the execution frontier or reproduced as knowable at a declared source-completeness
+frontier. Deterministic comparisons fix the tenant and query scope, fact and semantic versions, and
+that same frontier. A correction completed after the frontier may change a restated-current result
+but must not rewrite an as-known-at-frontier result.
+
 Provider-specific incremental views require explicit correction behavior. If a provider reacts only
 to new inserts, source mutations or partition replacement do not automatically repair the target;
 rebuild, replacement, or compensating facts must be part of the projection design.
@@ -524,9 +532,9 @@ Record, subject to redaction:
 | Invariant                         | Required executable proof                                                                             |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Analytics owns no canonical facts | Boundary scan rejects private tables, repositories, provider SDK authority, and write-back            |
-| Projection is rebuildable         | Delete it, rebuild from the declared source, and compare deterministic hashes                         |
+| Projection is rebuildable         | Delete it, rebuild from the declared source at the same completeness frontier, and compare deterministic hashes |
 | Replay is safe                    | Duplicate and reorder facts within the supported contract; final results remain identical             |
-| Corrections are defined           | Reversal, supersession, cancellation, late arrival, and deletion fixtures match expected history      |
+| Correction visibility is explicit | Rebuild twice at one frontier, then add a later correction; as-known results stay fixed while declared restated results change |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

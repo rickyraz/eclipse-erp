@@ -74,7 +74,9 @@ owner-approved snapshot/export
 
 Events alone must not be claimed as sufficient when payload minimization, redaction, retention, or
 historical gaps prevent a complete rebuild. Consumers remain idempotent under duplicate delivery and
-define late-arrival, reversal, supersession, deletion, and replay behavior.
+define late-arrival, reversal, supersession, deletion, and replay behavior. Each metric declares
+whether corrected history is currently restated or reproduced as known at a source-completeness
+frontier; deterministic rebuilds fix the same semantic versions and frontier.
 
 ### Semantic contracts
 
@@ -188,8 +190,10 @@ owner-approved snapshot plus replay path is allowed and sometimes required.
 Before an analytic route or provider is production-ready, prove:
 
 - package and schema boundaries prevent direct private-domain reads and write-back;
-- projection deletion followed by rebuild reproduces deterministic result hashes;
-- duplicate, reordered, late, reversed, superseded, and deleted facts produce defined results;
+- projection deletion followed by rebuild at the same source-completeness frontier reproduces
+  deterministic result hashes;
+- duplicate, reordered, late, reversed, superseded, and deleted facts produce defined results,
+  including a correction arriving after a fixed historical frontier;
 - every activated provider passes the same golden semantic dataset, including exact decimal, time
   zone, null, cardinality, and aggregation cases;
 - freshness routing never selects an ineligible provider or falls back to the primary;
