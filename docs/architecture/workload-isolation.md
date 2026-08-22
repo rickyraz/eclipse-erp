@@ -51,8 +51,9 @@ The architecture preserves the existing authority model:
 Owning domain capability
 -> business meaning and authorization
 
-PostgreSQL
--> canonical business truth and commit
+Approved business authority
+-> PostgreSQL commit for control-plane and non-ledger facts
+-> activated financial authority follows ADR-0040
 
 Workload isolation fabric
 -> routing, admission, resource containment, and overload behavior

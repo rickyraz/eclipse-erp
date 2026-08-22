@@ -40,6 +40,7 @@ existing_churn="$({
     docs/deployment/README.md
 } | awk '{ churn += $1 + $2 } END { print churn + 0 }')"
 check test "$existing_churn" -le 250
+check grep -q 'activated financial authority follows ADR-0040' docs/architecture/workload-isolation.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((13 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((14 - score))"

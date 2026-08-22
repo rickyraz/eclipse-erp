@@ -310,10 +310,11 @@ thin router
 A direct copy of hyperscale service patterns would violate current RITSEI decisions. The
 adaptation therefore preserves these constraints.
 
-### PostgreSQL remains canonical
+### Approved authority remains canonical
 
 No cell, lease, executor, projection, cache, or adaptive limiter may acknowledge a canonical
-business transition without PostgreSQL commit.
+business transition without the commit or acceptance required by its owning authority. PostgreSQL
+commit governs control-plane and non-ledger facts; an activated financial profile follows ADR-0040.
 
 ### Domain ownership remains semantic
 

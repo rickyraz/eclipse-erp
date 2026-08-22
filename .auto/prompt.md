@@ -50,3 +50,4 @@ activating speculative OLAP infrastructure.
 11. Rebuild sources support snapshot plus replay when events alone are insufficient.
 12. Validation covers parity, replay, corrections, authorization, tenancy, freshness, and non-interference.
 13. Existing architecture files retain a surgical diff instead of repository-wide Markdown reformatting.
+14. Workload-isolation references preserve the ADR-0040 financial-authority exception.
