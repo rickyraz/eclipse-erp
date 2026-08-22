@@ -36,6 +36,8 @@
 >   [`../decisions/0014-separate-internal-and-external-identifiers.md`](../decisions/0014-separate-internal-and-external-identifiers.md)
 > - Semantic invariant ownership:
 >   [`../decisions/0015-one-semantic-owner-per-invariant.md`](../decisions/0015-one-semantic-owner-per-invariant.md)
+> - Owner-local business surface and generated ergonomics:
+>   [`../decisions/0046-adopt-owner-local-business-surface-and-generated-ergonomics.md`](../decisions/0046-adopt-owner-local-business-surface-and-generated-ergonomics.md)
 > - P0 scope and identity model:
 >   [`../decisions/0021-define-p0-scope-and-identity-model.md`](../decisions/0021-define-p0-scope-and-identity-model.md)
 > - Effect v4 beta.103 update:
@@ -194,6 +196,43 @@ Extension mechanisms, plugins, workflow runtimes, and nondeterministic agents ar
 invariants remain enforced by the owning domain, authorization boundary, transactional command path,
 and database constraints; they must not depend on extensions behaving correctly. Detailed rationale
 is owned by [ADR-0015](../decisions/0015-one-semantic-owner-per-invariant.md).
+
+## Business Surface and Invariant Layer
+
+RITSEI presents concrete owner-local business objects at the business surface while keeping
+invariant-bearing semantics below that surface. A familiar object such as `SalesOrder` or
+`PurchaseOrder` is first-class when it has an owner, identity, lifecycle, public contract,
+authorization, invariant, and correction behavior. It does not require a universal base class,
+shared mutable `documents` table, or package created only because the name is familiar.
+
+The supported mutation distinction is:
+
+```text
+ordinary structural change -> owner-reviewed query/CRUD-like helper
+business meaning          -> explicit typed, authorized action
+consequence               -> owner-controlled immutable or corrective fact
+```
+
+Examples include `Product.updateDescription`, `SalesOrder.confirm`, and a future owner-controlled
+`Invoice.post`. Lifecycle fields must not be changed through ordinary updates. Cross-domain
+consequences must use public owner contracts and the approved transaction or financial-ledger
+protocol; ORM hooks and hidden subscribers are not business authority.
+
+Generated tooling may scaffold schemas, DTOs, ordinary queries, form metadata, CRUD helpers, API
+documentation inputs, and test skeletons. It must not silently generate authorization policy,
+business transitions, cross-domain transactions, inventory or financial consequences, fact/event
+authority, or provider ownership.
+
+`Record`, `Document`, `Action`, and `Fact` may describe this surface and lifecycle, but they are not
+universal runtime base types, shared repositories, or authority tables. `Movement`, `Posting`, and
+`Settlement` remain semantic capabilities with explicit owners: Inventory owns physical movement,
+Accounting owns posting meaning and uses `FinancialLedgerPort`, and Settlement remains gated until
+its obligation and payment contracts are decided. `Commitment` and `Fulfillment` remain useful
+concepts; an owner promotes a relationship to an explicit entity when its quantity, rules, history,
+or lifecycle require it.
+
+Detailed rationale is owned by
+[ADR-0046](../decisions/0046-adopt-owner-local-business-surface-and-generated-ergonomics.md).
 
 ## Database Contract
 

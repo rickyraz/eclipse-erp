@@ -2,6 +2,8 @@
 
 - Status: Proposed
 - Date: YYYY-MM-DD
+- Amends: None
+- Compatible with: None
 - Supersedes: None
 - Superseded by: None
 

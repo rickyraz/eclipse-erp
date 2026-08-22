@@ -14,6 +14,22 @@ Traditional ERP modules are useful for navigation but are not always the best
 architecture boundaries. A more orthogonal decomposition uses primitive
 business capabilities.
 
+## Business Surface Mapping
+
+Concrete business documents are the developer and ERP-consultant surface over these semantic areas.
+They remain owner-local aggregates rather than a competing universal document model.
+
+```text
+SalesOrder / PurchaseOrder -> owner-local order lifecycle
+Delivery / GoodsReceipt    -> fulfillment evidence plus owner-controlled movement contracts
+Invoice / Payment          -> future obligation, billing, and settlement contracts
+```
+
+The names above do not decide ownership by themselves. `Commitment` and `Fulfillment` remain useful
+semantic concepts; a domain promotes a relationship to an explicit entity when it carries quantity,
+rules, history, or lifecycle. A concrete document may coordinate several semantic capabilities while
+no document package becomes the authority for another domain's invariant.
+
 ## Candidate Areas
 
 ### Party

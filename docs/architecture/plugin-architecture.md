@@ -39,6 +39,13 @@ surface rather than becoming another implementation of the domain's model.
 Detailed rationale is owned by
 [`../decisions/0023-adopt-capability-oriented-plugin-contribution.md`](../decisions/0023-adopt-capability-oriented-plugin-contribution.md).
 
+Generated structural ergonomics is tooling, not a second ownership system. It may scaffold schemas,
+DTOs, ordinary queries, form metadata, CRUD helpers, API documentation inputs, and test skeletons
+from owner-reviewed metadata. It must not generate or claim protected transitions, authorization,
+transaction boundaries, cross-domain consequences, fact authority, or persistence ownership.
+Generated artifacts remain subject to the same public-contract, package-boundary, capability, and
+compatibility checks as handwritten code.
+
 ## Extension Classes
 
 ### Core Module

@@ -35,6 +35,12 @@ PostgreSQL
 Do not start with microservices, a graph database, full event sourcing,
 Kubernetes, or a large broker unless a concrete requirement justifies them.
 
+Concrete business documents are an ergonomics layer over this boring architecture. They may be
+first-class owner-local aggregates such as `SalesOrder` or `PurchaseOrder`, but they do not replace
+semantic ownership or justify a universal `Document` model. Ordinary structural changes can use
+simple helpers; business transitions remain explicit commands; consequential facts remain owned by
+their invariant owner.
+
 ## Relationship Entity Rule
 
 A join table is sufficient for simple membership. When a relationship has

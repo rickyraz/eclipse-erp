@@ -59,6 +59,28 @@ READY
 `UNKNOWN` is not permission to guess. It is a gate that blocks dependent runtime work until
 resolved.
 
+## Business Surface and Invariant Layer
+
+Concrete business documents are the developer-facing surface of owner-local capabilities. They do
+not replace the semantic primitive map and do not imply a universal document package or table.
+
+```text
+business surface -> owner action -> semantic owner fact
+SalesOrder       -> confirm      -> Sales-owned order fact
+PurchaseOrder    -> confirm      -> Procurement-owned order fact
+Delivery         -> receive/move -> Inventory-owned movement fact
+Invoice          -> post         -> future Billing/Accounting contract
+```
+
+The final row remains gated. A surface name is not evidence that its owner, lifecycle, correction,
+authorization, or financial policy has been decided. `Commitment`, `Fulfillment`, `Movement`,
+`Posting`, and `Settlement` remain semantic capabilities; they become explicit owner-local entities
+when their invariants require it, not because the roadmap lists them.
+
+Developer ergonomics is a separate roadmap concern. Structural schema, DTO, query, form, CRUD, and
+test scaffolding may be generated after owner contracts are stable. Business actions, authorization,
+transactions, consequences, and fact authority remain explicit and owner-controlled.
+
 ## Plugin Boundary
 
 Plugins are an extension mechanism for approved primitive capabilities, not a second ownership
@@ -90,6 +112,7 @@ A plugin primitive is not Process Studio-ready until it satisfies the same Level
 | Financial ledger execution | ADR-0040 selects TigerBeetle for accepted transfers, balances, and immutable transfer history; PostgreSQL remains control plane | `DECIDED` (migration gated) | First activation is limited to the bounded Accounting profile and requires the financial-ledger roadmap gates |
 | Fiscal period and close   | Non-overlapping open/closed periods serialize with revenue posting                                                                                | `READY` (bounded P2 baseline)       | Reopen, adjusting periods, arbitrary posting dates, and advanced close remain out of scope                  |
 | Policy and authorization  | Capability catalog and deny-by-default checks cover current actions                                                                               | `READY` for current actions         | Add approval, override, and SoD policy only with new high-risk actions                                      |
+| Business surface ergonomics | Owner-local documents and explicit actions are established; generated structural tooling is not activated | `PLANNED` | Prove Product and SalesOrder slices without a universal ORM or document kernel |
 | Audit and correlation     | Messaging envelopes preserve actor, Tenant, command, correlation, causation, idempotency, and time                                                | `READY` (bounded P3 baseline)       | Deployment retention duration and external-provider audit remain gated operational decisions                |
 | Typed actions and events  | Inventory, Sales, and Accounting publish bounded PUBLIC v1 action/event contracts; Accounting derives revenue from the confirmed Sales order fact | `READY` for selected Level 3 slices | Future Process Studio owns aggregation/release; broader domain actions remain gated by their own invariants |
 | Compensation and recovery | Order cancellation releases reservations and reverses revenue; fulfillment and manual recovery are explicit                                       | `READY` (bounded lifecycle)         | Returns, credits, and external compensation require later owner decisions                                   |

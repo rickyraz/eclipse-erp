@@ -40,6 +40,24 @@ A domain package must not import:
 - application entry points;
 - server-only code from frontend packages.
 
+## Business Surface and Generated Ergonomics
+
+Concrete business objects do not create a second authority model. Enforcement must preserve the
+following distinction:
+
+- owner-local documents expose public commands, queries, schemas, errors, and layers;
+- ordinary structural helpers may update only owner-approved ordinary fields;
+- lifecycle and posting fields change only through the owning public action path;
+- generated artifacts must not import private tables, repositories, or infrastructure types;
+- cross-domain consequences use public contracts and typed transaction or financial-ledger ports;
+- ORM hooks, subscribers, and generated callbacks must not become hidden cross-domain authority;
+- generated API, form, audit, or event metadata must preserve the owning capability and scope.
+
+Static rules can reject private imports, persistence re-exports, and forbidden package edges. Owner
+contract tests must prove protected transitions, authorization, idempotency, correction, and
+consequence ownership. A future generator must add its own rule tests before generated artifacts are
+accepted as a supported public path.
+
 ## Allowed Dependency Direction
 
 ```text

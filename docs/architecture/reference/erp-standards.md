@@ -12,6 +12,7 @@
 >
 > - Product vision: [`../../product/vision.md`](../../product/vision.md)
 > - Canonical architecture: [`../architecture-spec-v4.md`](../architecture-spec-v4.md)
+> - External integration surface: [`../integration-architecture.md`](../integration-architecture.md)
 > - Orthogonal design: [`./orthogonal-erp-design.md`](./orthogonal-erp-design.md)
 > - Orthogonal areas: [`./orthogonal-erp-areas.md`](./orthogonal-erp-areas.md)
 > - Documentation boundaries:
@@ -21,6 +22,33 @@ ERP primitives are standardized mainly at the semantic and interoperability leve
 internal table, package, API, or transaction-boundary level.
 
 > Use standards to align meaning. Do not outsource internal system design to a standard.
+
+## ERP Standards Knowledge Stack
+
+This is a reading and classification aid, not a second architectural source of truth. The entries
+are not all the same kind of thing: some define semantics, some define exchange representations,
+some define profiles or networks, and some define accounting or reporting requirements.
+
+| Layer | Main references | RITSEI use |
+|---|---|---|
+| Trade semantics | UN/CEFACT | Shared trade terminology, code lists, and reference data models |
+| Business documents | OASIS UBL; ISO/IEC 19845 | Versioned document exchange such as orders, invoices, and advice documents |
+| Profiles and networks | Peppol BIS | Constrained process, validation, and e-delivery profiles, often using UBL |
+| EDI | UN/EDIFACT | Legacy and high-volume B2B interchange through adapters |
+| Accounting | Double-entry accounting; IFRS/IAS or local GAAP | Recognition, measurement, journal, ledger, and reporting policy |
+| Financial messaging | ISO 20022 | Banking, payment, and cash-management messages |
+| Supply chain and manufacturing | GS1; ISA-95/IEC 62264 | Physical identifiers, traceability, and ERP-to-manufacturing boundaries |
+| Reporting | XBRL | Regulatory and financial reporting projections |
+| Cross-cutting vocabularies | ISO 4217, ISO 8601, ISO 3166, UNECE Recommendation 20, ISO 80000, UCUM | Currency, time, country, and quantity/unit representation |
+
+Double-entry accounting is a principle, not an interchange format. UN/CEFACT is a standards family
+and semantic work programme, while Peppol BIS is a profile and delivery ecosystem. Keep these
+distinctions explicit when deciding whether a dependency belongs in a domain, a projection, or an
+integration adapter.
+
+Version labels are not interchangeable: ISO/IEC 19845:2015 specifies UBL version 2.1, while UBL 2.4
+is a later OASIS release. Where compatibility matters, record the standards authority, version,
+profile or message type, and local jurisdiction separately.
 
 ## Standardization Categories
 
@@ -304,8 +332,11 @@ Order-to-Cash
   + Obligation + Settlement + Ledger
 ```
 
-Avoid universal abstractions such as `UniversalEntity`, `Record`, `Node`, or `Action`. A primitive
-should retain strong business semantics and explicit invariants.
+Concrete business documents may be the developer-facing surface over these capabilities, but they
+remain owner-local and do not replace semantic ownership. `Record`, `Document`, `Action`, and `Fact`
+may describe a surface or lifecycle classification; they must not become universal base types, shared
+mutable tables, generic repositories, or authority packages. A primitive should retain strong
+business semantics and explicit invariants.
 
 ### Put External Standards at Boundaries
 
@@ -372,7 +403,16 @@ This reference remains conceptual background and does not independently own thos
 ## References
 
 - [IFRS Conceptual Framework for Financial Reporting](https://www.ifrs.org/issued-standards/list-of-standards/conceptual-framework/)
+- [IFRS Accounting Standards](https://www.ifrs.org/issued-standards/)
+- [ISO/IEC 19845:2015 — UBL version 2.1](https://www.iso.org/standard/66370.html)
+- [UN/CEFACT Trade Facilitation and E-business](https://unece.org/trade/uncefact)
+- [UN/CEFACT standards, including UN/EDIFACT](https://unece.org/trade/uncefact/standards)
+- [Peppol BIS Billing 3.0](https://docs.peppol.eu/poacc/billing/3.0/)
 - [ISO 4217 currency codes](https://www.iso.org/iso-4217-currency-codes.html)
+- [ISO 8601 date and time format](https://www.iso.org/iso-8601-date-and-time-format.html)
+- [ISO 3166 country codes](https://www.iso.org/iso-3166-country-codes.html)
+- [ISO 80000-1 quantities and units](https://www.iso.org/standard/76921.html)
+- [UCUM specification](https://unitsofmeasure.org/ucum)
 - [UNECE code-list recommendations, including Recommendation 20](https://unece.org/code-list-recommendations)
 - [GS1 identification keys](https://www.gs1.org/standards/id-keys)
 - [GS1 standards](https://www.gs1.org/standards)

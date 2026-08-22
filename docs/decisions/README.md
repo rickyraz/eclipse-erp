@@ -6,6 +6,7 @@
 >   [`../architecture/architecture-spec-v4.md`](../architecture/architecture-spec-v4.md)
 > - Documentation workflow:
 >   [`../development/documentation-workflow.md`](../development/documentation-workflow.md)
+> - Decision map: [`./decision-map.md`](./decision-map.md)
 > - ADR template: [`./0000-template.md`](./0000-template.md)
 
 ADRs preserve why architectural choices were made. Canonical architecture documents describe the
@@ -68,5 +69,6 @@ current system; ADRs preserve decision history.
 | [`0043`](./0043-adopt-rebuildable-analytic-plane.md)                | Adopt a rebuildable Analytic Plane                            | Accepted   |
 | [`0044`](./0044-define-procurement-purchase-order-baseline.md)       | Define the Procurement Purchase Order baseline                | Accepted   |
 | [`0045`](./0045-define-procurement-purchase-order-confirmation.md)   | Define Procurement Purchase Order confirmation                | Accepted   |
+| [`0046`](./0046-adopt-owner-local-business-surface-and-generated-ergonomics.md) | Adopt owner-local business surface and generated structural ergonomics | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.
