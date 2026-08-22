@@ -827,6 +827,88 @@ it.effect.skipIf(databaseUrl === undefined)(
             (blankOperationId as { constraint_name?: string }).constraint_name,
             "financial_operations_operation_id_check",
           )
+          const insertBlankMetadataOperation = (input: {
+            readonly operationId: string
+            readonly status: "intent" | "accepted" | "rejected" | "manual_recovery"
+            readonly engineAcceptedAt: string | null
+            readonly rejectionReason: string | null
+            readonly recoveryReason: string | null
+            readonly lastError: string | null
+          }) =>
+            postgresFailure(() =>
+              client`
+                with duplicate_journal as (
+                  insert into accounting.journal_entries (tenant_id, reference, status)
+                  values (${tenant!.id}, ${`blank-metadata-${crypto.randomUUID()}`}, 'draft')
+                  returning id
+                )
+                insert into accounting.financial_operations (
+                  tenant_id, legal_entity_id, period_id, operation_id, operation_type,
+                  journal_id, source_journal_id, reference, currency, mapping_version,
+                  engine, engine_verified, request_fingerprint, actor_principal_id,
+                  actor_session_id, status, attempts, scheduled_at, submitted_at,
+                  engine_accepted_at, rejection_reason, recovery_reason, observed_engine,
+                  last_error, reconciled_at
+                )
+                select f.tenant_id, f.legal_entity_id, f.period_id, ${input.operationId},
+                  f.operation_type, duplicate_journal.id, f.source_journal_id,
+                  ${`blank-metadata-reference-${crypto.randomUUID()}`}, f.currency,
+                  f.mapping_version, f.engine, f.engine_verified, f.request_fingerprint,
+                  f.actor_principal_id, f.actor_session_id, ${input.status}, f.attempts,
+                  f.scheduled_at, f.submitted_at, ${input.engineAcceptedAt},
+                  ${input.rejectionReason}, ${input.recoveryReason}, f.observed_engine,
+                  ${input.lastError}, null
+                from accounting.financial_operations f
+                cross join duplicate_journal
+                where f.tenant_id = ${tenant!.id} and f.id = ${posted.id}
+              `
+            )
+          for (
+            const invalid of [
+              {
+                operationId: `blank-engine-accepted-${crypto.randomUUID()}`,
+                status: "accepted",
+                engineAcceptedAt: "   ",
+                rejectionReason: null,
+                recoveryReason: null,
+                lastError: null,
+                constraint: "financial_operations_engine_accepted_at_check",
+              },
+              {
+                operationId: `blank-rejection-reason-${crypto.randomUUID()}`,
+                status: "rejected",
+                engineAcceptedAt: null,
+                rejectionReason: "   ",
+                recoveryReason: null,
+                lastError: null,
+                constraint: "financial_operations_rejection_reason_check",
+              },
+              {
+                operationId: `blank-recovery-reason-${crypto.randomUUID()}`,
+                status: "manual_recovery",
+                engineAcceptedAt: null,
+                rejectionReason: null,
+                recoveryReason: "   ",
+                lastError: null,
+                constraint: "financial_operations_recovery_reason_check",
+              },
+              {
+                operationId: `blank-last-error-${crypto.randomUUID()}`,
+                status: "intent",
+                engineAcceptedAt: null,
+                rejectionReason: null,
+                recoveryReason: null,
+                lastError: "   ",
+                constraint: "financial_operations_last_error_check",
+              },
+            ] as const
+          ) {
+            const failure = yield* insertBlankMetadataOperation(invalid)
+            assert.strictEqual(
+              (failure as { constraint_name?: string }).constraint_name,
+              invalid.constraint,
+            )
+          }
           const duplicateReconciledEvent = yield* postgresFailure(() =>
             client`
               insert into accounting.financial_operations (

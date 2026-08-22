@@ -2,7 +2,7 @@
 set -euo pipefail
 
 passed=0
-total=268
+total=269
 gate() { if "$@"; then passed=$((passed + 1)); fi; }
 
 gate bash -c 'test -f packages/messaging/mod.ts && test -f db/schema/messaging.ts && grep -q "withTransaction" packages/messaging/src/service.ts && grep -q "messaging = \"packages/messaging\"" db/ownership.toml'
@@ -277,6 +277,7 @@ gate bash -c 'test "$(grep -A4 -F "export const RevenuePostingProfile =" package
 gate bash -c 'grep -Fq "export const FinancialOperationJournalLine = JournalLine" packages/accounting/src/financial-operations.ts && grep -q "rejects invalid financial intent journal line amounts" packages/accounting/tests/accounting.test.ts && grep -Fq "Schema.decodeUnknownEffect(CreateFinancialJournalIntentInput)" packages/accounting/tests/accounting.test.ts && grep -Fq "journal_lines_amount_check" db/schema/accounting.ts'
 gate bash -c 'grep -Fq "debitAccountId: Uuid" packages/accounting/src/financial-readiness.ts && grep -Fq "creditAccountId: Uuid" packages/accounting/src/financial-readiness.ts && grep -A1 -F "export const FinancialBalanceFact =" packages/accounting/src/financial-readiness.ts | grep -Fq "accountId: Uuid" && grep -q "rejects malformed financial fact account identities" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "FinancialBalanceFact.fields.accountId" packages/accounting/tests/financial-readiness.test.ts && grep -Fq "financial_operation_transfers_debit_account_fkey" db/schema/accounting.ts'
 gate bash -c 'grep -Fq "financial_operations_operation_id_check" db/schema/accounting.ts && grep -Fq "financial_operations_operation_id_check" db/migrations/20260821114152_constrain_financial_operation_ids/migration.sql && grep -q "rejects blank financial operation identities" packages/accounting/tests/accounting.test.ts && grep -Fq "blankOperationId" packages/accounting/tests/financial-operations.postgres.test.ts'
+gate bash -c 'grep -Fq "financial_operations_engine_accepted_at_check" db/schema/accounting.ts && grep -Fq "financial_operations_rejection_reason_check" db/schema/accounting.ts && grep -Fq "financial_operations_recovery_reason_check" db/schema/accounting.ts && grep -Fq "financial_operations_last_error_check" db/schema/accounting.ts && grep -Fq "financial_operations_engine_accepted_at_check" db/migrations/20260821170212_constrain_financial_operation_text_fields/migration.sql && grep -Fq "financial_operations_rejection_reason_check" db/migrations/20260821170212_constrain_financial_operation_text_fields/migration.sql && grep -Fq "financial_operations_recovery_reason_check" db/migrations/20260821170212_constrain_financial_operation_text_fields/migration.sql && grep -Fq "financial_operations_last_error_check" db/migrations/20260821170212_constrain_financial_operation_text_fields/migration.sql && grep -q "rejects blank financial operation terminal metadata" packages/accounting/tests/accounting.test.ts && grep -Fq "financial_operations_last_error_check" packages/accounting/tests/financial-operations.postgres.test.ts'
 
 printf "METRIC p3_ready_gates=%s\n" "$passed"
 printf "METRIC remaining_gates=%s\n" "$((total - passed))"

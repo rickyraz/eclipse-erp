@@ -514,6 +514,22 @@ export const financialOperations = accountingSchema.table("financial_operations"
   check("financial_operations_operation_id_check", sql`${table.operationId} ~ '[^[:space:]]'`),
   check("financial_operations_reference_check", sql`${table.reference} ~ '[^[:space:]]'`),
   check(
+    "financial_operations_engine_accepted_at_check",
+    sql`${table.engineAcceptedAt} is null or ${table.engineAcceptedAt} ~ '[^[:space:]]'`,
+  ),
+  check(
+    "financial_operations_rejection_reason_check",
+    sql`${table.rejectionReason} is null or ${table.rejectionReason} ~ '[^[:space:]]'`,
+  ),
+  check(
+    "financial_operations_recovery_reason_check",
+    sql`${table.recoveryReason} is null or ${table.recoveryReason} ~ '[^[:space:]]'`,
+  ),
+  check(
+    "financial_operations_last_error_check",
+    sql`${table.lastError} is null or ${table.lastError} ~ '[^[:space:]]'`,
+  ),
+  check(
     "financial_operations_state_check",
     sql`(
       (${table.status} in ('intent', 'submitted', 'unknown') and

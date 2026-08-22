@@ -571,6 +571,23 @@ describe("accounting contract", () => {
       assert.strictEqual(overflow._tag, "SchemaError")
     }))
 
+  it.effect("rejects blank financial operation terminal metadata", () =>
+    Effect.gen(function* () {
+      for (
+        const field of [
+          "engineAcceptedAt",
+          "rejectionReason",
+          "recoveryReason",
+          "lastError",
+        ] as const
+      ) {
+        const failure = yield* Effect.flip(
+          Schema.decodeUnknownEffect(FinancialOperation.fields[field])("   "),
+        )
+        assert.strictEqual(failure._tag, "SchemaError")
+      }
+    }))
+
   it.effect("rejects mismatched financial operation source identities", () =>
     Effect.gen(function* () {
       const operation = {
