@@ -58,3 +58,4 @@ activating speculative OLAP infrastructure.
 19. Empty inputs and absent groups have provider-independent row-cardinality and zero/null semantics.
 20. Derived expressions have total precision, rounding, null, zero-divisor, overflow, and non-finite semantics.
 21. Time-grained metrics use versioned, half-open temporal boundaries with deterministic timezone, precision, and DST resolution.
+22. Limited and paginated results use a total order and continuation bound to one fixed completeness frontier.

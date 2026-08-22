@@ -48,6 +48,7 @@ check grep -q '^### Total dimension membership' docs/architecture/analytics-arch
 check grep -q '^### Empty inputs and absent groups' docs/architecture/analytics-architecture.md
 check grep -q '^### Total arithmetic semantics' docs/architecture/analytics-architecture.md
 check grep -q '^### Versioned temporal boundaries' docs/architecture/analytics-architecture.md
+check grep -q '^### Deterministic ordering and pagination' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((21 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((22 - score))"

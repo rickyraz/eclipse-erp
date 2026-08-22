@@ -368,6 +368,15 @@ A public query accepts only reviewed fields such as:
 - consistency class and maximum staleness;
 - tenant and authorization context derived from the trusted request context.
 
+### Deterministic ordering and pagination
+
+Every limited or paginated result uses a provider-independent total order with explicit text
+comparison, null placement, and a stable unique final tie-breaker. The limit applies only after that
+order is established. A continuation binds the complete ordering tuple, tenant and query scope,
+semantic version, and one fixed projection/completeness frontier; internal positions remain opaque.
+If that frontier cannot be continued, execution returns a stable semantic error rather than resuming
+against changed projection state. Offset pagination is allowed only against the same fixed frontier.
+
 The query compiler enforces maximum dimensions, joins, time range, scanned data, result rows, result
 bytes, execution time, memory, and concurrency. Large reports and exports become durable async jobs.
 
@@ -571,6 +580,7 @@ Record, subject to redaction:
 | Arithmetic is total               | Zero divisors, null operands, precision limits, tie rounding, intermediate rounding, overflow, and non-finite cases yield identical typed values, nulls, or semantic errors |
 | Temporal membership is deterministic | Cutoff endpoints, timestamp precision, DST gaps/folds, and calendar-policy versions yield identical normalized instants, periods, aggregates, and hashes |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
+| Pagination is stable              | Ties, nulls, text comparison, and a page split enumerate each fixed-frontier row exactly once; mismatched frontiers fail explicitly |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
 | Tenants are isolated              | Cross-tenant keys, filters, files, partitions, and caches cannot return data                          |

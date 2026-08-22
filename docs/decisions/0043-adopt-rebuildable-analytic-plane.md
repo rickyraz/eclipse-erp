@@ -94,6 +94,10 @@ Metric definitions are versioned code or equivalent reviewed artifacts. They dec
 - empty-input, absent-group, zero, and null output behavior;
 - provider-independent result schema.
 
+Any limited or paginated semantic result uses a deterministic total order with explicit comparison,
+null placement, and a unique final tie-breaker. Continuation remains bound to the same query scope,
+semantic version, and projection/completeness frontier or fails explicitly.
+
 This ADR selects those semantics, not a concrete DSL, compiler, package, schema, or public API.
 
 ### Freshness and query routing
@@ -203,6 +207,8 @@ Before an analytic route or provider is production-ready, prove:
   aggregation, empty-input, absent-group, dimension-membership, zero-divisor, all-null,
   precision-boundary, tie-rounding, overflow, and non-finite cases without implicit source-grain row
   loss, arithmetic coercion, or client-side normalization;
+- tied, null, and text ordering fixtures paginate each fixed-frontier row exactly once, and a
+  continuation cannot resume against a mismatched frontier;
 - freshness routing never selects an ineligible provider or falls back to the primary;
 - authorization revocation and tenant-isolation tests fail closed;
 - analytics saturation does not consume the named command reserve;
