@@ -64,3 +64,4 @@ activating speculative OLAP infrastructure.
 25. Findings bind immutable, verifiable evidence content to fixed semantic and completeness frontiers.
 26. Superseded, corrected, policy-invalidated, or withdrawn recommendations become non-actionable without rewriting history.
 27. Review and action idempotency binds the exact recommendation version, action version, and canonical validated input.
+28. Unknown recommendation-action outcomes remain unresolved until the owning domain confirms the exact attempt; retries, compensation, and successor effects cannot infer failure or create a new identity.

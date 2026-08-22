@@ -499,6 +499,20 @@ identical intent and returns or reconciles the original outcome without another 
 same review, logical-step, or idempotency identity with a changed recommendation, action version, or
 input fails closed; duplicate review cannot replace the previously bound intent.
 
+### Unknown action outcomes and owner reconciliation
+
+A dispatch timeout, lost response, or worker failure does not prove whether the owning command
+committed. The action attempt remains `unknown`, bound to the exact recommendation, action version,
+validated input, and idempotency identity. Unknown is neither success nor failure and is not
+permission to issue a new command identity, compensate, or infer current business state.
+
+Only the owning domain's public status or reconciliation contract may resolve the attempt as accepted,
+rejected, or requiring manual recovery. Until then, the recommendation is not marked executed and a
+superseding or retried recommendation cannot silently authorize a possibly duplicate effect. If new
+evidence makes the recommendation non-actionable while its attempt is unknown, new action remains
+blocked while the unresolved historical attempt is preserved. Manual recovery may fence and reconcile
+the attempt but must not invent its business outcome.
+
 A proposed action re-enters the owning domain's typed public command with current identity,
 authorization, command admission, idempotency, invariant validation, transaction, and audit. If
 canonical state or authorization changed after observation, the command rejects or the evaluator
@@ -619,6 +633,7 @@ Record, subject to redaction:
 - provider selection reason and ineligibility reason without exposing topology publicly;
 - ingestion duplicates, reordering, late facts, corrections, quarantine, and replay;
 - authorization denial, stale authorization, and deletion backlog;
+- unresolved recommendation-action age and owner-confirmed reconciliation outcome;
 - per-budget saturation and command-reserve evidence;
 - rebuild, conformance, backup, restore, upgrade, and exit results.
 
@@ -640,6 +655,7 @@ Record, subject to redaction:
 | Evidence citations are immutable  | Advance, correct, and rebuild after citation; original typed evidence and digest remain identical, while missing or changed evidence fails explicitly |
 | Recommendation lifecycle fails closed | Add newer evidence, correction, policy change, supersession, or withdrawal; review/action rejects while historical evidence remains preserved |
 | Review/action intent is idempotent | Retry identical bound intent after a lost response without another effect; key reuse with changed recommendation, action version, or input rejects |
+| Unknown action outcome is reconciled | Lose responses before and after owner commit; no new identity, compensation, successor effect, or executed state appears until the owning contract confirms the outcome |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
