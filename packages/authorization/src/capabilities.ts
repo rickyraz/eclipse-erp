@@ -28,6 +28,8 @@ export const CapabilityIds = [
   "sales.order.cancel",
   "procurement.supplier_account.create",
   "procurement.purchase_order.create",
+  "procurement.purchase_order.confirm",
+  "procurement.purchase_order.read",
   "process.order_confirmation.recover",
   "process.order_confirmation.manual_recovery",
   "inventory.warehouse.create",
@@ -226,6 +228,18 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
     "procurement",
     "purchase_order",
     "create",
+  ),
+  definition(
+    "procurement.purchase_order.confirm",
+    "procurement",
+    "purchase_order",
+    "confirm",
+  ),
+  definition(
+    "procurement.purchase_order.read",
+    "procurement",
+    "purchase_order",
+    "read",
   ),
   definition(
     "process.order_confirmation.recover",

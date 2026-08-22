@@ -226,10 +226,13 @@ of scope until their owners and lifecycles are decided. Financial execution migr
 separately by [`financial-ledger-execution.md`](./financial-ledger-execution.md); it does not expand
 this business scope.
 
-The first bounded Procurement document is decided by
-[`../decisions/0044-define-procurement-purchase-order-baseline.md`](../decisions/0044-define-procurement-purchase-order-baseline.md):
-creation atomically produces a private draft Purchase Order with owner-derived line totals and no
-stock, payable, accounting, external, event, or Process Studio effect.
+The bounded Procurement document is decided by
+[`../decisions/0044-define-procurement-purchase-order-baseline.md`](../decisions/0044-define-procurement-purchase-order-baseline.md)
+and
+[`../decisions/0045-define-procurement-purchase-order-confirmation.md`](../decisions/0045-define-procurement-purchase-order-confirmation.md):
+creation atomically produces a private draft Purchase Order, and idempotent internal confirmation
+freezes its owner-derived line total without creating stock, payable, accounting, external, event, or
+Process Studio effects. Cancellation and correction remain gated before receipt work.
 
 Resolve before cataloging purchase, sales, billing, payment, or close actions:
 

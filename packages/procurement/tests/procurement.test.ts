@@ -9,6 +9,9 @@ import {
   makeProcurementTestLayer,
   ProcurementCapabilities,
   ProcurementService,
+  PurchaseOrder,
+  PurchaseOrderConfirmationIdempotencyConflict,
+  PurchaseOrderNotFound,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,
   SupplierRelationshipNotEligible,
@@ -16,6 +19,7 @@ import {
 
 const principal = { userAccountId: "procurement-admin", sessionId: "session" }
 const tenantId = "00000000-0000-4000-8000-000000000001"
+const otherTenantId = "00000000-0000-4000-8000-000000000002"
 const capabilities = [
   PartyCapabilities.partyCreate,
   PartyCapabilities.legalEntityCreate,
@@ -24,6 +28,8 @@ const capabilities = [
   PartyCapabilities.partyRelationshipRead,
   ProcurementCapabilities.supplierAccountCreate,
   ProcurementCapabilities.purchaseOrderCreate,
+  ProcurementCapabilities.purchaseOrderConfirm,
+  ProcurementCapabilities.purchaseOrderRead,
 ] as const
 
 const withProcurement = <A, E>(
@@ -31,11 +37,13 @@ const withProcurement = <A, E>(
   granted: ReadonlyArray<(typeof capabilities)[number]> = capabilities,
 ) => {
   const authorization = makeAuthorizationTestLayer(
-    granted.map((capability) => ({
-      userAccountId: principal.userAccountId,
-      tenantId,
-      capability,
-    })),
+    [tenantId, otherTenantId].flatMap((tenantId) =>
+      granted.map((capability) => ({
+        userAccountId: principal.userAccountId,
+        tenantId,
+        capability,
+      }))
+    ),
   )
   const party = makePartyTestLayer().pipe(Layer.provide(authorization))
   const procurement = makeProcurementTestLayer().pipe(
@@ -86,6 +94,21 @@ const createSupplierAccount = Effect.gen(function* () {
     principal,
     tenantId,
     supplierRelationshipId: relationship.id,
+  })
+})
+
+const createPurchaseOrder = Effect.gen(function* () {
+  const procurement = yield* ProcurementService
+  const supplierAccount = yield* createSupplierAccount
+  return yield* procurement.createPurchaseOrder({
+    principal,
+    tenantId,
+    supplierAccountId: supplierAccount.id,
+    lines: [{
+      itemId: "00000000-0000-4000-8000-000000000010",
+      quantity: "2",
+      unitPrice: "12.50",
+    }],
   })
 })
 
@@ -161,6 +184,146 @@ describe("procurement contract", () => {
       assert.strictEqual(order.total, "37.04")
       assert.deepStrictEqual(order.lines, lines)
     })))
+
+  it.effect("reads draft and confirmed purchase orders", () =>
+    withProcurement(Effect.gen(function* () {
+      const procurement = yield* ProcurementService
+      const draft = yield* createPurchaseOrder
+      const readDraft = yield* procurement.getPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+      })
+      assert.strictEqual(readDraft.status, "draft")
+      assert.isNull(readDraft.confirmedAt)
+      assert.strictEqual(
+        (yield* Effect.flip(
+          Schema.decodeUnknownEffect(PurchaseOrder)({
+            ...readDraft,
+            status: "confirmed",
+          }),
+        ))._tag,
+        "SchemaError",
+      )
+
+      const confirmed = yield* procurement.confirmPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+        idempotencyKey: "confirm-purchase-order",
+      })
+      const readConfirmed = yield* procurement.getPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+      })
+      assert.strictEqual(confirmed.status, "confirmed")
+      assert.isNotNull(confirmed.confirmedAt)
+      assert.deepStrictEqual(readConfirmed, confirmed)
+    })))
+
+  it.effect("replays the same confirmation key and rejects a different key", () =>
+    withProcurement(Effect.gen(function* () {
+      const procurement = yield* ProcurementService
+      const order = yield* createPurchaseOrder
+      const input = {
+        principal,
+        tenantId,
+        purchaseOrderId: order.id,
+        idempotencyKey: "confirm-same-key",
+      }
+      const confirmed = yield* procurement.confirmPurchaseOrder(input)
+      const replayed = yield* procurement.confirmPurchaseOrder(input)
+      assert.deepStrictEqual(replayed, confirmed)
+      assert.isFalse("confirmationIdempotencyKey" in confirmed)
+      assert.instanceOf(
+        yield* Effect.flip(procurement.confirmPurchaseOrder({
+          ...input,
+          idempotencyKey: "confirm-different-key",
+        })),
+        PurchaseOrderConfirmationIdempotencyConflict,
+      )
+      const otherOrder = yield* createPurchaseOrder
+      assert.instanceOf(
+        yield* Effect.flip(procurement.confirmPurchaseOrder({
+          ...input,
+          purchaseOrderId: otherOrder.id,
+        })),
+        PurchaseOrderConfirmationIdempotencyConflict,
+      )
+      assert.strictEqual(
+        (yield* Effect.flip(procurement.confirmPurchaseOrder({
+          ...input,
+          idempotencyKey: "   ",
+        })))._tag,
+        "SchemaError",
+      )
+    })))
+
+  it.effect("maps missing and cross-tenant purchase orders to not found", () =>
+    withProcurement(Effect.gen(function* () {
+      const procurement = yield* ProcurementService
+      const order = yield* createPurchaseOrder
+      for (
+        const input of [
+          { tenantId, purchaseOrderId: "00000000-0000-4000-8000-000000000099" },
+          { tenantId: otherTenantId, purchaseOrderId: order.id },
+        ]
+      ) {
+        assert.instanceOf(
+          yield* Effect.flip(procurement.getPurchaseOrder({ principal, ...input })),
+          PurchaseOrderNotFound,
+        )
+        assert.instanceOf(
+          yield* Effect.flip(procurement.confirmPurchaseOrder({
+            principal,
+            ...input,
+            idempotencyKey: "missing-confirmation",
+          })),
+          PurchaseOrderNotFound,
+        )
+      }
+    })))
+
+  it.effect("denies purchase order confirmation and reads without their capabilities", () =>
+    withProcurement(
+      Effect.gen(function* () {
+        const procurement = yield* ProcurementService
+        const order = yield* createPurchaseOrder
+        assert.instanceOf(
+          yield* Effect.flip(procurement.confirmPurchaseOrder({
+            principal,
+            tenantId,
+            purchaseOrderId: order.id,
+            idempotencyKey: "denied-confirmation",
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      capabilities.filter((capability) =>
+        capability !== ProcurementCapabilities.purchaseOrderConfirm
+      ),
+    ).pipe(
+      Effect.andThen(
+        withProcurement(
+          Effect.gen(function* () {
+            const procurement = yield* ProcurementService
+            const order = yield* createPurchaseOrder
+            assert.instanceOf(
+              yield* Effect.flip(procurement.getPurchaseOrder({
+                principal,
+                tenantId,
+                purchaseOrderId: order.id,
+              })),
+              AuthorizationDenied,
+            )
+          }),
+          capabilities.filter((capability) =>
+            capability !== ProcurementCapabilities.purchaseOrderRead
+          ),
+        ),
+      ),
+    ))
 
   it.effect("maps a missing supplier account", () =>
     withProcurement(Effect.gen(function* () {

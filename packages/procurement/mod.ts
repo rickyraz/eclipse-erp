@@ -1,13 +1,17 @@
 export { ProcurementCapabilities } from "./src/capabilities.ts"
 
 export {
+  ConfirmPurchaseOrderInput,
   CreatePurchaseOrderInput,
   CreateSupplierAccountInput,
+  GetPurchaseOrderInput,
   makeProcurementService,
   makeProcurementTestLayer,
   ProcurementService,
   PurchaseOrder,
+  PurchaseOrderConfirmationIdempotencyConflict,
   PurchaseOrderLine,
+  PurchaseOrderNotFound,
   SupplierAccount,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,

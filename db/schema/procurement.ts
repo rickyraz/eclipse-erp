@@ -1,12 +1,25 @@
 import { sql } from "drizzle-orm"
-import { bigint, check, foreignKey, index, pgSchema, unique, uuid } from "drizzle-orm/pg-core"
+import {
+  bigint,
+  check,
+  foreignKey,
+  index,
+  pgSchema,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { tenants } from "./auth.ts"
 import { createdAt, id, money, updatedAt } from "./common.ts"
 import { partyRelationships } from "./party.ts"
 
 export const procurementSchema = pgSchema("procurement")
-export const purchaseOrderStatus = procurementSchema.enum("purchase_order_status", ["draft"])
+export const purchaseOrderStatus = procurementSchema.enum("purchase_order_status", [
+  "draft",
+  "confirmed",
+])
 
 export const supplierAccounts = procurementSchema.table("supplier_accounts", {
   id: id(),
@@ -37,6 +50,8 @@ export const purchaseOrders = procurementSchema.table("purchase_orders", {
   tenantId: uuid("tenant_id").notNull(),
   supplierAccountId: uuid("supplier_account_id").notNull(),
   status: purchaseOrderStatus("status").notNull().default("draft"),
+  confirmationIdempotencyKey: text("confirmation_idempotency_key"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   total: money("total"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -52,7 +67,20 @@ export const purchaseOrders = procurementSchema.table("purchase_orders", {
     foreignColumns: [supplierAccounts.tenantId, supplierAccounts.id],
     name: "purchase_orders_tenant_supplier_account_fkey",
   }),
+  unique("purchase_orders_tenant_confirmation_idempotency_key").on(
+    table.tenantId,
+    table.confirmationIdempotencyKey,
+  ),
   check("purchase_orders_total_check", sql`${table.total} >= 0`),
+  check(
+    "purchase_orders_confirmation_metadata_check",
+    sql`(${table.status} = 'draft' and
+        ${table.confirmationIdempotencyKey} is null and ${table.confirmedAt} is null) or
+      (${table.status} = 'confirmed' and
+        ${table.confirmationIdempotencyKey} is not null and
+        ${table.confirmationIdempotencyKey} ~ '[^[:space:]]' and
+        ${table.confirmedAt} is not null)`,
+  ),
 ])
 
 export const purchaseOrderLines = procurementSchema.table("purchase_order_lines", {

@@ -54,7 +54,7 @@ Business domains:
   inventory, accounting, sales
 
 Scaffolds or partial domains:
-  procurement (SupplierAccount + draft PurchaseOrder Level 1), billing
+  procurement (SupplierAccount + internal PurchaseOrder confirmation), billing
 
 Application coordinator only:
   process (bounded order lifecycle; not Process Studio)
@@ -68,10 +68,11 @@ The P0-P3 bounded primitive baseline is ready for the selected internal slices. 
 Accounting publishes the PUBLIC `revenue.posted` v1 event and the PUBLIC `revenue.post` v1 action;
 its amount is derived and verified from a Sales-owned confirmed-order fact rather than supplied as
 an accounting fact by the caller. Accounting’s separate financial-operation intent slice follows
-ADR-0040’s non-activated TigerBeetle execution boundary. Procurement now has Level 1
-`SupplierAccount` and atomic draft `PurchaseOrder` creation contracts under ADR-0044, but Procurement
-and Billing must not be advertised as Process Studio providers until their selected actions reach the
-required maturity. PgQue, external connectors, and the broad workflow runtime remain gated.
+ADR-0040’s non-activated TigerBeetle execution boundary. Procurement now has `SupplierAccount`,
+atomic draft `PurchaseOrder`, read, and idempotent internal confirmation contracts under ADR-0044 and
+ADR-0045, but Procurement and Billing must not be advertised as Process Studio providers until their
+selected actions reach the required maturity. PgQue, external connectors, and the broad workflow
+runtime remain gated.
 
 ## Roadmap Tracks
 

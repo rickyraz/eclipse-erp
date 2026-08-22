@@ -1,3 +1,5 @@
+import { and, eq } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -21,6 +23,14 @@ import { PartyService } from "../../party/mod.ts"
 import { ProcurementCapabilities } from "./capabilities.ts"
 
 const Uuid = Schema.String.check(Schema.isUUID())
+const NonEmptyString = Schema.String.check(Schema.isPattern(/\S/))
+const IsoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+const InstantString = Schema.String.check(
+  Schema.isPattern(IsoTimestamp),
+  Schema.makeFilter((value) => !Number.isNaN(new Date(value).getTime()), {
+    expected: "an ISO 8601 timestamp with a timezone",
+  }),
+)
 const Quantity = Schema.String.check(
   Schema.makeFilter(
     (value) => /^[1-9]\d*$/.test(value) && BigInt(value) <= 9_223_372_036_854_775_807n,
@@ -46,10 +56,16 @@ export const PurchaseOrder = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
   supplierAccountId: Uuid,
-  status: Schema.Literal("draft"),
+  status: Schema.Literals(["draft", "confirmed"]),
+  confirmedAt: Schema.NullOr(InstantString),
   total: FinancialMajorAmount,
   lines: Schema.Array(PurchaseOrderLine),
-})
+}).check(Schema.makeFilter(
+  (order) =>
+    (order.status === "draft" && order.confirmedAt === null) ||
+    (order.status === "confirmed" && order.confirmedAt !== null),
+  { expected: "purchase order confirmation metadata consistent with status" },
+))
 
 export type SupplierAccount = Schema.Schema.Type<typeof SupplierAccount>
 export type PurchaseOrderLine = Schema.Schema.Type<typeof PurchaseOrderLine>
@@ -66,6 +82,19 @@ export const CreatePurchaseOrderInput = Schema.Struct({
   tenantId: Uuid,
   supplierAccountId: Uuid,
   lines: Schema.Array(PurchaseOrderLine).check(Schema.isMinLength(1)),
+})
+
+export const ConfirmPurchaseOrderInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  purchaseOrderId: Uuid,
+  idempotencyKey: NonEmptyString,
+})
+
+export const GetPurchaseOrderInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  purchaseOrderId: Uuid,
 })
 
 export class SupplierAccountAlreadyExists
@@ -94,6 +123,24 @@ export class SupplierAccountNotFound extends Schema.TaggedErrorClass<SupplierAcc
   },
 ) {}
 
+export class PurchaseOrderNotFound extends Schema.TaggedErrorClass<PurchaseOrderNotFound>()(
+  "PurchaseOrderNotFound",
+  {
+    tenantId: Uuid,
+    purchaseOrderId: Uuid,
+  },
+) {}
+
+export class PurchaseOrderConfirmationIdempotencyConflict
+  extends Schema.TaggedErrorClass<PurchaseOrderConfirmationIdempotencyConflict>()(
+    "PurchaseOrderConfirmationIdempotencyConflict",
+    {
+      tenantId: Uuid,
+      purchaseOrderId: Uuid,
+      idempotencyKey: NonEmptyString,
+    },
+  ) {}
+
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
 export interface ProcurementService {
@@ -106,6 +153,17 @@ export interface ProcurementService {
   readonly createPurchaseOrder: (
     input: unknown,
   ) => Effect.Effect<PurchaseOrder, SupplierAccountNotFound | CommonFailure>
+  readonly getPurchaseOrder: (
+    input: unknown,
+  ) => Effect.Effect<PurchaseOrder, PurchaseOrderNotFound | CommonFailure>
+  readonly confirmPurchaseOrder: (
+    input: unknown,
+  ) => Effect.Effect<
+    PurchaseOrder,
+    | PurchaseOrderConfirmationIdempotencyConflict
+    | PurchaseOrderNotFound
+    | CommonFailure
+  >
 }
 
 export const ProcurementService = Context.Service<ProcurementService>("RITSEI/ProcurementService")
@@ -151,6 +209,7 @@ const purchaseOrderSelection = {
   tenantId: purchaseOrders.tenantId,
   supplierAccountId: purchaseOrders.supplierAccountId,
   status: purchaseOrders.status,
+  confirmedAt: purchaseOrders.confirmedAt,
   total: purchaseOrders.total,
 }
 
@@ -159,6 +218,23 @@ const purchaseOrderLineSelection = {
   quantity: purchaseOrderLines.quantity,
   unitPrice: purchaseOrderLines.unitPrice,
 }
+
+const toPurchaseOrder = (row: {
+  readonly id: string
+  readonly tenantId: string
+  readonly supplierAccountId: string
+  readonly status: "draft" | "confirmed"
+  readonly confirmedAt: Date | null
+  readonly total: string
+}, lines: ReadonlyArray<PurchaseOrderLine>): PurchaseOrder => ({
+  id: row.id,
+  tenantId: row.tenantId,
+  supplierAccountId: row.supplierAccountId,
+  status: row.status,
+  confirmedAt: row.confirmedAt?.toISOString() ?? null,
+  total: row.total,
+  lines,
+})
 
 const deriveTotal = (lines: ReadonlyArray<PurchaseOrderLine>): string => {
   const minor = lines.reduce(
@@ -172,6 +248,8 @@ export const makeProcurementService = Effect.gen(function* () {
   const database = yield* Database
   const authorization = yield* AuthorizationService
   const party = yield* PartyService
+  const clock = yield* Clock.Clock
+  const now = () => new Date(clock.currentTimeMillisUnsafe())
 
   return {
     createSupplierAccount: (input) =>
@@ -252,7 +330,7 @@ export const makeProcurementService = Effect.gen(function* () {
                 unitPrice: line.unitPrice,
               })))
               .returning(purchaseOrderLineSelection)
-            return { ...order!, lines }
+            return toPurchaseOrder(order!, lines)
           },
           "procurement.purchase_order.create",
         ).pipe(
@@ -270,6 +348,126 @@ export const makeProcurementService = Effect.gen(function* () {
           ),
         )
       }),
+    getPurchaseOrder: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(GetPurchaseOrderInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: ProcurementCapabilities.purchaseOrderRead,
+        })
+        const order = yield* database.transaction(
+          async (tx) => {
+            const [row] = await tx.select(purchaseOrderSelection)
+              .from(purchaseOrders)
+              .where(and(
+                eq(purchaseOrders.tenantId, decoded.tenantId),
+                eq(purchaseOrders.id, decoded.purchaseOrderId),
+              ))
+            if (row === undefined) return undefined
+            const lines = await tx.select(purchaseOrderLineSelection)
+              .from(purchaseOrderLines)
+              .where(and(
+                eq(purchaseOrderLines.tenantId, decoded.tenantId),
+                eq(purchaseOrderLines.purchaseOrderId, row.id),
+              ))
+            return toPurchaseOrder(row, lines)
+          },
+          "procurement.purchase_order.get",
+        )
+        if (order === undefined) {
+          return yield* Effect.fail(
+            new PurchaseOrderNotFound({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+            }),
+          )
+        }
+        return order
+      }),
+    confirmPurchaseOrder: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ConfirmPurchaseOrderInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: ProcurementCapabilities.purchaseOrderConfirm,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [row] = await tx.select({
+              ...purchaseOrderSelection,
+              confirmationIdempotencyKey: purchaseOrders.confirmationIdempotencyKey,
+            })
+              .from(purchaseOrders)
+              .where(and(
+                eq(purchaseOrders.tenantId, decoded.tenantId),
+                eq(purchaseOrders.id, decoded.purchaseOrderId),
+              ))
+              .for("update")
+            if (row === undefined) return { _tag: "not-found" as const }
+            const lines = await tx.select(purchaseOrderLineSelection)
+              .from(purchaseOrderLines)
+              .where(and(
+                eq(purchaseOrderLines.tenantId, decoded.tenantId),
+                eq(purchaseOrderLines.purchaseOrderId, row.id),
+              ))
+            const current = toPurchaseOrder(row, lines)
+            if (row.status === "confirmed") {
+              return row.confirmationIdempotencyKey === decoded.idempotencyKey
+                ? { _tag: "existing" as const, order: current }
+                : { _tag: "idempotency-conflict" as const }
+            }
+            const confirmedAt = now()
+            const [confirmed] = await tx.update(purchaseOrders)
+              .set({
+                status: "confirmed",
+                confirmationIdempotencyKey: decoded.idempotencyKey,
+                confirmedAt,
+                updatedAt: confirmedAt,
+              })
+              .where(and(
+                eq(purchaseOrders.tenantId, decoded.tenantId),
+                eq(purchaseOrders.id, decoded.purchaseOrderId),
+                eq(purchaseOrders.status, "draft"),
+              ))
+              .returning(purchaseOrderSelection)
+            return { _tag: "confirmed" as const, order: toPurchaseOrder(confirmed!, lines) }
+          },
+          "procurement.purchase_order.confirm",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(
+                error,
+                "purchase_orders_tenant_confirmation_idempotency_key",
+              )
+              ? new PurchaseOrderConfirmationIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                purchaseOrderId: decoded.purchaseOrderId,
+                idempotencyKey: decoded.idempotencyKey,
+              })
+              : error
+          ),
+        )
+        if (result._tag === "not-found") {
+          return yield* Effect.fail(
+            new PurchaseOrderNotFound({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+            }),
+          )
+        }
+        if (result._tag === "idempotency-conflict") {
+          return yield* Effect.fail(
+            new PurchaseOrderConfirmationIdempotencyConflict({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+              idempotencyKey: decoded.idempotencyKey,
+            }),
+          )
+        }
+        return result.order
+      }),
   } satisfies ProcurementService
 })
 
@@ -279,8 +477,12 @@ export const makeProcurementTestLayer = () =>
     Effect.gen(function* () {
       const authorization = yield* AuthorizationService
       const party = yield* PartyService
+      const clock = yield* Clock.Clock
+      const now = () => new Date(clock.currentTimeMillisUnsafe())
       const storedSupplierAccounts = new Map<string, SupplierAccount>()
       const storedPurchaseOrders = new Map<string, PurchaseOrder>()
+      const confirmationKeys = new Map<string, string>()
+      const confirmationOrderIdsByKey = new Map<string, string>()
 
       return {
         createSupplierAccount: (input) =>
@@ -340,11 +542,81 @@ export const makeProcurementTestLayer = () =>
               tenantId: decoded.tenantId,
               supplierAccountId: decoded.supplierAccountId,
               status: "draft",
+              confirmedAt: null,
               total,
               lines: decoded.lines,
             }
             storedPurchaseOrders.set(order.id, order)
             return order
+          }),
+        getPurchaseOrder: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(GetPurchaseOrderInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: ProcurementCapabilities.purchaseOrderRead,
+            })
+            const order = storedPurchaseOrders.get(decoded.purchaseOrderId)
+            if (order?.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new PurchaseOrderNotFound({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
+            return order
+          }),
+        confirmPurchaseOrder: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(ConfirmPurchaseOrderInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: ProcurementCapabilities.purchaseOrderConfirm,
+            })
+            const order = storedPurchaseOrders.get(decoded.purchaseOrderId)
+            if (order?.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new PurchaseOrderNotFound({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
+            if (order.status === "confirmed") {
+              if (confirmationKeys.get(order.id) !== decoded.idempotencyKey) {
+                return yield* Effect.fail(
+                  new PurchaseOrderConfirmationIdempotencyConflict({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    idempotencyKey: decoded.idempotencyKey,
+                  }),
+                )
+              }
+              return order
+            }
+            const confirmationKey = `${decoded.tenantId}:${decoded.idempotencyKey}`
+            const existingOrderId = confirmationOrderIdsByKey.get(confirmationKey)
+            if (existingOrderId !== undefined && existingOrderId !== order.id) {
+              return yield* Effect.fail(
+                new PurchaseOrderConfirmationIdempotencyConflict({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  idempotencyKey: decoded.idempotencyKey,
+                }),
+              )
+            }
+            const confirmed: PurchaseOrder = {
+              ...order,
+              status: "confirmed",
+              confirmedAt: now().toISOString(),
+            }
+            storedPurchaseOrders.set(order.id, confirmed)
+            confirmationKeys.set(order.id, decoded.idempotencyKey)
+            confirmationOrderIdsByKey.set(confirmationKey, order.id)
+            return confirmed
           }),
       } satisfies ProcurementService
     }),

@@ -1,0 +1,14 @@
+-- owner: procurement
+-- reviewed: 2026-08-22
+-- generated-by: drizzle-kit 1.0.0-rc.4
+-- rationale: add idempotent internal PurchaseOrder confirmation metadata from ADR-0045
+
+ALTER TABLE "procurement"."purchase_orders" ADD COLUMN "confirmation_idempotency_key" text;--> statement-breakpoint
+ALTER TABLE "procurement"."purchase_orders" ADD COLUMN "confirmed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "procurement"."purchase_orders" ADD CONSTRAINT "purchase_orders_tenant_confirmation_idempotency_key" UNIQUE("tenant_id","confirmation_idempotency_key");--> statement-breakpoint
+ALTER TABLE "procurement"."purchase_orders" ADD CONSTRAINT "purchase_orders_confirmation_metadata_check" CHECK (("status" = 'draft' and
+        "confirmation_idempotency_key" is null and "confirmed_at" is null) or
+      ("status" = 'confirmed' and
+        "confirmation_idempotency_key" is not null and
+        "confirmation_idempotency_key" ~ '[^[:space:]]' and
+        "confirmed_at" is not null));
