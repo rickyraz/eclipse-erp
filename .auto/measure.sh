@@ -47,6 +47,7 @@ check grep -q '^### Correction visibility and deterministic replay' docs/archite
 check grep -q '^### Total dimension membership' docs/architecture/analytics-architecture.md
 check grep -q '^### Empty inputs and absent groups' docs/architecture/analytics-architecture.md
 check grep -q '^### Total arithmetic semantics' docs/architecture/analytics-architecture.md
+check grep -q '^### Versioned temporal boundaries' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((20 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((21 - score))"

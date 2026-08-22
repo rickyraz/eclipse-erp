@@ -57,3 +57,4 @@ activating speculative OLAP infrastructure.
 18. Dimension membership has a total, testable outcome with no implicit source-grain row loss.
 19. Empty inputs and absent groups have provider-independent row-cardinality and zero/null semantics.
 20. Derived expressions have total precision, rounding, null, zero-divisor, overflow, and non-finite semantics.
+21. Time-grained metrics use versioned, half-open temporal boundaries with deterministic timezone, precision, and DST resolution.

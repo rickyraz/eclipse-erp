@@ -206,6 +206,14 @@ Do not collapse these into one ambiguous timestamp:
 Period, timezone, daylight-saving, cutoff, and late-arrival rules belong in the fact or metric
 contract, not in dashboard-local SQL.
 
+### Versioned temporal boundaries
+
+Every time-grained fact or metric references a versioned policy declaring its timezone identifier
+and ruleset, calendar version, local cutoff, daylight-saving gap and fold resolution, timestamp
+precision, and normalization. After normalization, period membership uses half-open intervals
+`[start, end)`: `start <= effectiveTime < end`. A business-facing inclusive end date compiles to the
+next exclusive boundary rather than changing interval semantics.
+
 ## Semantic Metrics and Dimensions
 
 Each metric version declares:
@@ -561,6 +569,7 @@ Record, subject to redaction:
 | Dimension membership is total     | Null, missing, orphaned, and late membership cases preserve the contract-declared included population before and after resolution |
 | Empty result cardinality is stable | Empty-input and absent-group fixtures produce identical raw rows, group identities, and zero/null values before client normalization |
 | Arithmetic is total               | Zero divisors, null operands, precision limits, tie rounding, intermediate rounding, overflow, and non-finite cases yield identical typed values, nulls, or semantic errors |
+| Temporal membership is deterministic | Cutoff endpoints, timestamp precision, DST gaps/folds, and calendar-policy versions yield identical normalized instants, periods, aggregates, and hashes |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
