@@ -63,22 +63,22 @@ cross-cutting boundaries; financial ledger authority is governed by the dedicate
 architecture and ADR-0040 without weakening domain ownership, audit, or transactional-integrity
 principles.
 
-| Area                | Decision                                                               |
-| ------------------- | ---------------------------------------------------------------------- |
-| Language            | TypeScript strict                                                      |
-| Application model   | Effect                                                                 |
-| Runtime             | Deno                                                                   |
-| HTTP                | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno` |
-| Database            | PostgreSQL 19+                                                         |
-| Financial execution | TigerBeetle through the FinancialLedgerPort, activation-gated          |
-| Query layer         | Drizzle ORM with `postgres.js`                                         |
-| Migrations          | Pinned Drizzle Kit graph with reviewed SQL                             |
-| Stateful ownership  | Optional vendor-neutral Stateful Entity Runtime                        |
-| Overload isolation  | Workload planes, bounded admission, and reserved command capacity      |
-| Analytic plane      | Domain-owned facts, versioned metrics, and rebuildable projections     |
-| Native compute      | Optional Zig through `Deno.dlopen`                                     |
-| Frontend            | Vite-based SolidJS 2.0 SPA with a separate backend                     |
-| Contracts           | Effect Schema                                                          |
+| Area               | Decision                                                              |
+| ------------------ | --------------------------------------------------------------------- |
+| Language           | TypeScript strict                                                     |
+| Application model  | Effect                                                                |
+| Runtime            | Deno                                                                  |
+| HTTP               | Effect v4 `HttpApi` / `HttpRouter` with native `@effect/platform-deno` |
+| Database           | PostgreSQL 19+                                                        |
+| Financial execution | TigerBeetle through the FinancialLedgerPort, activation-gated        |
+| Query layer        | Drizzle ORM with `postgres.js`                                        |
+| Migrations         | Pinned Drizzle Kit graph with reviewed SQL                            |
+| Stateful ownership | Optional vendor-neutral Stateful Entity Runtime                       |
+| Overload isolation | Workload planes, bounded admission, and reserved command capacity      |
+| Analytic plane     | Domain-owned facts, versioned metrics, and rebuildable projections     |
+| Native compute     | Optional Zig through `Deno.dlopen`                                    |
+| Frontend           | Vite-based SolidJS 2.0 SPA with a separate backend                    |
+| Contracts          | Effect Schema                                                         |
 
 Effect owns typed failures, lifecycle, concurrency, retry, telemetry, and dependency injection.
 Drizzle owns typed schema and query construction. PostgreSQL owns control-plane constraints and
@@ -89,8 +89,8 @@ FinancialLedgerPort.
 Deno remains the runtime and primary toolchain. npm ecosystem dependencies are canonical in the root
 `package.json`; Deno uses `nodeModulesDir: "auto"` so package peers resolve through the conventional
 local `node_modules` topology. The Effect packages are aligned on `4.0.0-beta.103`. The Deno adapter
-entrypoints resolve through the separate `import_map.json`, pinned to the same canonical Effect
-subtree revision. Vendored Effect source and the Drizzle subtree otherwise remain reference-only.
+entrypoints resolve through the separate `import_map.json`, pinned to the same canonical Effect subtree
+revision. Vendored Effect source and the Drizzle subtree otherwise remain reference-only.
 
 ### Dependency Ownership
 
@@ -124,12 +124,12 @@ subtree revision. Vendored Effect source and the Drizzle subtree otherwise remai
              └─────────────────────┘
 ```
 
-`package.json` is the canonical dependency manifest for npm, JSR, and development dependencies.
-`deno.lock` records the resolved dependency graph, while `node_modules` provides the conventional
-local package topology required by npm ecosystem dependencies.
+`package.json` is the canonical dependency manifest for npm, JSR, and development
+dependencies. `deno.lock` records the resolved dependency graph, while `node_modules`
+provides the conventional local package topology required by npm ecosystem dependencies.
 
-`deno.json` owns Deno runtime and toolchain behavior rather than package-version ownership. It
-defines compiler behavior, runtime permissions, tasks, formatting, linting, and related
+`deno.json` owns Deno runtime and toolchain behavior rather than package-version ownership.
+It defines compiler behavior, runtime permissions, tasks, formatting, linting, and related
 Deno-specific configuration.
 
 ## Repository Shape
@@ -247,8 +247,8 @@ extensions require PostgreSQL 19 compatibility and the production gates defined 
 
 ## Scope and User Account Contract
 
-The P0 scope model keeps tenant isolation, legal identity, operational structure, and financial
-configuration distinct:
+The P0 scope model keeps tenant isolation, legal identity, operational structure,
+and financial configuration distinct:
 
 ```text
 Tenant
@@ -257,19 +257,22 @@ Tenant
     └── Warehouse (inventory-owned; primary Branch association optional)
 ```
 
-- `auth` owns Tenant and its default timezone; one UserAccount may access multiple tenants through
-  separate scoped capabilities.
-- `identity` owns the UserAccount contract; `party` owns Organization, one-to-one Legal Entity
-  identity in P0, optional Branches, PartyRole, and scoped PartyRelationship records.
+- `auth` owns Tenant and its default timezone; one UserAccount may access multiple
+  tenants through separate scoped capabilities.
+- `identity` owns the UserAccount contract; `party` owns Organization, one-to-one
+  Legal Entity identity in P0, optional Branches, PartyRole, and scoped
+  PartyRelationship records.
 - `inventory` owns Warehouses and stock; a Warehouse is scoped to a Legal Entity.
-- `accounting` owns Legal Entity base currency, precision, fiscal period, and posting configuration.
-- Party relationships and role classifications do not grant authorization by themselves; owning
-  domains enforce capabilities at runtime.
+- `accounting` owns Legal Entity base currency, precision, fiscal period, and
+  posting configuration.
+- Party relationships and role classifications do not grant authorization by
+  themselves; owning domains enforce capabilities at runtime.
 
-The first implementation uses owner-local commands rather than a universal cross-domain provisioning
-command. Public user-account and PartyRepresentation vocabulary is defined by
-[ADR-0029](../decisions/0029-rename-user-and-party-public-vocabulary.md). Detailed rationale and
-deferred group, validity, delegation, and cross-domain configuration decisions are owned by
+The first implementation uses owner-local commands rather than a universal
+cross-domain provisioning command. Public user-account and PartyRepresentation
+vocabulary is defined by [ADR-0029](../decisions/0029-rename-user-and-party-public-vocabulary.md).
+Detailed rationale and deferred group, validity, delegation, and cross-domain
+configuration decisions are owned by
 [ADR-0021](../decisions/0021-define-p0-scope-and-identity-model.md).
 
 ## Transaction Contract
@@ -305,9 +308,9 @@ may lower a tested hard ceiling but never exceed it. Interactive queues and wait
 finite; overload rejects or degrades before backlog amplifies retries.
 
 `WorkloadCell` is the topology-private deployment containment term. It is distinct from a domain,
-Tenant, Stateful Entity Runtime entity, and `celld` runtime cell. WorkloadCell placement and
-optional recursive shuffle sharding must not appear in public DTOs, capability IDs, events, entity
-addresses, or Process IR.
+Tenant, Stateful Entity Runtime entity, and `celld` runtime cell. WorkloadCell placement and optional
+recursive shuffle sharding must not appear in public DTOs, capability IDs, events, entity addresses,
+or Process IR.
 
 A colocated deployment preserves logical boundaries but cannot claim physical non-interference
 without executable proof of disjoint resources. Detailed routing, resource, projection, overload,
@@ -316,8 +319,8 @@ and validation rules are owned by [`workload-isolation.md`](./workload-isolation
 ## Analytic Plane Contract
 
 The Analytic Plane is a logical subsystem over the existing workload classes. Bounded semantic and
-projection reads execute as `query`; ingestion, rebuild, backfill, compaction, report
-materialization, and export execute as `async`. It is not a fourth top-level workload class.
+projection reads execute as `query`; ingestion, rebuild, backfill, compaction, report materialization,
+and export execute as `async`. It is not a fourth top-level workload class.
 
 Source domains own versioned Business Fact Contracts, correction semantics, and compatibility. The
 Analytic Plane owns derived metric definitions, dimensional query semantics, projection lifecycle,
@@ -326,8 +329,8 @@ becomes business, authorization, stock, balance, journal, or financial authority
 
 Every analytic projection declares a complete rebuild source: retained committed facts/events or an
 owner-approved snapshot/export plus subsequent replay. Metric contracts declare grain, source fact
-versions, valid dimensions and joins, aggregation behavior, exact arithmetic, time and unit
-semantics, authorization, freshness, and a provider-independent output schema.
+versions, valid dimensions and joins, aggregation behavior, exact arithmetic, time and unit semantics,
+authorization, freshness, and a provider-independent output schema.
 
 Projection-safe analytic routes in a hard-isolated deployment have no PostgreSQL-primary credential,
 command service binding, or hidden primary fallback. If no projection satisfies the requested
@@ -341,20 +344,22 @@ non-interference, operations, and provider-exit evidence. Detailed rules are own
 
 ## Stateful Entity Runtime Contract
 
-RITSEI may route selected, approved aggregate categories through a vendor-neutral Stateful Entity
-Runtime for explicit active ownership, identity-local serialization, hot state, or object-local
-coordination. Stateless Effect services and direct PostgreSQL transactions remain the default.
+RITSEI may route selected, approved aggregate categories through a
+vendor-neutral Stateful Entity Runtime for explicit active ownership,
+identity-local serialization, hot state, or object-local coordination.
+Stateless Effect services and direct PostgreSQL transactions remain the default.
 
-The runtime does not replace PostgreSQL, PgQue, the job table, the durable workflow engine, domain
-authorization, or public contracts. PostgreSQL remains canonical for control-plane and non-ledger
-business facts; the activated financial profile uses TigerBeetle for accepted transfers, balances,
-and transfer history. Runtime state is classified and reconciled under
-[`state-and-consistency.md`](./state-and-consistency.md) and
-[`financial-ledger.md`](./financial-ledger.md).
+The runtime does not replace PostgreSQL, PgQue, the job table, the durable
+workflow engine, domain authorization, or public contracts. PostgreSQL remains
+canonical for control-plane and non-ledger business facts; the activated financial
+profile uses TigerBeetle for accepted transfers, balances, and transfer history.
+Runtime state is classified and reconciled under [`state-and-consistency.md`](./state-and-consistency.md)
+and [`financial-ledger.md`](./financial-ledger.md).
 
-Domain packages must not depend directly on `celld`, Cloudflare Durable Objects, or another adapter.
-Runtime selection and topology remain infrastructure and composition-root concerns. Detailed
-routing, lifecycle, recovery, observability, and aggregate-selection rules are owned by
+Domain packages must not depend directly on `celld`, Cloudflare Durable Objects,
+or another adapter. Runtime selection and topology remain infrastructure and
+composition-root concerns. Detailed routing, lifecycle, recovery, observability,
+and aggregate-selection rules are owned by
 [`runtime-architecture.md`](./runtime-architecture.md).
 
 ## Composite Process Contract
@@ -372,8 +377,8 @@ domain owns, such as durable progress, retry, or compensation status.
 
 ## Process Studio Contract
 
-RITSEI's planned Process Studio composes versioned, typed domain actions and events through a small
-deterministic Process IR. It does not expose arbitrary SQL, scripts, private repositories, or
+RITSEI's planned Process Studio composes versioned, typed domain actions and events through a
+small deterministic Process IR. It does not expose arbitrary SQL, scripts, private repositories, or
 cross-domain table mutation. Actions execute through authorized public domain contracts; decisions
 are pure; released definitions are immutable, deployments are explicit, and running instances remain
 version-pinned.
@@ -462,9 +467,9 @@ stubs, SOAP envelopes, raw OAuth tokens, or provider storage identifiers.
 
 Advanced protocols such as gRPC, Kafka, AMQP, NATS, SQS, Pub/Sub, EventBridge, SOAP, and OData may
 exist behind versioned adapters. They are not the universal external interface and never become
-Process IR primitives. External calls do not extend PostgreSQL transactions across the network; side
-effects require idempotency, timeout/retry policy, provider status, and compensation or manual
-recovery.
+Process IR primitives. External calls do not extend PostgreSQL transactions across the network;
+side effects require idempotency, timeout/retry policy, provider status, and compensation or
+manual recovery.
 
 ## External Standards Contract
 

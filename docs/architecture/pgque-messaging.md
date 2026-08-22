@@ -12,10 +12,8 @@
 > - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
-> - Async ADR:
->   [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
-> - Messaging ownership ADR:
->   [`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md)
+> - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
+> - Messaging ownership ADR: [`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 
 ## Position
@@ -65,8 +63,7 @@ For a TigerBeetle-backed financial operation, engine acceptance happens first. T
 PostgreSQL transaction commits the outcome receipt, financial projection/provenance, and event or
 outbox record together through the public Messaging contract. If that transaction fails, the
 TigerBeetle transfer remains authoritative and the operation is unresolved until the same-ID
-reconciliation path completes; PostgreSQL rollback does not undo the transfer. No event is emitted
-before TigerBeetle acceptance and a durable PostgreSQL receipt. A coordinator may publish only its
+reconciliation path completes; PostgreSQL rollback does not undo the transfer. No event is emitted before TigerBeetle acceptance and a durable PostgreSQL receipt. A coordinator may publish only its
 own Process-namespaced lifecycle facts; it must not impersonate another domain's event owner.
 
 ## Event Envelope
@@ -119,11 +116,11 @@ Consumers must:
 - expose lag and failure metrics;
 - preserve correlation metadata.
 
-Consumer receipts retain the source event type, version, and idempotency identity alongside consumer
-identity, completion state, and timestamps for at least the replay horizon. A duplicate completion
-must validate that receipt snapshot against the current source event before suppressing the local
-effect. Receipts do not provide exactly-once external delivery; external effects still require
-provider idempotency and accepted/committed/unknown/reconciled operation state.
+Consumer receipts retain the source event type, version, and idempotency identity alongside
+consumer identity, completion state, and timestamps for at least the replay horizon. A duplicate
+completion must validate that receipt snapshot against the current source event before suppressing
+the local effect. Receipts do not provide exactly-once external delivery; external effects still
+require provider idempotency and accepted/committed/unknown/reconciled operation state.
 
 ## Publication and External Delivery
 

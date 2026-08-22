@@ -107,10 +107,10 @@ Redis, ClickHouse, search indexes, and caches are not authoritative.
 - Keep PostgreSQL-owned financial metadata and projections append-oriented.
 - Record corrections through reversal or compensating entries; accepted TigerBeetle transfers are
   never edited or deleted.
-- Warehouse transfers are transactional inventory operations: confirmation deducts source
-  availability, while completion credits the destination.
-- Do not treat a TigerBeetle call as part of a PostgreSQL transaction; use the durable
-  financial-ledger protocol and reconcile cross-store outcomes.
+- Warehouse transfers are transactional inventory operations: confirmation
+  deducts source availability, while completion credits the destination.
+- Do not treat a TigerBeetle call as part of a PostgreSQL transaction; use the durable financial-ledger
+  protocol and reconcile cross-store outcomes.
 
 ## Migration Integrity
 
@@ -134,14 +134,14 @@ rebuildable from authoritative facts or have an explicit reconciliation process.
 Dashboard, search, and reporting routes may use a separate projection store to prevent degradable
 reads from consuming command resources. Analytical projections follow the domain-owned fact,
 versioned metric, freshness, correction, and provider gates in
-[`analytics-architecture.md`](./analytics-architecture.md). A hard-isolated projection route must
-not silently fall back to the primary when its projection path is stale, unavailable, or saturated.
+[`analytics-architecture.md`](./analytics-architecture.md). A hard-isolated projection route must not
+silently fall back to the primary when its projection path is stale, unavailable, or saturated.
 
 PostgreSQL 19 `WAIT FOR` is selected by ADR-0039 as the deferred mechanism for route-scoped
 replica-backed read-your-writes. It is not active merely because a replica exists and does not mean
 the replica equals the primary's latest state. Raw WAL and LSN details remain inside PostgreSQL
-infrastructure behind an opaque consistency context. Production activation requires PostgreSQL 19 GA
-and the route, timeout, timeline, authorization, no-fallback, load, and failover gates owned by
+infrastructure behind an opaque consistency context. Production activation requires PostgreSQL 19
+GA and the route, timeout, timeline, authorization, no-fallback, load, and failover gates owned by
 [`state-and-consistency.md`](./state-and-consistency.md).
 
 Search indexes over canonical tables are physical access paths, not new business facts. Cross-domain

@@ -49,3 +49,4 @@ activating speculative OLAP infrastructure.
 10. The canonical document defines provider activation gates.
 11. Rebuild sources support snapshot plus replay when events alone are insufficient.
 12. Validation covers parity, replay, corrections, authorization, tenancy, freshness, and non-interference.
+13. Existing architecture files retain a surgical diff instead of repository-wide Markdown reformatting.

@@ -28,8 +28,8 @@
 
 ## Position
 
-RITSEI treats overload isolation as a non-interference problem, not only a throughput or recovery
-problem.
+RITSEI treats overload isolation as a non-interference problem, not only a throughput or
+recovery problem.
 
 The target for projection-safe dashboard, search, and reporting traffic is:
 
@@ -79,11 +79,11 @@ query
 async
 ```
 
-A deployment may subdivide them internally. Query work may be authoritative, search, or analytics
-projection work; async work may be indexing, analytics ingestion, projection building, rebuild,
-export, integration, or workflow orchestration. The Analytic Plane is therefore a logical subsystem
-over `query` and `async`, not a competing top-level class. Public contracts must not expose process,
-pool, node, WorkloadCell, or provider topology.
+A deployment may subdivide them internally. Query work may be authoritative, search, or
+analytics projection work; async work may be indexing, analytics ingestion, projection building,
+rebuild, export, integration, or workflow orchestration. The Analytic Plane is therefore a logical
+subsystem over `query` and `async`, not a competing top-level class. Public contracts must not expose
+process, pool, node, WorkloadCell, or provider topology.
 
 ### Criticality
 
@@ -138,8 +138,8 @@ A WorkloadCell is not:
 
 A `celld` cell is one named stateful Durable Object with an active owner and private SQLite state;
 its bucket durability belongs to that runtime's own state model. A WorkloadCell instead contains
-workload resources and fault boundaries. Neither concept transfers RITSEI business authority from
-PostgreSQL.
+workload resources and fault boundaries. Neither concept transfers RITSEI business authority
+from PostgreSQL.
 
 The full term `WorkloadCell` must be used in architecture documents when ambiguity is possible.
 
@@ -679,8 +679,8 @@ Rules:
 
 Detailed authority, version, replay, and reconciliation semantics remain owned by
 [`state-and-consistency.md`](./state-and-consistency.md). Search-specific projections are owned by
-[`search-architecture.md`](./search-architecture.md); analytical fact, metric, freshness, and
-provider semantics are owned by [`analytics-architecture.md`](./analytics-architecture.md).
+[`search-architecture.md`](./search-architecture.md); analytical fact, metric, freshness, and provider
+semantics are owned by [`analytics-architecture.md`](./analytics-architecture.md).
 
 ## Database and Credential Boundaries
 

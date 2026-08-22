@@ -21,5 +21,25 @@ check grep -q 'analytics-architecture.md' docs/deployment/README.md
 check grep -q '^## No Primary Fallback' docs/architecture/analytics-architecture.md
 check grep -q '^## Provider Activation Gates' docs/architecture/analytics-architecture.md
 
+existing_churn="$({
+  git diff --numstat 3d3bd44 -- \
+    AGENTS.md \
+    ARCHITECTURE.md \
+    docs/README.md \
+    docs/documentation-boundaries.md \
+    docs/architecture/architecture-spec-v4.md \
+    docs/architecture/authorization.md \
+    docs/architecture/overview.md \
+    docs/architecture/pgque-messaging.md \
+    docs/architecture/postgresql-19-architecture.md \
+    docs/architecture/reference/hard-isolation-patterns.md \
+    docs/architecture/search-architecture.md \
+    docs/architecture/state-and-consistency.md \
+    docs/architecture/workload-isolation.md \
+    docs/decisions/README.md \
+    docs/deployment/README.md
+} | awk '{ churn += $1 + $2 } END { print churn + 0 }')"
+check test "$existing_churn" -le 250
+
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((12 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((13 - score))"

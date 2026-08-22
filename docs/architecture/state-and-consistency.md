@@ -91,8 +91,8 @@ Rules:
 
 ### Ephemeral
 
-The value is safe to lose, such as an in-memory memo, resident connection cache, bounded
-search-result cache, or transient calculation.
+The value is safe to lose, such as an in-memory memo, resident connection cache, bounded search-result
+cache, or transient calculation.
 
 Rules:
 
@@ -192,8 +192,8 @@ reconciliation anchor defined by [`financial-ledger.md`](./financial-ledger.md).
 projection checkpoint is not financial authority; ahead/behind detection compares the projection's
 verified operation set, mapping version, and scan/checkpoint boundary with the TigerBeetle anchor.
 
-Versions and anchors are scoped to one aggregate, ledger, or projection stream. They are not a
-global transaction clock.
+Versions and anchors are scoped to one aggregate, ledger, or projection stream. They are not a global
+transaction clock.
 
 ## Canonical Command Protocol
 
@@ -215,10 +215,11 @@ The default protocol for a canonical PostgreSQL mutation is:
 13. return typed result
 ```
 
-Steps 8–10 are atomic. A canonical success response requires step 11. A TigerBeetle-backed financial
-mutation uses the separate protocol in [`financial-ledger.md`](./financial-ledger.md): PostgreSQL
-persists intent, TigerBeetle accepts or rejects the deterministic operation, and PostgreSQL records
-the outcome and rebuildable projection. The two stores are not one ACID transaction.
+Steps 8–10 are atomic. A canonical success response requires step 11. A TigerBeetle-backed
+financial mutation uses the separate protocol in [`financial-ledger.md`](./financial-ledger.md):
+PostgreSQL persists intent, TigerBeetle accepts or rejects the deterministic operation, and
+PostgreSQL records the outcome and rebuildable projection. The two stores are not one ACID
+transaction.
 
 The runtime may validate against active state before opening the transaction, but PostgreSQL must
 reject a stale expected version or violated constraint. One active owner reduces expected conflicts;
@@ -393,8 +394,7 @@ A production-enabled category requires executable proof for:
 - expected-version conflict;
 - owner loss before and after PostgreSQL commit;
 - stale-owner fencing;
-- projection rebuild and replay, including owner-approved snapshot plus replay when events alone are
-  incomplete;
+- projection rebuild and replay, including owner-approved snapshot plus replay when events alone are incomplete;
 - runtime-ahead detection;
 - outbox retry and duplicate delivery;
 - schema upgrade and rollback;

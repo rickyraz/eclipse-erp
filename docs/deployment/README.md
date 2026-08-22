@@ -42,30 +42,29 @@ Domain contracts, entity addresses, events, persistence schemas, and Process IR 
 node, region, WorkloadCell, shuffle shard, executor, pool, PostgreSQL shard, cache product, runtime
 adapter, fleet, bucket, or deployment topology.
 
-A colocated deployment may use logical workload classes and bounded semaphores, but it must not
-claim physical non-interference. A hard-isolation claim requires named disjoint resources, bounded
-shared dependencies, separate credentials and paths where applicable, and executable overload
-evidence.
+A colocated deployment may use logical workload classes and bounded semaphores, but it must not claim
+physical non-interference. A hard-isolation claim requires named disjoint resources, bounded shared
+dependencies, separate credentials and paths where applicable, and executable overload evidence.
 
 ## Layer Responsibilities
 
-| Layer                      | Minimum architectural requirement                                                                                                                                  | Deployment freedom                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Frontend and static assets | Typed API boundary; no ownership of authorization or business invariants                                                                                           | Local static server, CDN, or independently scaled asset hosting                                        |
-| Thin workload router       | Topology-only placement and bounded ingress; no business mutation, PostgreSQL transaction, or primary credential                                                   | Colocated edge role or independently scaled router with protected command ingress                      |
-| API and domain services    | Stateless by default; typed commands; authorization and tenant scope enforced before mutation                                                                      | One process or many replicas behind a load balancer                                                    |
-| PostgreSQL                 | Canonical business facts, transactions, constraints, history, and audit                                                                                            | Direct connection, pooling, replicas, partitioning, or sharding hidden behind the kernel               |
-| Read replicas              | Staleness must be explicit; read-your-writes requires the deferred ADR-0039 consistency-token and activation gates; never validate an invariant from replica state | Optional and independently scaled per read workload                                                    |
-| Projection query plane     | Bounded, authorized, rebuildable reads; hard-isolated routes have no primary credential or primary fallback                                                        | Colocated logical role, separate process, replica, or independent projection store                     |
-| Stateful Entity Runtime    | Optional active ownership and entity-local serialization; never canonical authority by itself                                                                      | Local adapter, `celld`, another adapter, or disabled per entity category                               |
-| PgQue                      | Committed-event stream and fan-out; publication remains atomic with the canonical mutation                                                                         | Consumers may be colocated or independently scaled                                                     |
-| Job workers                | Leased, scheduled, prioritized single-consumer work with retries and observable lifecycle                                                                          | Colocated workers or separate worker pools                                                             |
-| Durable workflow           | Persisted checkpoints, retries, compensation, recovery, and audit correlation                                                                                      | Compatibility job layer or `pg_durable` after its production gates pass                                |
-| Cache                      | Disposable or rebuildable acceleration only; never the sole correctness, authorization, lock, balance, stock, or idempotency barrier                               | No cache, in-process cache, distributed cache, CDN cache, or browser query cache                       |
-| Search index               | Exact and structured PostgreSQL first; ranked, vector, and external projections remain rebuildable and non-authoritative                                           | Primary, stale-tolerant replica, PostgreSQL extension, or external engine after gates                  |
-| Analytics store            | Rebuildable projection governed by [`analytics-architecture.md`](../architecture/analytics-architecture.md); no write-back or authority                            | PostgreSQL reporting, isolated projection store, OLAP provider, or historical table format after gates |
-| External connectors        | Typed, authenticated, idempotent boundary with timeout, retry, provider status, and recovery                                                                       | Colocated adapters or separately deployed connector workers                                            |
-| Observability              | Correlation, metrics, logs, traces, and alerts without becoming business authority                                                                                 | Any approved telemetry backend or local tooling                                                        |
+| Layer                      | Minimum architectural requirement                                                                                                    | Deployment freedom                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Frontend and static assets | Typed API boundary; no ownership of authorization or business invariants                                                             | Local static server, CDN, or independently scaled asset hosting                          |
+| Thin workload router       | Topology-only placement and bounded ingress; no business mutation, PostgreSQL transaction, or primary credential                     | Colocated edge role or independently scaled router with protected command ingress        |
+| API and domain services    | Stateless by default; typed commands; authorization and tenant scope enforced before mutation                                        | One process or many replicas behind a load balancer                                      |
+| PostgreSQL                 | Canonical business facts, transactions, constraints, history, and audit                                                              | Direct connection, pooling, replicas, partitioning, or sharding hidden behind the kernel |
+| Read replicas              | Staleness must be explicit; read-your-writes requires the deferred ADR-0039 consistency-token and activation gates; never validate an invariant from replica state | Optional and independently scaled per read workload |
+| Projection query plane     | Bounded, authorized, rebuildable reads; hard-isolated routes have no primary credential or primary fallback                         | Colocated logical role, separate process, replica, or independent projection store       |
+| Stateful Entity Runtime    | Optional active ownership and entity-local serialization; never canonical authority by itself                                        | Local adapter, `celld`, another adapter, or disabled per entity category                 |
+| PgQue                      | Committed-event stream and fan-out; publication remains atomic with the canonical mutation                                           | Consumers may be colocated or independently scaled                                       |
+| Job workers                | Leased, scheduled, prioritized single-consumer work with retries and observable lifecycle                                            | Colocated workers or separate worker pools                                               |
+| Durable workflow           | Persisted checkpoints, retries, compensation, recovery, and audit correlation                                                        | Compatibility job layer or `pg_durable` after its production gates pass                  |
+| Cache                      | Disposable or rebuildable acceleration only; never the sole correctness, authorization, lock, balance, stock, or idempotency barrier | No cache, in-process cache, distributed cache, CDN cache, or browser query cache         |
+| Search index               | Exact and structured PostgreSQL first; ranked, vector, and external projections remain rebuildable and non-authoritative             | Primary, stale-tolerant replica, PostgreSQL extension, or external engine after gates    |
+| Analytics store            | Rebuildable projection governed by [`analytics-architecture.md`](../architecture/analytics-architecture.md); no write-back or authority | PostgreSQL reporting, isolated projection store, OLAP provider, or historical table format after gates |
+| External connectors        | Typed, authenticated, idempotent boundary with timeout, retry, provider status, and recovery                                         | Colocated adapters or separately deployed connector workers                              |
+| Observability              | Correlation, metrics, logs, traces, and alerts without becoming business authority                                                   | Any approved telemetry backend or local tooling                                          |
 
 ## Cache Rules
 
@@ -139,8 +138,8 @@ Read replicas may serve explicitly stale-tolerant queries. ADR-0039 also selects
 route-scoped PostgreSQL 19 `WAIT FOR` path for read-your-writes after its consistency-token,
 timeout, timeline, authorization, no-fallback, load, and failover gates pass. Until activation,
 required read-after-write behavior remains on the authoritative path. Invariant-sensitive reads and
-writes remain on a transactionally appropriate primary or shard. Every currently accepted atomic
-workflow must remain transactionally colocated. Changing an accepted invariant from one PostgreSQL
+writes remain on a transactionally appropriate primary or shard. Every currently accepted atomic workflow
+must remain transactionally colocated. Changing an accepted invariant from one PostgreSQL
 transaction to a durable process, event, or compensation requires a superseding consistency ADR;
 operators must not make that semantic change through shard placement. New cross-shard work must stay
 explicit, and infrastructure must not pretend several shards form one local transaction.
@@ -149,10 +148,10 @@ explicit, and infrastructure must not pretend several shards form one local tran
 
 Deployment topology and financial authority are separate selectors. The runtime accepts:
 
-| Selector                     | Values                                     | Meaning                                                 |
-| ---------------------------- | ------------------------------------------ | ------------------------------------------------------- |
-| `RITSEI_DEPLOYMENT_PROFILE`  | `entry`, `standard`, `scale`, `enterprise` | operational topology and maturity target                |
-| `RITSEI_FINANCIAL_AUTHORITY` | `postgresql`, `tigerbeetle`                | authority used by the `FinancialLedgerPort` composition |
+| Selector | Values | Meaning |
+| --- | --- | --- |
+| `RITSEI_DEPLOYMENT_PROFILE` | `entry`, `standard`, `scale`, `enterprise` | operational topology and maturity target |
+| `RITSEI_FINANCIAL_AUTHORITY` | `postgresql`, `tigerbeetle` | authority used by the `FinancialLedgerPort` composition |
 
 The executable reference profile is [`deploy/entry/compose.yaml`](../../deploy/entry/compose.yaml):
 `entry + postgresql`, with PostgreSQL 19, migrations, API, and worker. It intentionally supplies no
@@ -164,8 +163,8 @@ Current maturity:
 
 - **Entry + PostgreSQL:** executable through both API and worker composition roots; no TigerBeetle
   dependency is required.
-- **Standard + PostgreSQL:** composition-compatible, but PostgreSQL HA, pooling, backup, and
-  failover evidence are not supplied by this repository.
+- **Standard + PostgreSQL:** composition-compatible, but PostgreSQL HA, pooling, backup, and failover
+  evidence are not supplied by this repository.
 - **Scale + TigerBeetle:** adapter-compatible, but multi-replica quorum, recovery, reconciliation,
   signing custody, and outage evidence remain unresolved.
 - **Enterprise:** topology-agnostic contracts exist, but WorkloadCell routing, hard isolation,
@@ -200,8 +199,8 @@ A deployment seeking query-to-command non-interference separates:
 Projection failure returns declared stale, `429`, or `503` behavior and does not open a primary
 fallback. Async-triggered business commands use existing job or workflow durability to reach a
 command-capable worker composition root, then re-enter command admission and credentials without
-loopback HTTP. The deployment publishes the exact protected resources, shared dependencies, excluded
-failure modes, and overload-test results.
+loopback HTTP. The deployment publishes the exact protected resources, shared dependencies,
+excluded failure modes, and overload-test results.
 
 When PostgreSQL 19 `reserved_connections` implements the command connection reserve, deployment
 validation must prove:
@@ -241,8 +240,8 @@ Self-hosted operators may choose infrastructure appropriate to their workload. I
 the platform operator owns topology decisions. Plugins and business users cannot bypass
 architectural boundaries or select arbitrary infrastructure through domain inputs.
 
-Products such as `celld`, PgQue, `pg_durable`, Redis, ClickHouse, a pooler, or a search engine are
-not granted business authority merely because they are deployed. RITSEI depends on the minimum
+Products such as `celld`, PgQue, `pg_durable`, Redis, ClickHouse, a pooler, or a search engine are not
+granted business authority merely because they are deployed. RITSEI depends on the minimum
 architectural semantics assigned to each layer and keeps product-specific topology behind
 infrastructure adapters or composition roots.
 
