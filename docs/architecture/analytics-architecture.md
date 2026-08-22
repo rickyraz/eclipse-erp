@@ -541,6 +541,18 @@ provenance. Each stage independently revalidates current tenant-scoped visibilit
 applicable separation of duties. Revocation after observation creation fails closed at review; a
 `ProcessPrincipal` cannot inherit or obscure the rights and actors used by either decision.
 
+### Approval is not an execution lease
+
+Review or approval records a decision at a point in time; it does not reserve future authorization,
+evidence visibility, policy, actionability, or domain state. A queued or delayed action revalidates the
+exact recommendation version, immutable evidence access, execution principal and delegation, current
+policy and separation of duties, action contract version, and non-actionable lifecycle state
+immediately before dispatch to the owning command.
+
+Any failed revalidation blocks dispatch without erasing the historical approval or silently seeking a
+replacement reviewer. A retry after delay performs the checks again. Review time, dispatch time, and
+the versions evaluated at each boundary remain distinguishable in audit evidence.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -671,6 +683,7 @@ Record, subject to redaction:
 | Review/action intent is idempotent | Retry identical bound intent after a lost response without another effect; key reuse with changed recommendation, action version, or input rejects |
 | Unknown action outcome is reconciled | Lose responses before and after owner commit; no new identity, compensation, successor effect, or executed state appears until the owning contract confirms the outcome |
 | Compensation is outcome-bound       | Attempt compensation for unknown and rejected actions, then for one owner-confirmed compensable effect; only the confirmed effect creates one separately authorized, idempotent correcting command |
+| Approval grants no execution lease   | Approve, then change evidence access, policy, delegation, action version, or actionability before delayed dispatch; every stale case blocks before the owning command |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

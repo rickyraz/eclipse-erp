@@ -57,6 +57,7 @@ check grep -q '^### Recommendation actionability lifecycle' docs/architecture/an
 check grep -q '^### Idempotent review and action binding' docs/architecture/analytics-architecture.md
 check grep -q '^### Unknown action outcomes and owner reconciliation' docs/architecture/analytics-architecture.md
 check grep -q '^### Outcome-bound compensation' docs/architecture/analytics-architecture.md
+check grep -q '^### Approval is not an execution lease' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((29 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((30 - score))"
