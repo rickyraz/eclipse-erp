@@ -32,6 +32,7 @@ existing_churn="$({
     docs/architecture/overview.md \
     docs/architecture/pgque-messaging.md \
     docs/architecture/postgresql-19-architecture.md \
+    docs/architecture/process-studio.md \
     docs/architecture/reference/hard-isolation-patterns.md \
     docs/architecture/search-architecture.md \
     docs/architecture/state-and-consistency.md \
@@ -53,6 +54,7 @@ check grep -q '^## Self-Observation Boundary' docs/architecture/analytics-archit
 check grep -q '^### Fresh authorization across observation, review, and action' docs/architecture/analytics-architecture.md
 check grep -q '^### Immutable evidence binding' docs/architecture/analytics-architecture.md
 check grep -q '^### Recommendation actionability lifecycle' docs/architecture/analytics-architecture.md
+check grep -q '^### Idempotent review and action binding' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((26 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((27 - score))"

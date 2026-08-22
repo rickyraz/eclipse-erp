@@ -63,3 +63,4 @@ activating speculative OLAP infrastructure.
 24. Observation, review, and action preserve actor/delegation provenance and independently revalidate current evidence access and separation of duties.
 25. Findings bind immutable, verifiable evidence content to fixed semantic and completeness frontiers.
 26. Superseded, corrected, policy-invalidated, or withdrawn recommendations become non-actionable without rewriting history.
+27. Review and action idempotency binds the exact recommendation version, action version, and canonical validated input.
