@@ -226,13 +226,11 @@ of scope until their owners and lifecycles are decided. Financial execution migr
 separately by [`financial-ledger-execution.md`](./financial-ledger-execution.md); it does not expand
 this business scope.
 
-The bounded Procurement document is decided by
-[`../decisions/0044-define-procurement-purchase-order-baseline.md`](../decisions/0044-define-procurement-purchase-order-baseline.md)
-and
-[`../decisions/0045-define-procurement-purchase-order-confirmation.md`](../decisions/0045-define-procurement-purchase-order-confirmation.md):
-creation atomically produces a private draft Purchase Order, and idempotent internal confirmation
-freezes its owner-derived line total without creating stock, payable, accounting, external, event, or
-Process Studio effects. Cancellation and correction remain gated before receipt work.
+The bounded Procurement document is defined by the canonical
+[`../architecture/procurement.md`](../architecture/procurement.md) specification, with historical
+baseline rationale in ADR-0044 and ADR-0045. The current Level 2 lifecycle creates a private draft,
+freezes it through idempotent internal confirmation, and preserves the committed snapshot through
+terminal cancellation. Receipt ownership and its concurrency with cancellation remain gated.
 
 Resolve before cataloging purchase, sales, billing, payment, or close actions:
 

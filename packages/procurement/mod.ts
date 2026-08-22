@@ -1,6 +1,7 @@
 export { ProcurementCapabilities } from "./src/capabilities.ts"
 
 export {
+  CancelPurchaseOrderInput,
   ConfirmPurchaseOrderInput,
   CreatePurchaseOrderInput,
   CreateSupplierAccountInput,
@@ -10,6 +11,7 @@ export {
   ProcurementService,
   PurchaseOrder,
   PurchaseOrderConfirmationIdempotencyConflict,
+  PurchaseOrderInvalidState,
   PurchaseOrderLine,
   PurchaseOrderNotFound,
   SupplierAccount,

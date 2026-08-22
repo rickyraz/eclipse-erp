@@ -11,6 +11,7 @@ import {
   ProcurementService,
   PurchaseOrder,
   PurchaseOrderConfirmationIdempotencyConflict,
+  PurchaseOrderInvalidState,
   PurchaseOrderNotFound,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,
@@ -30,6 +31,7 @@ const capabilities = [
   ProcurementCapabilities.purchaseOrderCreate,
   ProcurementCapabilities.purchaseOrderConfirm,
   ProcurementCapabilities.purchaseOrderRead,
+  ProcurementCapabilities.purchaseOrderCancel,
 ] as const
 
 const withProcurement = <A, E>(
@@ -260,6 +262,65 @@ describe("procurement contract", () => {
       )
     })))
 
+  it.effect("cancels a confirmed purchase order idempotently and preserves its snapshot", () =>
+    withProcurement(Effect.gen(function* () {
+      const procurement = yield* ProcurementService
+      const draft = yield* createPurchaseOrder
+      assert.instanceOf(
+        yield* Effect.flip(procurement.cancelPurchaseOrder({
+          principal,
+          tenantId,
+          purchaseOrderId: draft.id,
+        })),
+        PurchaseOrderInvalidState,
+      )
+
+      const confirmationInput = {
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+        idempotencyKey: "confirm-before-cancellation",
+      }
+      const confirmed = yield* procurement.confirmPurchaseOrder(confirmationInput)
+      const cancelled = yield* procurement.cancelPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+      })
+      const replayed = yield* procurement.cancelPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: draft.id,
+      })
+      assert.strictEqual(cancelled.status, "cancelled")
+      assert.strictEqual(cancelled.confirmedAt, confirmed.confirmedAt)
+      assert.strictEqual(cancelled.supplierAccountId, confirmed.supplierAccountId)
+      assert.strictEqual(cancelled.total, confirmed.total)
+      assert.deepStrictEqual(cancelled.lines, confirmed.lines)
+      assert.deepStrictEqual(replayed, cancelled)
+      assert.deepStrictEqual(
+        yield* procurement.getPurchaseOrder({
+          principal,
+          tenantId,
+          purchaseOrderId: draft.id,
+        }),
+        cancelled,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(procurement.confirmPurchaseOrder(confirmationInput)),
+        PurchaseOrderInvalidState,
+      )
+      assert.strictEqual(
+        (yield* Effect.flip(
+          Schema.decodeUnknownEffect(PurchaseOrder)({
+            ...cancelled,
+            confirmedAt: null,
+          }),
+        ))._tag,
+        "SchemaError",
+      )
+    })))
+
   it.effect("maps missing and cross-tenant purchase orders to not found", () =>
     withProcurement(Effect.gen(function* () {
       const procurement = yield* ProcurementService
@@ -280,6 +341,10 @@ describe("procurement contract", () => {
             ...input,
             idempotencyKey: "missing-confirmation",
           })),
+          PurchaseOrderNotFound,
+        )
+        assert.instanceOf(
+          yield* Effect.flip(procurement.cancelPurchaseOrder({ principal, ...input })),
           PurchaseOrderNotFound,
         )
       }
@@ -322,6 +387,31 @@ describe("procurement contract", () => {
             capability !== ProcurementCapabilities.purchaseOrderRead
           ),
         ),
+      ),
+    ))
+
+  it.effect("denies purchase order cancellation without its capability", () =>
+    withProcurement(
+      Effect.gen(function* () {
+        const procurement = yield* ProcurementService
+        const order = yield* createPurchaseOrder
+        yield* procurement.confirmPurchaseOrder({
+          principal,
+          tenantId,
+          purchaseOrderId: order.id,
+          idempotencyKey: "confirm-before-denied-cancellation",
+        })
+        assert.instanceOf(
+          yield* Effect.flip(procurement.cancelPurchaseOrder({
+            principal,
+            tenantId,
+            purchaseOrderId: order.id,
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      capabilities.filter((capability) =>
+        capability !== ProcurementCapabilities.purchaseOrderCancel
       ),
     ))
 

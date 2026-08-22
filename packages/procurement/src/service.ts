@@ -56,14 +56,14 @@ export const PurchaseOrder = Schema.Struct({
   id: Uuid,
   tenantId: Uuid,
   supplierAccountId: Uuid,
-  status: Schema.Literals(["draft", "confirmed"]),
+  status: Schema.Literals(["draft", "confirmed", "cancelled"]),
   confirmedAt: Schema.NullOr(InstantString),
   total: FinancialMajorAmount,
   lines: Schema.Array(PurchaseOrderLine),
 }).check(Schema.makeFilter(
   (order) =>
     (order.status === "draft" && order.confirmedAt === null) ||
-    (order.status === "confirmed" && order.confirmedAt !== null),
+    (order.status !== "draft" && order.confirmedAt !== null),
   { expected: "purchase order confirmation metadata consistent with status" },
 ))
 
@@ -92,6 +92,12 @@ export const ConfirmPurchaseOrderInput = Schema.Struct({
 })
 
 export const GetPurchaseOrderInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  purchaseOrderId: Uuid,
+})
+
+export const CancelPurchaseOrderInput = Schema.Struct({
   principal: Principal,
   tenantId: Uuid,
   purchaseOrderId: Uuid,
@@ -141,6 +147,13 @@ export class PurchaseOrderConfirmationIdempotencyConflict
     },
   ) {}
 
+export class PurchaseOrderInvalidState
+  extends Schema.TaggedErrorClass<PurchaseOrderInvalidState>()("PurchaseOrderInvalidState", {
+    tenantId: Uuid,
+    purchaseOrderId: Uuid,
+    status: Schema.Literals(["draft", "confirmed", "cancelled"]),
+  }) {}
+
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
 export interface ProcurementService {
@@ -161,8 +174,15 @@ export interface ProcurementService {
   ) => Effect.Effect<
     PurchaseOrder,
     | PurchaseOrderConfirmationIdempotencyConflict
+    | PurchaseOrderInvalidState
     | PurchaseOrderNotFound
     | CommonFailure
+  >
+  readonly cancelPurchaseOrder: (
+    input: unknown,
+  ) => Effect.Effect<
+    PurchaseOrder,
+    PurchaseOrderInvalidState | PurchaseOrderNotFound | CommonFailure
   >
 }
 
@@ -223,7 +243,7 @@ const toPurchaseOrder = (row: {
   readonly id: string
   readonly tenantId: string
   readonly supplierAccountId: string
-  readonly status: "draft" | "confirmed"
+  readonly status: "draft" | "confirmed" | "cancelled"
   readonly confirmedAt: Date | null
   readonly total: string
 }, lines: ReadonlyArray<PurchaseOrderLine>): PurchaseOrder => ({
@@ -418,6 +438,9 @@ export const makeProcurementService = Effect.gen(function* () {
                 ? { _tag: "existing" as const, order: current }
                 : { _tag: "idempotency-conflict" as const }
             }
+            if (row.status !== "draft") {
+              return { _tag: "invalid-state" as const, status: row.status }
+            }
             const confirmedAt = now()
             const [confirmed] = await tx.update(purchaseOrders)
               .set({
@@ -463,6 +486,77 @@ export const makeProcurementService = Effect.gen(function* () {
               tenantId: decoded.tenantId,
               purchaseOrderId: decoded.purchaseOrderId,
               idempotencyKey: decoded.idempotencyKey,
+            }),
+          )
+        }
+        if (result._tag === "invalid-state") {
+          return yield* Effect.fail(
+            new PurchaseOrderInvalidState({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+              status: result.status,
+            }),
+          )
+        }
+        return result.order
+      }),
+    cancelPurchaseOrder: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(CancelPurchaseOrderInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: ProcurementCapabilities.purchaseOrderCancel,
+        })
+        const result = yield* database.transaction(
+          async (tx) => {
+            const [row] = await tx.select(purchaseOrderSelection)
+              .from(purchaseOrders)
+              .where(and(
+                eq(purchaseOrders.tenantId, decoded.tenantId),
+                eq(purchaseOrders.id, decoded.purchaseOrderId),
+              ))
+              .for("update")
+            if (row === undefined) return { _tag: "not-found" as const }
+            const lines = await tx.select(purchaseOrderLineSelection)
+              .from(purchaseOrderLines)
+              .where(and(
+                eq(purchaseOrderLines.tenantId, decoded.tenantId),
+                eq(purchaseOrderLines.purchaseOrderId, row.id),
+              ))
+            const current = toPurchaseOrder(row, lines)
+            if (row.status === "cancelled") {
+              return { _tag: "existing" as const, order: current }
+            }
+            if (row.status !== "confirmed") {
+              return { _tag: "invalid-state" as const, status: row.status }
+            }
+            const [cancelled] = await tx.update(purchaseOrders)
+              .set({ status: "cancelled", updatedAt: now() })
+              .where(and(
+                eq(purchaseOrders.tenantId, decoded.tenantId),
+                eq(purchaseOrders.id, decoded.purchaseOrderId),
+                eq(purchaseOrders.status, "confirmed"),
+              ))
+              .returning(purchaseOrderSelection)
+            return { _tag: "cancelled" as const, order: toPurchaseOrder(cancelled!, lines) }
+          },
+          "procurement.purchase_order.cancel",
+        )
+        if (result._tag === "not-found") {
+          return yield* Effect.fail(
+            new PurchaseOrderNotFound({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+            }),
+          )
+        }
+        if (result._tag === "invalid-state") {
+          return yield* Effect.fail(
+            new PurchaseOrderInvalidState({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+              status: result.status,
             }),
           )
         }
@@ -597,6 +691,15 @@ export const makeProcurementTestLayer = () =>
               }
               return order
             }
+            if (order.status !== "draft") {
+              return yield* Effect.fail(
+                new PurchaseOrderInvalidState({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  status: order.status,
+                }),
+              )
+            }
             const confirmationKey = `${decoded.tenantId}:${decoded.idempotencyKey}`
             const existingOrderId = confirmationOrderIdsByKey.get(confirmationKey)
             if (existingOrderId !== undefined && existingOrderId !== order.id) {
@@ -617,6 +720,37 @@ export const makeProcurementTestLayer = () =>
             confirmationKeys.set(order.id, decoded.idempotencyKey)
             confirmationOrderIdsByKey.set(confirmationKey, order.id)
             return confirmed
+          }),
+        cancelPurchaseOrder: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(CancelPurchaseOrderInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: ProcurementCapabilities.purchaseOrderCancel,
+            })
+            const order = storedPurchaseOrders.get(decoded.purchaseOrderId)
+            if (order?.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new PurchaseOrderNotFound({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
+            if (order.status === "cancelled") return order
+            if (order.status !== "confirmed") {
+              return yield* Effect.fail(
+                new PurchaseOrderInvalidState({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  status: order.status,
+                }),
+              )
+            }
+            const cancelled: PurchaseOrder = { ...order, status: "cancelled" }
+            storedPurchaseOrders.set(order.id, cancelled)
+            return cancelled
           }),
       } satisfies ProcurementService
     }),

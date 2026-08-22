@@ -30,6 +30,7 @@ export const CapabilityIds = [
   "procurement.purchase_order.create",
   "procurement.purchase_order.confirm",
   "procurement.purchase_order.read",
+  "procurement.purchase_order.cancel",
   "process.order_confirmation.recover",
   "process.order_confirmation.manual_recovery",
   "inventory.warehouse.create",
@@ -240,6 +241,12 @@ export const CapabilityDefinitions: ReadonlyArray<CapabilityDefinition> = [
     "procurement",
     "purchase_order",
     "read",
+  ),
+  definition(
+    "procurement.purchase_order.cancel",
+    "procurement",
+    "purchase_order",
+    "cancel",
   ),
   definition(
     "process.order_confirmation.recover",

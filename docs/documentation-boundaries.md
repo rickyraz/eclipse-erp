@@ -47,6 +47,7 @@ create a second independent definition.
 | Analytic-plane authority, fact and metric contracts, freshness, projection providers, and activation gates | [`./architecture/analytics-architecture.md`](./architecture/analytics-architecture.md) |
 | Search authority, projections, providers, and search-specific workload safety | [`./architecture/search-architecture.md`](./architecture/search-architecture.md) |
 | Authorization | [`./architecture/authorization.md`](./architecture/authorization.md) |
+| Procurement ownership, Supplier Accounts, Purchase Orders, and receipt activation gates | [`./architecture/procurement.md`](./architecture/procurement.md) |
 | Events and messaging | [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md) |
 | External integration surface and connector protocols | [`./architecture/integration-architecture.md`](./architecture/integration-architecture.md) |
 | Jobs and durable workflow engine selection | [`./architecture/durable-execution.md`](./architecture/durable-execution.md) |

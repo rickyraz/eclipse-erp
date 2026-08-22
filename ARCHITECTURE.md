@@ -42,6 +42,8 @@ Analytic facts, metrics, freshness, semantic queries, and provider gates are def
 [`docs/architecture/analytics-architecture.md`](./docs/architecture/analytics-architecture.md).
 Search authority, projections, provider gates, and search-specific workload safety are defined in
 [`docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md).
+Procurement ownership, the Purchase Order lifecycle, and receipt activation gates are defined in
+[`docs/architecture/procurement.md`](./docs/architecture/procurement.md).
 
 ## Dependency Ownership
 

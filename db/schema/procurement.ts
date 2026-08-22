@@ -19,6 +19,7 @@ export const procurementSchema = pgSchema("procurement")
 export const purchaseOrderStatus = procurementSchema.enum("purchase_order_status", [
   "draft",
   "confirmed",
+  "cancelled",
 ])
 
 export const supplierAccounts = procurementSchema.table("supplier_accounts", {
@@ -76,7 +77,7 @@ export const purchaseOrders = procurementSchema.table("purchase_orders", {
     "purchase_orders_confirmation_metadata_check",
     sql`(${table.status} = 'draft' and
         ${table.confirmationIdempotencyKey} is null and ${table.confirmedAt} is null) or
-      (${table.status} = 'confirmed' and
+      (${table.status} in ('confirmed', 'cancelled') and
         ${table.confirmationIdempotencyKey} is not null and
         ${table.confirmationIdempotencyKey} ~ '[^[:space:]]' and
         ${table.confirmedAt} is not null)`,
