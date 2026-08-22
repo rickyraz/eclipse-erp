@@ -59,3 +59,4 @@ activating speculative OLAP infrastructure.
 20. Derived expressions have total precision, rounding, null, zero-divisor, overflow, and non-finite semantics.
 21. Time-grained metrics use versioned, half-open temporal boundaries with deterministic timezone, precision, and DST resolution.
 22. Limited and paginated results use a total order and continuation bound to one fixed completeness frontier.
+23. Analytic observations and recommendations remain non-authoritative; every proposed action re-enters the current owning command boundary.

@@ -5,3 +5,5 @@
 - Evaluate Iceberg only for proven retention, open-table, or multi-engine requirements.
 - Evaluate DuckDB only as a bounded worker/export execution engine with resource and extension controls.
 - Add cross-engine golden-data conformance only when a second analytic provider is activated.
+- Create a self-observation ADR only when a measured evaluator use case defines finding ownership,
+  evidence, review, persistence, and bounded action policy.

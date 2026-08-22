@@ -403,6 +403,57 @@ RITSEI adaptation:
 - do not embed it in a command process and call the workload isolated merely because it lacks a
   PostgreSQL credential.
 
+## Adjacent Self-Observing Enterprise Systems
+
+This is adjacent to OLAP rather than part of the Analytic Plane decision. It is useful evidence for
+how analytical observations may later feed findings and recommendations without making analytics the
+action authority.
+
+### Celonis: process data plus process knowledge
+
+Celonis describes its Process Intelligence Graph as a system-agnostic digital twin that combines
+process data, process knowledge, and business context to support improvement, automation, and AI.
+Its orchestration material also describes feeding execution results back into continuous process
+improvement.
+
+Primary references:
+
+- [Celonis Process Intelligence Graph](https://www.celonis.com/news/press/celonis-pioneers-the-next-generation-of-process-intelligence-with-the-introduction-of-the-process-intelligence-graph)
+- [Celonis AI and process orchestration](https://www.celonis.com/blog/how-ai-and-process-orchestration-bring-us-a-giant-leap-closer-to-the-autonomous-enterprise)
+
+### Palantir: organizational objects, relationships, and governed actions
+
+Palantir's Ontology maps datasets and models into organization-facing objects, properties, links,
+and action types. AIP Analyst can use object sets, aggregations, SQL, functions, and actions; its
+documented action execution requires approval.
+
+Primary references:
+
+- [Palantir Ontology core concepts](https://www.palantir.com/docs/foundry/ontology/core-concepts)
+- [Palantir AIP Analyst capabilities](https://www.palantir.com/docs/foundry/aip-analyst/capabilities)
+
+### SAP Signavio: process observations, anomalies, and root-cause analysis
+
+SAP Signavio Process Intelligence derives insights from process data, including automated anomaly
+and trend detection. Its root-cause analysis identifies contributors and opportunities affecting a
+metric, while SAP's AI-assisted material keeps generated recommendations subject to review.
+
+Primary references:
+
+- [SAP Signavio Insights](https://help.sap.com/docs/signavio-process-intelligence/user-guide/insights)
+- [SAP Signavio Insights Algorithms](https://help.sap.com/docs/signavio-process-intelligence/user-guide/insights-algorithms)
+- [SAP Signavio Root Cause Analysis Results](https://help.sap.com/docs/signavio-process-intelligence/user-guide/analyzing-results)
+- [SAP Signavio AI capabilities](https://help.sap.com/docs/signavio-process-transformation-suite/signavio-process-transformation-suite-administration-guide/86da77e4ad1f488ab0e18696617f233c.html)
+
+RITSEI adaptation:
+
+- analytics may supply versioned, freshness-qualified observations to a later evaluator;
+- process, graph, retrieval, or model context remains derived and tenant-scoped;
+- findings and recommendations carry evidence and uncertainty but never become authority;
+- every proposed action re-enters the owning typed command with current authorization and invariants;
+- recommendation ownership, persistence, AI governance, and closed-loop actuation require a separate
+  accepted decision.
+
 ## Stress-Test Matrix
 
 | Proposed idea                                         | Verdict                   | Required correction                                                            |
@@ -420,6 +471,7 @@ RITSEI adaptation:
 | DuckDB follows Iceberg automatically                  | Reject                    | DuckDB is an execution option with separate resource gates                     |
 | Same metric works from small to enterprise            | Accept as contract goal   | Prove provider conformance and preserve versioned semantics                    |
 | Non-interference should be recursive inside analytics | Accept after measurement  | Partition interactive, report, historical, and export budgets only when needed |
+| Analytics should directly self-improve the ERP         | Reject as authority model | Analytics may inform findings; every action re-enters the owning typed command  |
 
 ## Combined RITSEI Reference Model
 
@@ -470,7 +522,9 @@ This comparison does not select:
 - a metric DSL, compiler, package, API, or UI;
 - a universal latency tier;
 - a complete financial warehouse;
-- an events-only rebuild strategy.
+- an events-only rebuild strategy;
+- a knowledge graph, vector memory, process-mining engine, evaluator, finding/recommendation
+  contract, LLM, or autonomous action loop.
 
 Those choices require concrete workload and readiness evidence.
 

@@ -462,6 +462,27 @@ export and ML extraction
 Those are internal budgets, not new top-level workload classes. Expensive historical or ad-hoc work
 must not starve interactive dashboards, and neither may consume the command reserve.
 
+## Self-Observation Boundary
+
+The Analytic Plane may act as a sensor for a future self-observing capability. Its output remains a
+derived, freshness-qualified observation carrying source and semantic versions, lineage, and
+`dataAsOf`; it is not a finding, policy decision, authorization grant, or business command.
+
+A future evaluator may combine analytic observations with process, graph, search, policy, or other
+owner-approved context. Any root-cause hypothesis, finding, or recommendation remains derived and
+non-authoritative. It must not write domain tables, edit process definitions or policy, invoke a
+private repository, or treat confidence as proof of current business state.
+
+A proposed action re-enters the owning domain's typed public command with current identity,
+authorization, command admission, idempotency, invariant validation, transaction, and audit. If
+canonical state or authorization changed after observation, the command rejects or the evaluator
+recomputes; it never bypasses the owner. Human or policy review is the default. Closing any automatic
+action loop requires a separate accepted ADR with allowlisted bounded actions and safety evidence.
+
+This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
+evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
+later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
+
 ## Provider Progression
 
 ### Stage 1: PostgreSQL projection
@@ -581,6 +602,7 @@ Record, subject to redaction:
 | Temporal membership is deterministic | Cutoff endpoints, timestamp precision, DST gaps/folds, and calendar-policy versions yield identical normalized instants, periods, aggregates, and hashes |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Pagination is stable              | Ties, nulls, text comparison, and a page split enumerate each fixed-frontier row exactly once; mismatched frontiers fail explicitly |
+| Recommendations are non-authoritative | Change state or revoke access after observation; no direct mutation occurs and any proposed action re-enters the current owning command |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
 | Tenants are isolated              | Cross-tenant keys, filters, files, partitions, and caches cannot return data                          |
