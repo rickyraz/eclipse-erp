@@ -244,6 +244,13 @@ Metrics distinguish:
 
 A dashboard must not infer aggregation from a column type.
 
+### Total arithmetic semantics
+
+Each derived expression declares operand, intermediate, and output precision and scale; null and
+all-null behavior; zero-divisor and overflow outcomes; rounding mode and exact rounding points; and
+whether non-finite inputs or results are rejected. Execution produces only the declared typed value,
+null, or stable semantic error, without implicit coercion, truncation, or provider-specific failure.
+
 ### Join correctness
 
 Every relationship declares expected cardinality and historical validity. A many-to-many
@@ -553,6 +560,7 @@ Record, subject to redaction:
 | Correction visibility is explicit | Rebuild twice at one frontier, then add a later correction; as-known results stay fixed while declared restated results change |
 | Dimension membership is total     | Null, missing, orphaned, and late membership cases preserve the contract-declared included population before and after resolution |
 | Empty result cardinality is stable | Empty-input and absent-group fixtures produce identical raw rows, group identities, and zero/null values before client normalization |
+| Arithmetic is total               | Zero divisors, null operands, precision limits, tie rounding, intermediate rounding, overflow, and non-finite cases yield identical typed values, nulls, or semantic errors |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
