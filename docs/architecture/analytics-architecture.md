@@ -606,6 +606,20 @@ tenant scope, redaction, retention, and audit. Safe correlation references may l
 to those diagnostics without embedding them. Internal cause preservation must not turn logs, history,
 notifications, exports, or reconciliation status into a disclosure side channel.
 
+### Disclosure policy survives fan-out
+
+A notification, webhook, file export, shared link, or downstream analytic feed is a new disclosure
+boundary, not a trusted copy of an interactive view. Each channel uses an explicit allowlisted schema
+and recipient scope; it must not serialize recommendation records, command results, or diagnostics
+wholesale. Enqueue-time permission does not become a durable disclosure grant: delayed delivery and
+retrieval revalidate the recipient, tenant, purpose, and current redaction policy.
+
+Revocation, recipient change, or cross-tenant routing fails closed before protected content leaves the
+boundary. Queues, delivery receipts, filenames, object metadata, caches, retries, dead-letter records,
+and provider logs retain only safe references and redacted status. Downstream analytics receive
+owner-approved facts rather than notification or export payloads. External delivery, if later added,
+remains subject to the Integration architecture and does not become active here.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -715,6 +729,7 @@ Record, subject to redaction:
 - unresolved recommendation-action age and owner-confirmed reconciliation outcome;
 - result-disclosure denials and allowlisted owner references without raw command payloads;
 - redacted failure classes and safe correlation references without owner diagnostics;
+- fan-out disclosure denials, channel policy versions, and safe delivery references without payloads;
 - per-budget saturation and command-reserve evidence;
 - rebuild, conformance, backup, restore, upgrade, and exit results.
 
@@ -743,6 +758,7 @@ Record, subject to redaction:
 | Cancellation preserves owner outcome | Cancel before dispatch, during dispatch, and after a lost response; only the undispatched attempt is stopped, while possible effects remain unresolved until owner reconciliation |
 | Result disclosure is owner-controlled | Let a principal execute but deny protected result reads; recommendation state, audit, logs, and observations expose only the allowlisted receipt while owner-authorized readers receive redacted typed output |
 | Failure diagnostics stay protected    | Return sensitive denial, rejection, technical, and reconciliation failures; reviewer-visible status and logs contain only stable redacted classes and safe references, while separately authorized owner diagnostics retain the cause |
+| Fan-out preserves disclosure policy    | Queue notification and export delivery, then revoke or change recipient scope; email, webhook, file, cache, retry, receipt, and downstream feed expose no protected payload or cross-tenant metadata |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

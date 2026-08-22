@@ -71,3 +71,4 @@ activating speculative OLAP infrastructure.
 32. Cancellation stops an undispatched attempt but never claims an already dispatched or unknown owning command was canceled; owner reconciliation and explicit compensation govern possible committed effects.
 33. Recommendation review or action authority does not imply access to protected command results; the owner independently authorizes and redacts disclosure, and coordinators retain only allowlisted receipts and references.
 34. Recommendation-visible failure status and logs expose only stable redacted classes and safe references; raw owner errors, causes, reconciliation details, and existence signals require separate owner-controlled diagnostic access.
+35. Notification, webhook, export, shared-link, and downstream analytic fan-out reapply current recipient scope and redaction through allowlisted schemas; queued payloads, metadata, retries, and receipts cannot bypass disclosure policy.
