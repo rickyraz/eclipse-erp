@@ -566,6 +566,18 @@ winner still performs immediate pre-dispatch revalidation, and every permitted r
 bound identity to the owning command. The owning domain's idempotency and reconciliation contracts
 remain the final defense against duplicate effects and unknown outcomes.
 
+### Cancellation does not retract an owning command
+
+Cancellation is a currently authorized control decision, not evidence that a business effect did not
+occur. Before dispatch, it atomically fences the exact attempt so no worker may invoke it. After
+dispatch may have begun, cancellation blocks new local dispatch and records the request, but the
+attempt remains dispatched or `unknown` until the owning domain confirms its outcome.
+
+A cancellation race must not label an accepted or unknown command canceled, reuse a new identity, or
+erase its audit history. If reconciliation confirms an accepted effect that now needs reversal, only
+an explicit outcome-bound compensation command may correct it. Cancellation therefore preserves the
+distinction between stopping future work and changing already committed business state.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -698,6 +710,7 @@ Record, subject to redaction:
 | Compensation is outcome-bound       | Attempt compensation for unknown and rejected actions, then for one owner-confirmed compensable effect; only the confirmed effect creates one separately authorized, idempotent correcting command |
 | Approval grants no execution lease   | Approve, then change evidence access, policy, delegation, action version, or actionability before delayed dispatch; every stale case blocks before the owning command |
 | Concurrent dispatch is fenced        | Race two workers, expire one claim, and resume it after replacement; all permitted calls retain one bound identity and the stale worker cannot dispatch or finalize |
+| Cancellation preserves owner outcome | Cancel before dispatch, during dispatch, and after a lost response; only the undispatched attempt is stopped, while possible effects remain unresolved until owner reconciliation |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

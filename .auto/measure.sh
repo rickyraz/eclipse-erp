@@ -59,6 +59,7 @@ check grep -q '^### Unknown action outcomes and owner reconciliation' docs/archi
 check grep -q '^### Outcome-bound compensation' docs/architecture/analytics-architecture.md
 check grep -q '^### Approval is not an execution lease' docs/architecture/analytics-architecture.md
 check grep -q '^### Concurrent dispatch and fencing' docs/architecture/analytics-architecture.md
+check grep -q '^### Cancellation does not retract an owning command' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((31 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((32 - score))"
