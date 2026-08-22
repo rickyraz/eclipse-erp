@@ -116,6 +116,8 @@ export const ReceiveStockInput = Schema.Struct({
   warehouseId: Schema.String,
   itemId: Schema.String,
   quantity: Quantity,
+  legalEntityId: Schema.optionalKey(Schema.String.check(Schema.isUUID())),
+  referenceId: Schema.optionalKey(Schema.String.check(Schema.isUUID())),
 })
 export const AdjustStockInput = Schema.Struct({
   ...ScopedInput,
@@ -170,6 +172,15 @@ export class WarehouseLegalEntityNotFound
     tenantId: Schema.String,
     legalEntityId: Schema.String,
   }) {}
+export class InventoryWarehouseLegalEntityMismatch
+  extends Schema.TaggedErrorClass<InventoryWarehouseLegalEntityMismatch>()(
+    "InventoryWarehouseLegalEntityMismatch",
+    {
+      tenantId: Schema.String,
+      warehouseId: Schema.String,
+      legalEntityId: Schema.String,
+    },
+  ) {}
 export class WarehouseBranchNotFound
   extends Schema.TaggedErrorClass<WarehouseBranchNotFound>()("WarehouseBranchNotFound", {
     tenantId: Schema.String,
@@ -292,7 +303,10 @@ export interface InventoryService {
   readonly createItem: (input: unknown) => Effect.Effect<Item, ItemAlreadyExists | CommonFailure>
   readonly receiveStock: (
     input: unknown,
-  ) => Effect.Effect<StockBalance, InventoryReferenceNotFound | CommonFailure>
+  ) => Effect.Effect<
+    StockBalance,
+    InventoryReferenceNotFound | InventoryWarehouseLegalEntityMismatch | CommonFailure
+  >
   readonly adjustStock: (
     input: unknown,
   ) => Effect.Effect<
@@ -555,10 +569,23 @@ export const makeInventoryService = Effect.gen(function* () {
         })
         const balance = yield* database.transaction(
           async (tx) => {
+            const [warehouse] = await tx.select({ legalEntityId: warehouses.legalEntityId })
+              .from(warehouses)
+              .where(and(
+                eq(warehouses.tenantId, decoded.tenantId),
+                eq(warehouses.id, decoded.warehouseId),
+              ))
+              .for("update")
             const [item] = await tx.select({ unitOfMeasure: items.unitOfMeasure })
               .from(items)
               .where(and(eq(items.tenantId, decoded.tenantId), eq(items.id, decoded.itemId)))
-            if (item === undefined) return undefined
+            if (warehouse === undefined || item === undefined) return { _tag: "not-found" as const }
+            if (
+              decoded.legalEntityId !== undefined &&
+              warehouse.legalEntityId !== decoded.legalEntityId
+            ) {
+              return { _tag: "legal-entity-mismatch" as const }
+            }
             const rows = await tx.insert(stockBalances)
               .values({
                 tenantId: decoded.tenantId,
@@ -586,8 +613,12 @@ export const makeInventoryService = Effect.gen(function* () {
               itemId: decoded.itemId,
               quantity: decoded.quantity,
               kind: "receipt",
+              referenceId: decoded.referenceId ?? null,
             })
-            return { ...rows[0]!, unitOfMeasure: item.unitOfMeasure }
+            return {
+              _tag: "created" as const,
+              balance: { ...rows[0]!, unitOfMeasure: item.unitOfMeasure },
+            }
           },
           "inventory.stock.receive",
         ).pipe(
@@ -598,12 +629,21 @@ export const makeInventoryService = Effect.gen(function* () {
               : error
           ),
         )
-        if (balance === undefined) {
+        if (balance._tag === "not-found") {
           return yield* Effect.fail(
             referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
           )
         }
-        return balance
+        if (balance._tag === "legal-entity-mismatch") {
+          return yield* Effect.fail(
+            new InventoryWarehouseLegalEntityMismatch({
+              tenantId: decoded.tenantId,
+              warehouseId: decoded.warehouseId,
+              legalEntityId: decoded.legalEntityId!,
+            }),
+          )
+        }
+        return balance.balance
       }),
     adjustStock: (input) =>
       Effect.gen(function* () {
@@ -1612,12 +1652,25 @@ export const makeInventoryTestLayer = () =>
               decoded.tenantId,
               InventoryCapabilities.stockReceive,
             )
+            const warehouse = storedWarehouses.get(decoded.warehouseId)
             if (
-              storedWarehouses.get(decoded.warehouseId)?.tenantId !== decoded.tenantId ||
+              warehouse?.tenantId !== decoded.tenantId ||
               storedItems.get(decoded.itemId)?.tenantId !== decoded.tenantId
             ) {
               return yield* Effect.fail(
                 referenceFailure(decoded.tenantId, decoded.warehouseId, decoded.itemId),
+              )
+            }
+            if (
+              decoded.legalEntityId !== undefined &&
+              warehouse.legalEntityId !== decoded.legalEntityId
+            ) {
+              return yield* Effect.fail(
+                new InventoryWarehouseLegalEntityMismatch({
+                  tenantId: decoded.tenantId,
+                  warehouseId: decoded.warehouseId,
+                  legalEntityId: decoded.legalEntityId,
+                }),
               )
             }
             const key = `${decoded.tenantId}:${decoded.warehouseId}:${decoded.itemId}`

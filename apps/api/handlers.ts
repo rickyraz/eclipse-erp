@@ -81,6 +81,7 @@ const coreApiErrorPolicy = {
   InvalidRevenuePostingProfile: "conflict",
   InventoryReferenceNotFound: "not_found",
   InventoryUnitOfMeasureMismatch: "conflict",
+  InventoryWarehouseLegalEntityMismatch: "conflict",
   ItemAlreadyExists: "conflict",
   JournalIdempotencyConflict: "conflict",
   JournalReferenceAlreadyExists: "conflict",

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -8,10 +8,13 @@ import * as Schema from "effect/Schema"
 import {
   purchaseOrderLines,
   purchaseOrders,
+  purchaseReceiptLines,
+  purchaseReceipts,
   supplierAccounts,
 } from "../../../db/schema/procurement.ts"
 import { Principal } from "../../auth/mod.ts"
 import { AuthorizationDenied, AuthorizationService } from "../../authorization/mod.ts"
+import { InventoryService } from "../../inventory/mod.ts"
 import {
   Database,
   DatabaseFailure,
@@ -111,6 +114,43 @@ export const CancelPurchaseOrderInput = Schema.Struct({
   purchaseOrderId: Uuid,
 })
 
+export const PurchaseReceiptLineInput = Schema.Struct({
+  purchaseOrderLineId: Uuid,
+  quantity: Quantity,
+})
+
+export const ReceivePurchaseOrderInput = Schema.Struct({
+  principal: Principal,
+  tenantId: Uuid,
+  purchaseOrderId: Uuid,
+  warehouseId: Uuid,
+  idempotencyKey: NonEmptyString,
+  lines: Schema.Array(PurchaseReceiptLineInput).check(Schema.isMinLength(1)),
+})
+
+export const GoodsReceiptLine = Schema.Struct({
+  id: Uuid,
+  purchaseOrderLineId: Uuid,
+  itemId: Uuid,
+  quantity: Quantity,
+  unitOfMeasure: NonEmptyString,
+})
+
+export const GoodsReceipt = Schema.Struct({
+  id: Uuid,
+  tenantId: Uuid,
+  purchaseOrderId: Uuid,
+  warehouseId: Uuid,
+  idempotencyKey: NonEmptyString,
+  receivedAt: InstantString,
+  lines: Schema.Array(GoodsReceiptLine),
+})
+
+export type PurchaseReceiptLineInput = Schema.Schema.Type<typeof PurchaseReceiptLineInput>
+export type ReceivePurchaseOrder = Schema.Schema.Type<typeof ReceivePurchaseOrderInput>
+export type GoodsReceiptLine = Schema.Schema.Type<typeof GoodsReceiptLine>
+export type GoodsReceipt = Schema.Schema.Type<typeof GoodsReceipt>
+
 export class SupplierAccountAlreadyExists
   extends Schema.TaggedErrorClass<SupplierAccountAlreadyExists>()(
     "SupplierAccountAlreadyExists",
@@ -162,6 +202,69 @@ export class PurchaseOrderInvalidState
     status: Schema.Literals(["draft", "confirmed", "cancelled"]),
   }) {}
 
+export class PurchaseOrderHasReceipts
+  extends Schema.TaggedErrorClass<PurchaseOrderHasReceipts>()("PurchaseOrderHasReceipts", {
+    tenantId: Uuid,
+    purchaseOrderId: Uuid,
+  }) {}
+
+export class PurchaseReceiptIdempotencyConflict
+  extends Schema.TaggedErrorClass<PurchaseReceiptIdempotencyConflict>()(
+    "PurchaseReceiptIdempotencyConflict",
+    {
+      tenantId: Uuid,
+      purchaseOrderId: Uuid,
+      idempotencyKey: NonEmptyString,
+    },
+  ) {}
+
+export class PurchaseReceiptLineDuplicate
+  extends Schema.TaggedErrorClass<PurchaseReceiptLineDuplicate>()("PurchaseReceiptLineDuplicate", {
+    tenantId: Uuid,
+    purchaseOrderId: Uuid,
+    purchaseOrderLineId: Uuid,
+  }) {}
+
+export class PurchaseReceiptLineNotFound
+  extends Schema.TaggedErrorClass<PurchaseReceiptLineNotFound>()("PurchaseReceiptLineNotFound", {
+    tenantId: Uuid,
+    purchaseOrderId: Uuid,
+    purchaseOrderLineId: Uuid,
+  }) {}
+
+export class PurchaseReceiptQuantityExceeded
+  extends Schema.TaggedErrorClass<PurchaseReceiptQuantityExceeded>()(
+    "PurchaseReceiptQuantityExceeded",
+    {
+      tenantId: Uuid,
+      purchaseOrderId: Uuid,
+      purchaseOrderLineId: Uuid,
+      ordered: Quantity,
+      received: Schema.String,
+      requested: Quantity,
+    },
+  ) {}
+
+export class PurchaseReceiptInventoryReferenceNotFound
+  extends Schema.TaggedErrorClass<PurchaseReceiptInventoryReferenceNotFound>()(
+    "PurchaseReceiptInventoryReferenceNotFound",
+    {
+      tenantId: Uuid,
+      warehouseId: Uuid,
+      itemId: Uuid,
+    },
+  ) {}
+
+export class PurchaseReceiptWarehouseLegalEntityMismatch
+  extends Schema.TaggedErrorClass<PurchaseReceiptWarehouseLegalEntityMismatch>()(
+    "PurchaseReceiptWarehouseLegalEntityMismatch",
+    {
+      tenantId: Uuid,
+      warehouseId: Uuid,
+      legalEntityId: Uuid,
+    },
+  ) {}
+
 type CommonFailure = AuthorizationDenied | DatabaseFailure | Schema.SchemaError
 
 export interface ProcurementService {
@@ -190,7 +293,24 @@ export interface ProcurementService {
     input: unknown,
   ) => Effect.Effect<
     PurchaseOrder,
-    PurchaseOrderInvalidState | PurchaseOrderNotFound | CommonFailure
+    PurchaseOrderHasReceipts | PurchaseOrderInvalidState | PurchaseOrderNotFound | CommonFailure
+  >
+  readonly receivePurchaseOrder: (
+    input: unknown,
+  ) => Effect.Effect<
+    GoodsReceipt,
+    | PurchaseOrderInvalidState
+    | PurchaseOrderNotFound
+    | PurchaseReceiptIdempotencyConflict
+    | PurchaseReceiptLineDuplicate
+    | PurchaseReceiptLineNotFound
+    | PurchaseReceiptQuantityExceeded
+    | PurchaseReceiptInventoryReferenceNotFound
+    | PurchaseReceiptWarehouseLegalEntityMismatch
+    | SupplierAccountNotFound
+    | SupplierRelationshipNotEligible
+    | CommonFailure,
+    InventoryService
   >
 }
 
@@ -246,6 +366,77 @@ const purchaseOrderLineSelection = {
   itemId: purchaseOrderLines.itemId,
   quantity: purchaseOrderLines.quantity,
   unitPrice: purchaseOrderLines.unitPrice,
+}
+
+const purchaseReceiptSelection = {
+  id: purchaseReceipts.id,
+  tenantId: purchaseReceipts.tenantId,
+  purchaseOrderId: purchaseReceipts.purchaseOrderId,
+  warehouseId: purchaseReceipts.warehouseId,
+  idempotencyKey: purchaseReceipts.idempotencyKey,
+  receivedAt: purchaseReceipts.receivedAt,
+}
+
+const purchaseReceiptLineSelection = {
+  id: purchaseReceiptLines.id,
+  purchaseOrderLineId: purchaseReceiptLines.purchaseOrderLineId,
+  itemId: purchaseReceiptLines.itemId,
+  quantity: purchaseReceiptLines.quantity,
+  unitOfMeasure: purchaseReceiptLines.unitOfMeasure,
+}
+
+const toGoodsReceipt = (
+  row: {
+    readonly id: string
+    readonly tenantId: string
+    readonly purchaseOrderId: string
+    readonly warehouseId: string
+    readonly idempotencyKey: string
+    readonly receivedAt: Date
+  },
+  lines: ReadonlyArray<GoodsReceiptLine>,
+): GoodsReceipt => ({
+  id: row.id,
+  tenantId: row.tenantId,
+  purchaseOrderId: row.purchaseOrderId,
+  warehouseId: row.warehouseId,
+  idempotencyKey: row.idempotencyKey,
+  receivedAt: row.receivedAt.toISOString(),
+  lines,
+})
+
+const toGoodsReceiptLine = (row: {
+  readonly id: string
+  readonly purchaseOrderLineId: string
+  readonly itemId: string
+  readonly quantity: string
+  readonly unitOfMeasure: string
+}): GoodsReceiptLine => ({
+  id: row.id,
+  purchaseOrderLineId: row.purchaseOrderLineId,
+  itemId: row.itemId,
+  quantity: row.quantity,
+  unitOfMeasure: row.unitOfMeasure,
+})
+
+const canonicalReceiptLines = (lines: ReadonlyArray<PurchaseReceiptLineInput>) =>
+  [...lines].sort((left, right) =>
+    left.purchaseOrderLineId.localeCompare(right.purchaseOrderLineId)
+  )
+
+const sameReceiptLines = (
+  left: ReadonlyArray<PurchaseReceiptLineInput>,
+  right: ReadonlyArray<GoodsReceiptLine>,
+) => {
+  const orderedLeft = canonicalReceiptLines(left)
+  const orderedRight = [...right].sort((a, b) =>
+    a.purchaseOrderLineId.localeCompare(b.purchaseOrderLineId)
+  )
+  return orderedLeft.length === orderedRight.length && orderedLeft.every((line, index) => {
+    const existing = orderedRight[index]!
+    return line.purchaseOrderLineId === existing.purchaseOrderLineId &&
+      line.quantity === existing.quantity
+  })
 }
 
 const toPurchaseOrder = (row: {
@@ -540,6 +731,14 @@ export const makeProcurementService = Effect.gen(function* () {
             if (row.status !== "confirmed") {
               return { _tag: "invalid-state" as const, status: row.status }
             }
+            const [receipt] = await tx.select({ id: purchaseReceipts.id })
+              .from(purchaseReceipts)
+              .where(and(
+                eq(purchaseReceipts.tenantId, decoded.tenantId),
+                eq(purchaseReceipts.purchaseOrderId, decoded.purchaseOrderId),
+              ))
+              .limit(1)
+            if (receipt !== undefined) return { _tag: "has-receipts" as const }
             const [cancelled] = await tx.update(purchaseOrders)
               .set({ status: "cancelled", updatedAt: now() })
               .where(and(
@@ -569,7 +768,270 @@ export const makeProcurementService = Effect.gen(function* () {
             }),
           )
         }
+        if (result._tag === "has-receipts") {
+          return yield* Effect.fail(
+            new PurchaseOrderHasReceipts({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+            }),
+          )
+        }
         return result.order
+      }),
+    receivePurchaseOrder: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(ReceivePurchaseOrderInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: ProcurementCapabilities.purchaseReceiptReceive,
+        })
+        const lines = canonicalReceiptLines(decoded.lines)
+        const duplicateLine = lines.find((line, index) =>
+          index > 0 && lines[index - 1]!.purchaseOrderLineId === line.purchaseOrderLineId
+        )
+        if (duplicateLine !== undefined) {
+          return yield* Effect.fail(
+            new PurchaseReceiptLineDuplicate({
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+              purchaseOrderLineId: duplicateLine.purchaseOrderLineId,
+            }),
+          )
+        }
+        const inventory = yield* InventoryService
+        const loadExistingReceipt = () =>
+          Effect.gen(function* () {
+            const existingRows = yield* database.query(
+              (db) =>
+                db.select(purchaseReceiptSelection)
+                  .from(purchaseReceipts)
+                  .where(and(
+                    eq(purchaseReceipts.tenantId, decoded.tenantId),
+                    eq(purchaseReceipts.idempotencyKey, decoded.idempotencyKey),
+                  ))
+                  .for("update"),
+              "procurement.purchase_receipt.idempotency",
+            )
+            const existing = existingRows[0]
+            if (existing === undefined) return undefined
+            const existingLines = yield* database.query(
+              (db) =>
+                db.select(purchaseReceiptLineSelection)
+                  .from(purchaseReceiptLines)
+                  .where(and(
+                    eq(purchaseReceiptLines.tenantId, decoded.tenantId),
+                    eq(purchaseReceiptLines.receiptId, existing.id),
+                  )),
+              "procurement.purchase_receipt.idempotency.lines",
+            )
+            return toGoodsReceipt(existing, existingLines.map(toGoodsReceiptLine))
+          })
+        const acceptExistingReceipt = (receipt: GoodsReceipt) =>
+          receipt.purchaseOrderId === decoded.purchaseOrderId &&
+            receipt.warehouseId === decoded.warehouseId &&
+            sameReceiptLines(lines, receipt.lines)
+            ? Effect.succeed(receipt)
+            : Effect.fail(
+              new PurchaseReceiptIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                purchaseOrderId: decoded.purchaseOrderId,
+                idempotencyKey: decoded.idempotencyKey,
+              }),
+            )
+        return yield* database.withTransaction(
+          Effect.gen(function* () {
+            const existing = yield* loadExistingReceipt()
+            if (existing !== undefined) return yield* acceptExistingReceipt(existing)
+
+            const orderRows = yield* database.query(
+              (db) =>
+                db.select(purchaseOrderSelection)
+                  .from(purchaseOrders)
+                  .where(and(
+                    eq(purchaseOrders.tenantId, decoded.tenantId),
+                    eq(purchaseOrders.id, decoded.purchaseOrderId),
+                  ))
+                  .for("update"),
+              "procurement.purchase_receipt.purchase_order",
+            )
+            const order = orderRows[0]
+            if (order === undefined) {
+              return yield* Effect.fail(
+                new PurchaseOrderNotFound({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
+            if (order.status !== "confirmed") {
+              return yield* Effect.fail(
+                new PurchaseOrderInvalidState({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  status: order.status,
+                }),
+              )
+            }
+            const concurrentExisting = yield* loadExistingReceipt()
+            if (concurrentExisting !== undefined) {
+              return yield* acceptExistingReceipt(concurrentExisting)
+            }
+
+            const [supplierAccount] = yield* database.query(
+              (db) =>
+                db.select({ supplierRelationshipId: supplierAccounts.supplierRelationshipId })
+                  .from(supplierAccounts)
+                  .where(and(
+                    eq(supplierAccounts.tenantId, decoded.tenantId),
+                    eq(supplierAccounts.id, order.supplierAccountId),
+                  )),
+              "procurement.purchase_receipt.supplier_account",
+            )
+            if (supplierAccount === undefined) {
+              return yield* Effect.fail(
+                new SupplierAccountNotFound({
+                  tenantId: decoded.tenantId,
+                  supplierAccountId: order.supplierAccountId,
+                }),
+              )
+            }
+            const supplierRelationship = yield* loadSupplierRelationship(party, {
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              supplierRelationshipId: supplierAccount.supplierRelationshipId,
+            })
+            const legalEntityId = supplierRelationship.legalEntityId
+
+            const orderLines = yield* database.query(
+              (db) =>
+                db.select(purchaseOrderLineSelection)
+                  .from(purchaseOrderLines)
+                  .where(and(
+                    eq(purchaseOrderLines.tenantId, decoded.tenantId),
+                    eq(purchaseOrderLines.purchaseOrderId, decoded.purchaseOrderId),
+                  )),
+              "procurement.purchase_receipt.purchase_order_lines",
+            )
+            const linesById = new Map(orderLines.map((line) => [line.id, line]))
+            const receivedRows = yield* database.query(
+              (db) =>
+                db.select({
+                  purchaseOrderLineId: purchaseReceiptLines.purchaseOrderLineId,
+                  quantity: sql<string>`coalesce(sum(${purchaseReceiptLines.quantity}), 0)::text`,
+                })
+                  .from(purchaseReceiptLines)
+                  .where(and(
+                    eq(purchaseReceiptLines.tenantId, decoded.tenantId),
+                    eq(purchaseReceiptLines.purchaseOrderId, decoded.purchaseOrderId),
+                  ))
+                  .groupBy(purchaseReceiptLines.purchaseOrderLineId),
+              "procurement.purchase_receipt.received_quantities",
+            )
+            const receivedByLine = new Map(
+              receivedRows.map((row) => [row.purchaseOrderLineId, row.quantity]),
+            )
+            for (const line of lines) {
+              const orderLine = linesById.get(line.purchaseOrderLineId)
+              if (orderLine === undefined) {
+                return yield* Effect.fail(
+                  new PurchaseReceiptLineNotFound({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    purchaseOrderLineId: line.purchaseOrderLineId,
+                  }),
+                )
+              }
+              const received = receivedByLine.get(line.purchaseOrderLineId) ?? "0"
+              if (BigInt(received) + BigInt(line.quantity) > BigInt(orderLine.quantity)) {
+                return yield* Effect.fail(
+                  new PurchaseReceiptQuantityExceeded({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    purchaseOrderLineId: line.purchaseOrderLineId,
+                    ordered: orderLine.quantity,
+                    received,
+                    requested: line.quantity,
+                  }),
+                )
+              }
+            }
+
+            const [receipt] = yield* database.query(
+              (db) =>
+                db.insert(purchaseReceipts).values({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  warehouseId: decoded.warehouseId,
+                  idempotencyKey: decoded.idempotencyKey,
+                }).returning(purchaseReceiptSelection),
+              "procurement.purchase_receipt.create",
+            )
+            const receivedLines: GoodsReceiptLine[] = []
+            for (const line of lines) {
+              const orderLine = linesById.get(line.purchaseOrderLineId)!
+              const balance = yield* inventory.receiveStock({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                warehouseId: decoded.warehouseId,
+                itemId: orderLine.itemId,
+                quantity: line.quantity,
+                legalEntityId,
+                referenceId: receipt!.id,
+              }).pipe(
+                Effect.catchTag("InventoryReferenceNotFound", () =>
+                  Effect.fail(
+                    new PurchaseReceiptInventoryReferenceNotFound({
+                      tenantId: decoded.tenantId,
+                      warehouseId: decoded.warehouseId,
+                      itemId: orderLine.itemId,
+                    }),
+                  )),
+                Effect.catchTag("InventoryWarehouseLegalEntityMismatch", () =>
+                  Effect.fail(
+                    new PurchaseReceiptWarehouseLegalEntityMismatch({
+                      tenantId: decoded.tenantId,
+                      warehouseId: decoded.warehouseId,
+                      legalEntityId,
+                    }),
+                  )),
+              )
+              receivedLines.push({
+                id: crypto.randomUUID(),
+                purchaseOrderLineId: line.purchaseOrderLineId,
+                itemId: orderLine.itemId,
+                quantity: line.quantity,
+                unitOfMeasure: balance.unitOfMeasure,
+              })
+            }
+            yield* database.query(
+              (db) =>
+                db.insert(purchaseReceiptLines).values(receivedLines.map((line) => ({
+                  id: line.id,
+                  tenantId: decoded.tenantId,
+                  receiptId: receipt!.id,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  purchaseOrderLineId: line.purchaseOrderLineId,
+                  itemId: line.itemId,
+                  quantity: line.quantity,
+                  unitOfMeasure: line.unitOfMeasure,
+                }))),
+              "procurement.purchase_receipt.lines",
+            )
+            return toGoodsReceipt(receipt!, receivedLines)
+          }),
+          "procurement.purchase_receipt.receive",
+        ).pipe(
+          Effect.mapError((error) =>
+            isDatabaseConstraint(error, "purchase_receipts_tenant_idempotency_key")
+              ? new PurchaseReceiptIdempotencyConflict({
+                tenantId: decoded.tenantId,
+                purchaseOrderId: decoded.purchaseOrderId,
+                idempotencyKey: decoded.idempotencyKey,
+              })
+              : error
+          ),
+        )
       }),
   } satisfies ProcurementService
 })
@@ -586,6 +1048,8 @@ export const makeProcurementTestLayer = () =>
       const storedPurchaseOrders = new Map<string, PurchaseOrder>()
       const confirmationKeys = new Map<string, string>()
       const confirmationOrderIdsByKey = new Map<string, string>()
+      const storedReceipts = new Map<string, GoodsReceipt>()
+      const receivedQuantities = new Map<string, bigint>()
 
       return {
         createSupplierAccount: (input) =>
@@ -757,9 +1221,165 @@ export const makeProcurementTestLayer = () =>
                 }),
               )
             }
+            if (
+              [...storedReceipts.values()].some((receipt) =>
+                receipt.tenantId === decoded.tenantId && receipt.purchaseOrderId === order.id
+              )
+            ) {
+              return yield* Effect.fail(
+                new PurchaseOrderHasReceipts({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
             const cancelled: PurchaseOrder = { ...order, status: "cancelled" }
             storedPurchaseOrders.set(order.id, cancelled)
             return cancelled
+          }),
+        receivePurchaseOrder: (input) =>
+          Effect.gen(function* () {
+            const inventory = yield* InventoryService
+            const decoded = yield* Schema.decodeUnknownEffect(ReceivePurchaseOrderInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: ProcurementCapabilities.purchaseReceiptReceive,
+            })
+            const lines = canonicalReceiptLines(decoded.lines)
+            const duplicateLine = lines.find((line, index) =>
+              index > 0 && lines[index - 1]!.purchaseOrderLineId === line.purchaseOrderLineId
+            )
+            if (duplicateLine !== undefined) {
+              return yield* Effect.fail(
+                new PurchaseReceiptLineDuplicate({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  purchaseOrderLineId: duplicateLine.purchaseOrderLineId,
+                }),
+              )
+            }
+            const receiptKey = `${decoded.tenantId}:${decoded.idempotencyKey}`
+            const existing = storedReceipts.get(receiptKey)
+            if (existing !== undefined) {
+              if (
+                existing.purchaseOrderId !== decoded.purchaseOrderId ||
+                existing.warehouseId !== decoded.warehouseId ||
+                !sameReceiptLines(lines, existing.lines)
+              ) {
+                return yield* Effect.fail(
+                  new PurchaseReceiptIdempotencyConflict({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    idempotencyKey: decoded.idempotencyKey,
+                  }),
+                )
+              }
+              return existing
+            }
+            const order = storedPurchaseOrders.get(decoded.purchaseOrderId)
+            if (order?.tenantId !== decoded.tenantId) {
+              return yield* Effect.fail(
+                new PurchaseOrderNotFound({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                }),
+              )
+            }
+            if (order.status !== "confirmed") {
+              return yield* Effect.fail(
+                new PurchaseOrderInvalidState({
+                  tenantId: decoded.tenantId,
+                  purchaseOrderId: decoded.purchaseOrderId,
+                  status: order.status,
+                }),
+              )
+            }
+            const supplierAccount = storedSupplierAccounts.get(order.supplierAccountId)
+            if (supplierAccount === undefined) {
+              return yield* Effect.fail(
+                new SupplierAccountNotFound({
+                  tenantId: decoded.tenantId,
+                  supplierAccountId: order.supplierAccountId,
+                }),
+              )
+            }
+            const linesById = new Map(order.lines.map((line) => [line.id, line]))
+            const nextQuantities = new Map(receivedQuantities)
+            const receiptId = crypto.randomUUID()
+            const receivedLines: GoodsReceiptLine[] = []
+            for (const line of lines) {
+              const orderLine = linesById.get(line.purchaseOrderLineId)
+              if (orderLine === undefined) {
+                return yield* Effect.fail(
+                  new PurchaseReceiptLineNotFound({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    purchaseOrderLineId: line.purchaseOrderLineId,
+                  }),
+                )
+              }
+              const receivedKey = `${decoded.purchaseOrderId}:${line.purchaseOrderLineId}`
+              const received = nextQuantities.get(receivedKey) ?? 0n
+              if (received + BigInt(line.quantity) > BigInt(orderLine.quantity)) {
+                return yield* Effect.fail(
+                  new PurchaseReceiptQuantityExceeded({
+                    tenantId: decoded.tenantId,
+                    purchaseOrderId: decoded.purchaseOrderId,
+                    purchaseOrderLineId: line.purchaseOrderLineId,
+                    ordered: orderLine.quantity,
+                    received: String(received),
+                    requested: line.quantity,
+                  }),
+                )
+              }
+              const balance = yield* inventory.receiveStock({
+                principal: decoded.principal,
+                tenantId: decoded.tenantId,
+                warehouseId: decoded.warehouseId,
+                itemId: orderLine.itemId,
+                quantity: line.quantity,
+                legalEntityId: supplierAccount.legalEntityId,
+                referenceId: receiptId,
+              }).pipe(
+                Effect.catchTag("InventoryReferenceNotFound", () =>
+                  Effect.fail(
+                    new PurchaseReceiptInventoryReferenceNotFound({
+                      tenantId: decoded.tenantId,
+                      warehouseId: decoded.warehouseId,
+                      itemId: orderLine.itemId,
+                    }),
+                  )),
+                Effect.catchTag("InventoryWarehouseLegalEntityMismatch", () =>
+                  Effect.fail(
+                    new PurchaseReceiptWarehouseLegalEntityMismatch({
+                      tenantId: decoded.tenantId,
+                      warehouseId: decoded.warehouseId,
+                      legalEntityId: supplierAccount.legalEntityId,
+                    }),
+                  )),
+              )
+              nextQuantities.set(receivedKey, received + BigInt(line.quantity))
+              receivedLines.push({
+                id: crypto.randomUUID(),
+                purchaseOrderLineId: line.purchaseOrderLineId,
+                itemId: orderLine.itemId,
+                quantity: line.quantity,
+                unitOfMeasure: balance.unitOfMeasure,
+              })
+            }
+            for (const [key, quantity] of nextQuantities) receivedQuantities.set(key, quantity)
+            const receipt: GoodsReceipt = {
+              id: receiptId,
+              tenantId: decoded.tenantId,
+              purchaseOrderId: decoded.purchaseOrderId,
+              warehouseId: decoded.warehouseId,
+              idempotencyKey: decoded.idempotencyKey,
+              receivedAt: now().toISOString(),
+              lines: receivedLines,
+            }
+            storedReceipts.set(receiptKey, receipt)
+            return receipt
           }),
       } satisfies ProcurementService
     }),

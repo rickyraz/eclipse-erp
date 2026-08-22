@@ -34,10 +34,13 @@ ADR-0046  Owner-local business surface + generated structural ergonomics
     +--> meaningful transitions use explicit actions
     +--> consequential facts remain with their semantic owner
     +--> generated tooling is not business authority
+              |
+              +--> ADR-0047  Procurement Goods Receipt boundary
 ```
 
-ADR-0046 amends the current architectural interpretation of ADR-0015 and ADR-0036. It does not
-replace them and does not change the decisions recorded by ADR-0040, ADR-0044, or ADR-0045.
+ADR-0046 amends the current architectural interpretation of ADR-0015 and ADR-0036. ADR-0047
+amends the receipt and cancellation boundary of ADR-0044 and ADR-0045. Neither ADR replaces the
+historical decisions, and ADR-0047 does not change the financial authority recorded by ADR-0040.
 
 ## Relationship matrix
 
@@ -49,6 +52,7 @@ replace them and does not change the decisions recorded by ADR-0040, ADR-0044, o
 | [ADR-0044](./0044-define-procurement-purchase-order-baseline.md) | Compatible | Procurement owns Purchase Order identity and lifecycle |
 | [ADR-0045](./0045-define-procurement-purchase-order-confirmation.md) | Compatible | Purchase Order confirmation remains an explicit owner action |
 | [ADR-0046](./0046-adopt-owner-local-business-surface-and-generated-ergonomics.md) | Current amendment | Concrete surface, explicit actions, owner facts, and structural tooling boundary |
+| [ADR-0047](./0047-define-procurement-goods-receipt-boundary.md) | Current amendment | Procurement evidence plus Inventory movement in one bounded receipt transaction |
 
 ## Current canonical rules
 
@@ -63,6 +67,7 @@ The current architecture is summarized here for navigation; the canonical rule r
 - Generated schemas, DTOs, queries, forms, CRUD helpers, and test skeletons are tooling, not business authority.
 - Persistence models, ORM hooks, provider types, and private repositories do not become public domain contracts.
 - External standards remain behind versioned adapters.
+- Goods Receipt evidence belongs to Procurement; physical receipt movement belongs to Inventory.
 
 ## Historical integrity
 

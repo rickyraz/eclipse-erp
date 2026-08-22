@@ -18,6 +18,7 @@ export {
   InventoryReferenceNotFound,
   InventoryService,
   InventoryUnitOfMeasureMismatch,
+  InventoryWarehouseLegalEntityMismatch,
   Item,
   ItemAlreadyExists,
   makeInventoryService,

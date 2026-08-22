@@ -4,6 +4,11 @@ import * as Layer from "effect/Layer"
 
 import { makeAuthService } from "../../auth/mod.ts"
 import { AuthorizationService, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import {
+  InventoryCapabilities,
+  InventoryService,
+  makeInventoryService,
+} from "../../inventory/mod.ts"
 import { makeUserAccountService, UserAccountService } from "../../identity/mod.ts"
 import {
   Database,
@@ -12,13 +17,17 @@ import {
   runMigrations,
   WebCryptoLive,
 } from "../../kernel/mod.ts"
+import { makeMessagingService, MessagingService } from "../../messaging/mod.ts"
 import { makePartyService, PartyCapabilities, PartyService } from "../../party/mod.ts"
 import {
   makeProcurementService,
   ProcurementCapabilities,
   PurchaseOrderConfirmationIdempotencyConflict,
+  PurchaseOrderHasReceipts,
   PurchaseOrderInvalidState,
   PurchaseOrderNotFound,
+  PurchaseReceiptInventoryReferenceNotFound,
+  PurchaseReceiptQuantityExceeded,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,
   SupplierRelationshipNotEligible,
@@ -40,6 +49,10 @@ const capabilities = [
   ProcurementCapabilities.purchaseOrderConfirm,
   ProcurementCapabilities.purchaseOrderRead,
   ProcurementCapabilities.purchaseOrderCancel,
+  ProcurementCapabilities.purchaseReceiptReceive,
+  InventoryCapabilities.warehouseCreate,
+  InventoryCapabilities.itemCreate,
+  InventoryCapabilities.stockReceive,
 ] as const
 
 it.effect.skipIf(databaseUrl === undefined)(
@@ -209,29 +222,31 @@ it.effect.skipIf(databaseUrl === undefined)(
             })).status,
             "draft",
           )
-          for (const operation of ["get", "confirm", "cancel"] as const) {
-            const failure = yield* Effect.flip(
-              operation === "get"
-                ? procurement.getPurchaseOrder({
-                  principal,
-                  tenantId: otherTenant.id,
-                  purchaseOrderId: order.id,
-                })
-                : operation === "confirm"
-                ? procurement.confirmPurchaseOrder({
-                  principal,
-                  tenantId: otherTenant.id,
-                  purchaseOrderId: order.id,
-                  idempotencyKey: "cross-tenant-confirmation",
-                })
-                : procurement.cancelPurchaseOrder({
-                  principal,
-                  tenantId: otherTenant.id,
-                  purchaseOrderId: order.id,
-                }),
-            )
-            assert.instanceOf(failure, PurchaseOrderNotFound)
-          }
+          assert.instanceOf(
+            yield* Effect.flip(procurement.getPurchaseOrder({
+              principal,
+              tenantId: otherTenant.id,
+              purchaseOrderId: order.id,
+            })),
+            PurchaseOrderNotFound,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(procurement.confirmPurchaseOrder({
+              principal,
+              tenantId: otherTenant.id,
+              purchaseOrderId: order.id,
+              idempotencyKey: "cross-tenant-confirmation",
+            })),
+            PurchaseOrderNotFound,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(procurement.cancelPurchaseOrder({
+              principal,
+              tenantId: otherTenant.id,
+              purchaseOrderId: order.id,
+            })),
+            PurchaseOrderNotFound,
+          )
 
           const confirmationInput = {
             principal,
@@ -678,6 +693,253 @@ it.effect.skipIf(databaseUrl === undefined)(
             `
           )
           assert.strictEqual(afterRollback[0]?.count, beforeRollback[0]?.count)
+        }).pipe(Effect.provide(authorizationLayer))
+      })),
+)
+
+it.effect.skipIf(databaseUrl === undefined)(
+  "receives a confirmed purchase order atomically with Inventory",
+  () =>
+    withTemporaryDatabase(databaseUrl!, (client) =>
+      Effect.gen(function* () {
+        yield* runMigrations(client)
+        const database = makePostgresDatabase(client)
+        const userAccountService = yield* makeUserAccountService.pipe(
+          Effect.provideService(Database, database),
+        )
+        const auth = yield* makeAuthService.pipe(
+          Effect.provideService(Database, database),
+          Effect.provide(WebCryptoLive),
+          Effect.provideService(UserAccountService, userAccountService),
+        )
+        const tenant = yield* auth.createTenant({ slug: `receipt-${crypto.randomUUID()}` })
+        const authorizationLayer = makeAuthorizationTestLayer(
+          [
+            PartyCapabilities.partyCreate,
+            PartyCapabilities.legalEntityCreate,
+            PartyCapabilities.partyRoleAssign,
+            PartyCapabilities.partyRelationshipCreate,
+            PartyCapabilities.partyRelationshipRead,
+            ProcurementCapabilities.supplierAccountCreate,
+            ProcurementCapabilities.purchaseOrderCreate,
+            ProcurementCapabilities.purchaseOrderConfirm,
+            ProcurementCapabilities.purchaseOrderRead,
+            ProcurementCapabilities.purchaseOrderCancel,
+            ProcurementCapabilities.purchaseReceiptReceive,
+            InventoryCapabilities.warehouseCreate,
+            InventoryCapabilities.itemCreate,
+            InventoryCapabilities.stockReceive,
+          ].map((capability) => ({
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability,
+          })),
+        )
+
+        yield* Effect.gen(function* () {
+          const authorization = yield* AuthorizationService
+          const requirements = Layer.merge(
+            Layer.succeed(Database, database),
+            Layer.succeed(AuthorizationService, authorization),
+          )
+          const party = yield* Effect.provide(makePartyService, requirements)
+          const messaging = yield* makeMessagingService.pipe(
+            Effect.provideService(Database, database),
+          )
+          const inventory = yield* Effect.provide(
+            makeInventoryService,
+            Layer.merge(requirements, Layer.succeed(MessagingService, messaging)),
+          )
+          const procurement = yield* Effect.provide(
+            makeProcurementService,
+            Layer.merge(requirements, Layer.succeed(PartyService, party)),
+          )
+
+          const owner = yield* party.create({
+            principal,
+            tenantId: tenant.id,
+            kind: "organization",
+            name: "Buying Legal Entity",
+          })
+          const legalEntity = yield* party.createLegalEntity({
+            principal,
+            tenantId: tenant.id,
+            organizationId: owner.id,
+          })
+          const supplier = yield* party.create({
+            principal,
+            tenantId: tenant.id,
+            kind: "organization",
+            name: "Supplier",
+          })
+          yield* party.assignRole({
+            principal,
+            tenantId: tenant.id,
+            partyId: supplier.id,
+            role: "supplier",
+          })
+          const relationship = yield* party.createRelationship({
+            principal,
+            tenantId: tenant.id,
+            partyId: supplier.id,
+            legalEntityId: legalEntity.id,
+            kind: "supplier",
+          })
+          const supplierAccount = yield* procurement.createSupplierAccount({
+            principal,
+            tenantId: tenant.id,
+            supplierRelationshipId: relationship.id,
+          })
+          const warehouse = yield* inventory.createWarehouse({
+            principal,
+            tenantId: tenant.id,
+            legalEntityId: legalEntity.id,
+            name: "Receipt Warehouse",
+          })
+          const item = yield* inventory.createItem({
+            principal,
+            tenantId: tenant.id,
+            sku: "receipt-item",
+            name: "Receipt Item",
+          })
+          const order = yield* procurement.createPurchaseOrder({
+            principal,
+            tenantId: tenant.id,
+            supplierAccountId: supplierAccount.id,
+            lines: [{ itemId: item.id, quantity: "3", unitPrice: "1.00" }],
+          })
+          const confirmed = yield* procurement.confirmPurchaseOrder({
+            principal,
+            tenantId: tenant.id,
+            purchaseOrderId: order.id,
+            idempotencyKey: "receipt-confirmation",
+          })
+          const lineId = confirmed.lines[0]!.id
+          const receiptInput = {
+            principal,
+            tenantId: tenant.id,
+            purchaseOrderId: confirmed.id,
+            warehouseId: warehouse.id,
+            idempotencyKey: "receipt-1",
+            lines: [{ purchaseOrderLineId: lineId, quantity: "1" }],
+          }
+          const first = yield* Effect.provideService(
+            procurement.receivePurchaseOrder(receiptInput),
+            InventoryService,
+            inventory,
+          )
+          const replay = yield* Effect.provideService(
+            procurement.receivePurchaseOrder(receiptInput),
+            InventoryService,
+            inventory,
+          )
+          assert.deepStrictEqual(replay, first)
+
+          const second = yield* Effect.provideService(
+            procurement.receivePurchaseOrder({
+              ...receiptInput,
+              idempotencyKey: "receipt-2",
+              lines: [{ purchaseOrderLineId: lineId, quantity: "2" }],
+            }),
+            InventoryService,
+            inventory,
+          )
+          assert.strictEqual(second.lines[0]?.quantity, "2")
+          assert.instanceOf(
+            yield* Effect.flip(Effect.provideService(
+              procurement.receivePurchaseOrder({
+                ...receiptInput,
+                idempotencyKey: "receipt-3",
+              }),
+              InventoryService,
+              inventory,
+            )),
+            PurchaseReceiptQuantityExceeded,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(procurement.cancelPurchaseOrder({
+              principal,
+              tenantId: tenant.id,
+              purchaseOrderId: confirmed.id,
+            })),
+            PurchaseOrderHasReceipts,
+          )
+
+          const persistedReceipts = yield* Effect.promise(() =>
+            client<{ id: string; count: string }[]>`
+              select pr.id, count(prl.id)::text as count
+              from procurement.purchase_receipts pr
+              left join procurement.purchase_receipt_lines prl
+                on prl.tenant_id = pr.tenant_id and prl.receipt_id = pr.id
+              where pr.tenant_id = ${tenant.id} and pr.purchase_order_id = ${confirmed.id}
+              group by pr.id
+              order by pr.id
+            `
+          )
+          assert.strictEqual(persistedReceipts.length, 2)
+          assert.deepStrictEqual(persistedReceipts.map((row) => row.count), ["1", "1"])
+          const movements = yield* Effect.promise(() =>
+            client<{ reference_id: string | null; quantity: string }[]>`
+              select reference_id, quantity::text
+              from inventory.movements
+              where tenant_id = ${tenant.id} and item_id = ${item.id}
+                and kind = 'receipt'
+              order by created_at
+            `
+          )
+          assert.deepStrictEqual(movements.map((row) => row.quantity), ["1", "2"])
+          assert.deepStrictEqual(
+            movements.map((row) => row.reference_id).sort(),
+            persistedReceipts.map((row) => row.id).sort(),
+          )
+          const balance = yield* Effect.promise(() =>
+            client<{ on_hand: string }[]>`
+              select on_hand::text
+              from inventory.stock_balances
+              where tenant_id = ${tenant.id} and warehouse_id = ${warehouse.id}
+                and item_id = ${item.id}
+            `
+          )
+          assert.strictEqual(balance[0]?.on_hand, "3")
+
+          const missingItemOrder = yield* procurement.createPurchaseOrder({
+            principal,
+            tenantId: tenant.id,
+            supplierAccountId: supplierAccount.id,
+            lines: [{ itemId: crypto.randomUUID(), quantity: "1", unitPrice: "1.00" }],
+          })
+          const missingItemConfirmed = yield* procurement.confirmPurchaseOrder({
+            principal,
+            tenantId: tenant.id,
+            purchaseOrderId: missingItemOrder.id,
+            idempotencyKey: "missing-item-confirmation",
+          })
+          assert.instanceOf(
+            yield* Effect.flip(Effect.provideService(
+              procurement.receivePurchaseOrder({
+                principal,
+                tenantId: tenant.id,
+                purchaseOrderId: missingItemConfirmed.id,
+                warehouseId: warehouse.id,
+                idempotencyKey: "missing-item-receipt",
+                lines: [{
+                  purchaseOrderLineId: missingItemConfirmed.lines[0]!.id,
+                  quantity: "1",
+                }],
+              }),
+              InventoryService,
+              inventory,
+            )),
+            PurchaseReceiptInventoryReferenceNotFound,
+          )
+          const missingItemReceipts = yield* Effect.promise(() =>
+            client<{ count: string }[]>`
+              select count(*)::text as count
+              from procurement.purchase_receipts
+              where tenant_id = ${tenant.id} and purchase_order_id = ${missingItemConfirmed.id}
+            `
+          )
+          assert.strictEqual(missingItemReceipts[0]?.count, "0")
         }).pipe(Effect.provide(authorizationLayer))
       })),
 )

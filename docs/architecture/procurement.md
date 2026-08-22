@@ -20,6 +20,8 @@
 >   [`../decisions/0044-define-procurement-purchase-order-baseline.md`](../decisions/0044-define-procurement-purchase-order-baseline.md)
 > - Confirmation decision:
 >   [`../decisions/0045-define-procurement-purchase-order-confirmation.md`](../decisions/0045-define-procurement-purchase-order-confirmation.md)
+> - Goods Receipt decision:
+>   [`../decisions/0047-define-procurement-goods-receipt-boundary.md`](../decisions/0047-define-procurement-goods-receipt-boundary.md)
 > - Domain maturity roadmap: [`../roadmap/domain-maturity.md`](../roadmap/domain-maturity.md)
 
 ## Position
@@ -43,8 +45,9 @@ This lifecycle is internal. Confirmation is not supplier acceptance or delivery.
 supplier acknowledgement, stock release, receipt reversal, invoice voiding, or financial reversal.
 
 The current scope deliberately excludes sourcing, requisitions, approvals, blanket agreements,
-price catalogs, tax, multi-currency, supplier communication, receipt, return, invoice matching,
-payables, settlement, events, API exposure, and Process Studio publication.
+price catalogs, tax, multi-currency, supplier communication, return, invoice matching, payables,
+settlement, events, API exposure, and Process Studio publication. Goods Receipt is implemented only
+as the bounded synchronous receipt boundary described below.
 
 ## Authority Matrix
 
@@ -56,10 +59,11 @@ payables, settlement, events, API exposure, and Process Studio publication.
 | Purchase Order authorization and lifecycle policy | Procurement + Authorization | Separate create, read, confirm, and cancel capabilities |
 | Item identity on current Purchase Order lines | Opaque external identity | No Inventory foreign key or availability claim exists |
 | Physical stock, warehouse balance, reservation, and movement | Inventory | Purchase Order state never changes stock |
-| Receipt business evidence | Not activated | Must pass the receipt gate in this specification |
+| Receipt business evidence | Procurement | Immutable Goods Receipt evidence with cumulative line allocation |
 | Supplier invoice and matching authority | Undecided | Remains gated |
 | Payable, journal, balance, and settlement authority | Accounting/financial owner | Procurement creates no financial fact |
 | External supplier transmission and acknowledgement | Integrations plus Procurement contract | Not implemented |
+| Goods Receipt physical movement | Inventory | Procurement invokes public Inventory receipt contract; no cross-table write |
 | Process-visible action/event metadata | Owning domain catalog | Procurement publishes none today |
 
 No package may mutate Procurement tables except Procurement. Procurement must not mutate Party,
@@ -253,31 +257,38 @@ Do not add an event merely because a state changes. Publication requires:
 External supplier delivery additionally requires the integration architecture's timeout, retry,
 unknown-outcome, provider-status, credential, and compensation rules.
 
-## Receipt Activation Gate
+## Goods Receipt Boundary
 
-Goods Receipt is not active. Implementation may begin only after one coherent contract resolves all
-of the following:
+Goods Receipt is active as a bounded Level 2 Procurement capability through
+`procurement.purchase_receipt.receive`. Procurement owns immutable receipt evidence and cumulative
+allocation; Inventory owns physical movement and stock balance. Neither domain writes the other's
+tables.
 
-1. **Ownership:** Procurement owns receipt business evidence; Inventory owns physical stock movement.
-   Neither domain may write the other's tables.
-2. **Reference foundation (satisfied):** Purchase Order snapshots expose stable server-owned line
-   identity. A receipt contract must still prove that every referenced line belongs to the selected
-   tenant-local confirmed order.
-3. **Eligibility:** cancelled orders reject new receipt work. The transaction must serialize receipt
-   eligibility with cancellation rather than trust a stale read.
-4. **Quantity policy:** define partial receipt, repeated receipt, cumulative received quantity,
-   over-receipt, and exact unit semantics.
-5. **Location:** define the Inventory warehouse/location required for stock receipt.
-6. **Atomicity:** decide how Procurement receipt evidence and Inventory movement succeed together
-   through public transaction-aware contracts. Direct cross-domain writes are forbidden.
-7. **Idempotency:** define one receipt command identity and duplicate/conflict behavior.
-8. **Unknown outcomes:** define retry and reconciliation if the cross-domain command result is lost.
-9. **Correction:** define receipt reversal or Purchase Return before publishing receipt effects.
-10. **Publication:** events, API, external documents, and Process Studio stay gated until their own
-    contracts mature.
+The selected contract is:
 
-The receipt contract must not assume that an Effect fiber, request lifetime, or eventual event can
-protect a synchronous stock invariant.
+1. Only confirmed Purchase Orders are eligible. Draft and cancelled orders reject receipt work.
+2. Purchase Order line identity is server-owned. The line's item identity must resolve to a tenant-local
+   Inventory Item when the receipt creates physical stock.
+3. One receipt uses one tenant-local Warehouse aligned with the Purchase Order Supplier Account's
+   Legal Entity. Inventory validates the warehouse scope inside the shared PostgreSQL transaction.
+4. Partial and repeated receipts are allowed. Cumulative quantity may not exceed the confirmed line
+   quantity; over-receipt and duplicate line IDs are rejected.
+5. Receipt quantities are positive whole-number quantities in the Inventory Item's immutable stock UOM.
+6. The Tenant-scoped idempotency key returns the original receipt for the same input and rejects
+   conflicting reuse.
+7. Receipt locks the Purchase Order before checking status and cumulative quantities. Cancellation
+   locks the same row and is rejected after any receipt evidence exists until a later return/reversal
+   contract exists.
+8. Procurement creates receipt evidence and invokes Inventory's public `receiveStock` contract in
+   one PostgreSQL transaction. Inventory records the receipt ID as movement provenance.
+9. A lost response is retried with the same idempotency key. No external unknown-outcome protocol is
+   introduced because the bounded operation is PostgreSQL-local.
+10. Receipt reversal, Purchase Return, invoice matching, events, API exposure, external documents,
+    and Process Studio publication remain separate gates.
+
+The implementation and rationale are defined by
+[`ADR-0047`](../decisions/0047-define-procurement-goods-receipt-boundary.md). An Effect fiber, request
+lifetime, or eventual event is not the durability mechanism for the synchronous stock invariant.
 
 ## Invoice Matching and Payables Gate
 
@@ -287,16 +298,16 @@ ledger boundaries. A Purchase Order total is not by itself a payable or journal 
 
 ## Maturity
 
-The bounded Supplier Account and Purchase Order lifecycle is Level 2:
+The bounded Supplier Account, Purchase Order, and Goods Receipt lifecycle remains Level 2:
 
 - public Effect Schema contracts and typed failures;
 - tenant-aware authorization;
-- atomic draft persistence;
+- atomic draft, confirmation, cancellation, and receipt persistence;
 - database constraints and immutability triggers;
-- confirmation idempotency and row-lock concurrency;
-- natural idempotent cancellation;
+- confirmation and receipt idempotency with row-lock concurrency;
+- receipt quantity allocation and Inventory movement provenance;
 - rollback and PostgreSQL invariant tests;
-- an explicit owner-local correction path.
+- explicit owner-local correction and return gates.
 
 Procurement is not Level 3 because it publishes no stable action/event catalog, process-visible
 failure contract, correlation metadata, event, or compensation metadata.

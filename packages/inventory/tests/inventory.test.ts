@@ -13,6 +13,7 @@ import {
   InventoryCapabilities,
   InventoryService,
   InventoryUnitOfMeasureMismatch,
+  InventoryWarehouseLegalEntityMismatch,
   makeInventoryTestLayer,
   StockCorrectionIdempotencyConflict,
   StockReservationIdempotencyConflict,
@@ -25,7 +26,7 @@ import {
 
 const principal = { userAccountId: "keeper", sessionId: "session" }
 const tenantId = "00000000-0000-4000-8000-000000000001"
-const legalEntityId = "legal-entity-a"
+const legalEntityId = "00000000-0000-4000-8000-000000000010"
 const correctionMetadata = {
   commandId: "inventory-command-1",
   correlationId: "inventory-correlation-1",
@@ -166,6 +167,45 @@ describe("inventory contract", () => {
       assert.strictEqual(reservation.quantity, "4")
       assert.strictEqual(reservation.idempotencyKey, "reservation-1")
       assert.strictEqual(reservation.id, repeated.id)
+    })))
+
+  it.effect("validates receive warehouse legal entity when supplied", () =>
+    withInventory(Effect.gen(function* () {
+      const inventory = yield* InventoryService
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId,
+        name: "Scoped Receipt",
+      })
+      const item = yield* inventory.createItem({
+        principal,
+        tenantId,
+        sku: "scoped-receipt",
+        name: "Scoped Receipt Item",
+      })
+
+      assert.instanceOf(
+        yield* Effect.flip(inventory.receiveStock({
+          principal,
+          tenantId,
+          warehouseId: warehouse.id,
+          itemId: item.id,
+          quantity: "1",
+          legalEntityId: "00000000-0000-4000-8000-000000000099",
+        })),
+        InventoryWarehouseLegalEntityMismatch,
+      )
+      const balance = yield* inventory.receiveStock({
+        principal,
+        tenantId,
+        warehouseId: warehouse.id,
+        itemId: item.id,
+        quantity: "2",
+        legalEntityId,
+        referenceId: crypto.randomUUID(),
+      })
+      assert.strictEqual(balance.onHand, "2")
     })))
 
   it.effect("applies normalized UOM corrections once and preserves reserved stock", () =>

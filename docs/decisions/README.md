@@ -70,5 +70,6 @@ current system; ADRs preserve decision history.
 | [`0044`](./0044-define-procurement-purchase-order-baseline.md)       | Define the Procurement Purchase Order baseline                | Accepted   |
 | [`0045`](./0045-define-procurement-purchase-order-confirmation.md)   | Define Procurement Purchase Order confirmation                | Accepted   |
 | [`0046`](./0046-adopt-owner-local-business-surface-and-generated-ergonomics.md) | Adopt owner-local business surface and generated structural ergonomics | Accepted |
+| [`0047`](./0047-define-procurement-goods-receipt-boundary.md) | Define the Procurement Goods Receipt boundary | Accepted |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

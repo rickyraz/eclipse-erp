@@ -4,6 +4,12 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import { AuthorizationDenied, makeAuthorizationTestLayer } from "../../authorization/mod.ts"
+import {
+  InventoryCapabilities,
+  InventoryService,
+  makeInventoryTestLayer,
+} from "../../inventory/mod.ts"
+import { makeMessagingTestLayer } from "../../messaging/mod.ts"
 import { makePartyTestLayer, PartyCapabilities, PartyService } from "../../party/mod.ts"
 import {
   makeProcurementTestLayer,
@@ -11,9 +17,11 @@ import {
   ProcurementService,
   PurchaseOrder,
   PurchaseOrderConfirmationIdempotencyConflict,
+  PurchaseOrderHasReceipts,
   PurchaseOrderInvalidState,
   PurchaseOrderLineSnapshot,
   PurchaseOrderNotFound,
+  PurchaseReceiptQuantityExceeded,
   SupplierAccountAlreadyExists,
   SupplierAccountNotFound,
   SupplierRelationshipNotEligible,
@@ -33,10 +41,14 @@ const capabilities = [
   ProcurementCapabilities.purchaseOrderConfirm,
   ProcurementCapabilities.purchaseOrderRead,
   ProcurementCapabilities.purchaseOrderCancel,
+  ProcurementCapabilities.purchaseReceiptReceive,
+  InventoryCapabilities.warehouseCreate,
+  InventoryCapabilities.itemCreate,
+  InventoryCapabilities.stockReceive,
 ] as const
 
 const withProcurement = <A, E>(
-  program: Effect.Effect<A, E, PartyService | ProcurementService>,
+  program: Effect.Effect<A, E, PartyService | ProcurementService | InventoryService>,
   granted: ReadonlyArray<(typeof capabilities)[number]> = capabilities,
 ) => {
   const authorization = makeAuthorizationTestLayer(
@@ -52,7 +64,10 @@ const withProcurement = <A, E>(
   const procurement = makeProcurementTestLayer().pipe(
     Layer.provide(Layer.merge(authorization, party)),
   )
-  return Effect.provide(program, Layer.merge(party, procurement))
+  const inventory = makeInventoryTestLayer().pipe(
+    Layer.provide(Layer.merge(authorization, makeMessagingTestLayer())),
+  )
+  return Effect.provide(program, Layer.mergeAll(party, procurement, inventory))
 }
 
 const createRelationship = (kind: "supplier" | "customer") =>
@@ -557,4 +572,70 @@ describe("procurement contract", () => {
         ),
       ),
     ))
+
+  it.effect("receives a confirmed purchase order idempotently and blocks over-receipt cancellation", () =>
+    withProcurement(Effect.gen(function* () {
+      const procurement = yield* ProcurementService
+      const inventory = yield* InventoryService
+      const supplierAccount = yield* createSupplierAccount
+      const warehouse = yield* inventory.createWarehouse({
+        principal,
+        tenantId,
+        legalEntityId: supplierAccount.legalEntityId,
+        name: "Receiving Warehouse",
+      })
+      const item = yield* inventory.createItem({
+        principal,
+        tenantId,
+        sku: "receipt-item",
+        name: "Receipt Item",
+      })
+      const order = yield* procurement.createPurchaseOrder({
+        principal,
+        tenantId,
+        supplierAccountId: supplierAccount.id,
+        lines: [{ itemId: item.id, quantity: "3", unitPrice: "1.00" }],
+      })
+      const confirmed = yield* procurement.confirmPurchaseOrder({
+        principal,
+        tenantId,
+        purchaseOrderId: order.id,
+        idempotencyKey: "receipt-confirmation",
+      })
+      const lineId = confirmed.lines[0]!.id
+      const firstInput = {
+        principal,
+        tenantId,
+        purchaseOrderId: confirmed.id,
+        warehouseId: warehouse.id,
+        idempotencyKey: "receipt-1",
+        lines: [{ purchaseOrderLineId: lineId, quantity: "1" }],
+      }
+      const first = yield* procurement.receivePurchaseOrder(firstInput)
+      const replay = yield* procurement.receivePurchaseOrder(firstInput)
+      assert.strictEqual(replay.id, first.id)
+      assert.strictEqual(replay.lines[0]?.quantity, "1")
+
+      const second = yield* procurement.receivePurchaseOrder({
+        ...firstInput,
+        idempotencyKey: "receipt-2",
+        lines: [{ purchaseOrderLineId: lineId, quantity: "2" }],
+      })
+      assert.strictEqual(second.lines[0]?.quantity, "2")
+      assert.instanceOf(
+        yield* Effect.flip(procurement.receivePurchaseOrder({
+          ...firstInput,
+          idempotencyKey: "receipt-3",
+        })),
+        PurchaseReceiptQuantityExceeded,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(procurement.cancelPurchaseOrder({
+          principal,
+          tenantId,
+          purchaseOrderId: confirmed.id,
+        })),
+        PurchaseOrderHasReceipts,
+      )
+    })))
 })

@@ -81,5 +81,7 @@ export {
   purchaseOrderLines,
   purchaseOrders,
   purchaseOrderStatus,
+  purchaseReceiptLines,
+  purchaseReceipts,
   supplierAccounts,
 } from "./procurement.ts"
