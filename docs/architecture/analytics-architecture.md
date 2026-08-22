@@ -474,6 +474,15 @@ owner-approved context. Any root-cause hypothesis, finding, or recommendation re
 non-authoritative. It must not write domain tables, edit process definitions or policy, invoke a
 private repository, or treat confidence as proof of current business state.
 
+### Immutable evidence binding
+
+Every finding or recommendation binds each citation to the exact typed observation content, tenant
+and query scope, fact and semantic versions, `dataAsOf`, fixed completeness frontier, and a stable
+integrity digest over its canonical representation. Advancing, rebuilding, correcting, or
+re-evaluating source state creates new evidence and must not alter the cited evidence. A live,
+changed, missing, or unverifiable citation fails explicitly instead of being silently substituted or
+recomputed. Current authorization still governs whether preserved evidence may be disclosed.
+
 A proposed action re-enters the owning domain's typed public command with current identity,
 authorization, command admission, idempotency, invariant validation, transaction, and audit. If
 canonical state or authorization changed after observation, the command rejects or the evaluator
@@ -612,6 +621,7 @@ Record, subject to redaction:
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Pagination is stable              | Ties, nulls, text comparison, and a page split enumerate each fixed-frontier row exactly once; mismatched frontiers fail explicitly |
 | Recommendations are non-authoritative | Change state or revoke access after observation; no direct mutation occurs and any proposed action re-enters the current owning command |
+| Evidence citations are immutable  | Advance, correct, and rebuild after citation; original typed evidence and digest remain identical, while missing or changed evidence fails explicitly |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
