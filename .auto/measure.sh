@@ -45,6 +45,7 @@ check bash -c "grep -q 'activated financial profile follows ADR-0040' docs/archi
 check grep -q '^### Conservative multi-source freshness' docs/architecture/analytics-architecture.md
 check grep -q '^### Correction visibility and deterministic replay' docs/architecture/analytics-architecture.md
 check grep -q '^### Total dimension membership' docs/architecture/analytics-architecture.md
+check grep -q '^### Empty inputs and absent groups' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((18 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((19 - score))"

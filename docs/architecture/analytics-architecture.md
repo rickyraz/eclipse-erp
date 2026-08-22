@@ -225,6 +225,14 @@ freshness and retention
 provider-independent output schema
 ```
 
+### Empty inputs and absent groups
+
+Each metric version declares whether no qualifying facts produce no row or one typed aggregate row.
+For grouped results, absent groups are omitted unless the contract declares a finite group universe
+and requires emitted rows. Each emitted measure separately declares zero or null behavior. Providers
+must not synthesize rows or values beyond that contract, and conformance compares raw typed results
+before client-side filling or normalization.
+
 ### Aggregation correctness
 
 Metrics distinguish:
@@ -544,6 +552,7 @@ Record, subject to redaction:
 | Replay is safe                    | Duplicate and reorder facts within the supported contract; final results remain identical             |
 | Correction visibility is explicit | Rebuild twice at one frontier, then add a later correction; as-known results stay fixed while declared restated results change |
 | Dimension membership is total     | Null, missing, orphaned, and late membership cases preserve the contract-declared included population before and after resolution |
+| Empty result cardinality is stable | Empty-input and absent-group fixtures produce identical raw rows, group identities, and zero/null values before client normalization |
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |

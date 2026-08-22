@@ -55,3 +55,4 @@ activating speculative OLAP infrastructure.
 16. Multi-source freshness cannot advance beyond the oldest required source completeness frontier.
 17. Correction visibility is explicit, and deterministic rebuild proof fixes semantic versions and the source-completeness frontier.
 18. Dimension membership has a total, testable outcome with no implicit source-grain row loss.
+19. Empty inputs and absent groups have provider-independent row-cardinality and zero/null semantics.
