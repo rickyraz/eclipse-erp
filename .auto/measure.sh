@@ -52,6 +52,7 @@ check grep -q '^### Deterministic ordering and pagination' docs/architecture/ana
 check grep -q '^## Self-Observation Boundary' docs/architecture/analytics-architecture.md
 check grep -q '^### Fresh authorization across observation, review, and action' docs/architecture/analytics-architecture.md
 check grep -q '^### Immutable evidence binding' docs/architecture/analytics-architecture.md
+check grep -q '^### Recommendation actionability lifecycle' docs/architecture/analytics-architecture.md
 
 printf 'METRIC analytic_architecture_gates=%s\n' "$score"
-printf 'METRIC remaining_gates=%s\n' "$((25 - score))"
+printf 'METRIC remaining_gates=%s\n' "$((26 - score))"

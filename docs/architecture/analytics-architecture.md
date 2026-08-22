@@ -483,6 +483,14 @@ re-evaluating source state creates new evidence and must not alter the cited evi
 changed, missing, or unverifiable citation fails explicitly instead of being silently substituted or
 recomputed. Current authorization still governs whether preserved evidence may be disclosed.
 
+### Recommendation actionability lifecycle
+
+Before review or action, the exact finding or recommendation version must still be currently
+actionable. Newer applicable evidence, a source correction, policy change, explicit supersession, or
+withdrawal makes it non-actionable without altering its immutable historical record or citations.
+Review exposes that state and action fails closed; execution must not silently substitute a newer
+recommendation.
+
 A proposed action re-enters the owning domain's typed public command with current identity,
 authorization, command admission, idempotency, invariant validation, transaction, and audit. If
 canonical state or authorization changed after observation, the command rejects or the evaluator
@@ -622,6 +630,7 @@ Record, subject to redaction:
 | Pagination is stable              | Ties, nulls, text comparison, and a page split enumerate each fixed-frontier row exactly once; mismatched frontiers fail explicitly |
 | Recommendations are non-authoritative | Change state or revoke access after observation; no direct mutation occurs and any proposed action re-enters the current owning command |
 | Evidence citations are immutable  | Advance, correct, and rebuild after citation; original typed evidence and digest remain identical, while missing or changed evidence fails explicitly |
+| Recommendation lifecycle fails closed | Add newer evidence, correction, policy change, supersession, or withdrawal; review/action rejects while historical evidence remains preserved |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
