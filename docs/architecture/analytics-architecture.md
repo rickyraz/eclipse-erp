@@ -553,6 +553,19 @@ Any failed revalidation blocks dispatch without erasing the historical approval 
 replacement reviewer. A retry after delay performs the checks again. Review time, dispatch time, and
 the versions evaluated at each boundary remain distinguishable in audit evidence.
 
+### Concurrent dispatch and fencing
+
+Any future action coordinator durably binds one dispatch attempt to the exact recommendation version,
+action version, validated input, and owner-visible idempotency identity before invoking the command.
+Concurrent workers may race for that attempt, but a process-local mutex or queue delivery is not proof
+of exclusivity. Recovery uses a monotonic claim generation or equivalent fence so a stale worker cannot
+dispatch or finalize after a replacement takes ownership.
+
+The claim is coordination, not authorization, business authority, or proof of command completion. The
+winner still performs immediate pre-dispatch revalidation, and every permitted retry presents the same
+bound identity to the owning command. The owning domain's idempotency and reconciliation contracts
+remain the final defense against duplicate effects and unknown outcomes.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -684,6 +697,7 @@ Record, subject to redaction:
 | Unknown action outcome is reconciled | Lose responses before and after owner commit; no new identity, compensation, successor effect, or executed state appears until the owning contract confirms the outcome |
 | Compensation is outcome-bound       | Attempt compensation for unknown and rejected actions, then for one owner-confirmed compensable effect; only the confirmed effect creates one separately authorized, idempotent correcting command |
 | Approval grants no execution lease   | Approve, then change evidence access, policy, delegation, action version, or actionability before delayed dispatch; every stale case blocks before the owning command |
+| Concurrent dispatch is fenced        | Race two workers, expire one claim, and resume it after replacement; all permitted calls retain one bound identity and the stale worker cannot dispatch or finalize |
 | Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
