@@ -11,6 +11,7 @@
 > - Canonical architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
+> - Analytics architecture: [`./analytics-architecture.md`](./analytics-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
@@ -27,8 +28,8 @@
 
 ## Position
 
-RITSEI treats overload isolation as a non-interference problem, not only a throughput or
-recovery problem.
+RITSEI treats overload isolation as a non-interference problem, not only a throughput or recovery
+problem.
 
 The target for projection-safe dashboard, search, and reporting traffic is:
 
@@ -78,10 +79,11 @@ query
 async
 ```
 
-A deployment may subdivide them internally. Query work may be authoritative or projection-backed;
-async work may be indexing, projection building, export, integration, or workflow orchestration.
-These remain subcategories of `command`, `query`, and `async`, not competing top-level classes.
-Public contracts must not expose process, pool, node, WorkloadCell, or provider topology.
+A deployment may subdivide them internally. Query work may be authoritative, search, or analytics
+projection work; async work may be indexing, analytics ingestion, projection building, rebuild,
+export, integration, or workflow orchestration. The Analytic Plane is therefore a logical subsystem
+over `query` and `async`, not a competing top-level class. Public contracts must not expose process,
+pool, node, WorkloadCell, or provider topology.
 
 ### Criticality
 
@@ -136,8 +138,8 @@ A WorkloadCell is not:
 
 A `celld` cell is one named stateful Durable Object with an active owner and private SQLite state;
 its bucket durability belongs to that runtime's own state model. A WorkloadCell instead contains
-workload resources and fault boundaries. Neither concept transfers RITSEI business authority
-from PostgreSQL.
+workload resources and fault boundaries. Neither concept transfers RITSEI business authority from
+PostgreSQL.
 
 The full term `WorkloadCell` must be used in architecture documents when ambiguity is possible.
 
@@ -579,6 +581,9 @@ authorization and revocation behavior
 degraded and unavailable response
 ```
 
+Analytic routes additionally follow the fact, metric, dimensional, completeness, correction, and
+provider-eligibility contracts in [`analytics-architecture.md`](./analytics-architecture.md).
+
 Sensitive projection results require current owner-controlled authorization. The isolated path must
 satisfy that rule through either:
 
@@ -673,8 +678,9 @@ Rules:
 - sensitive results remain subject to current authorization requirements.
 
 Detailed authority, version, replay, and reconciliation semantics remain owned by
-[`state-and-consistency.md`](./state-and-consistency.md) and
-[`search-architecture.md`](./search-architecture.md).
+[`state-and-consistency.md`](./state-and-consistency.md). Search-specific projections are owned by
+[`search-architecture.md`](./search-architecture.md); analytical fact, metric, freshness, and
+provider semantics are owned by [`analytics-architecture.md`](./analytics-architecture.md).
 
 ## Database and Credential Boundaries
 

@@ -7,6 +7,7 @@
 > - Full specification: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - PostgreSQL design: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
+> - Analytics architecture: [`./analytics-architecture.md`](./analytics-architecture.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
@@ -32,11 +33,13 @@ WorkloadCell placement (topology-private)
   |         +--> FinancialLedgerPort --> trusted TigerBeetle adapter --> TigerBeetle
   |         `--> optional Stateful Entity Runtime for approved aggregates
   |
-  +--> Query plane --> query pool --> rebuildable projection store
+  +--> Query plane --> semantic/query gateway --> rebuildable projection store
+  |                                              |
+  |                                              `--> optional OLAP/historical provider
   |
   `--> Async plane --> PgQue / jobs / workflows / integrations
                               |
-                              `--> projection builders and financial reconciliation
+                              `--> projection builders, rebuilds, and financial reconciliation
 
 PostgreSQL 19 remains canonical for non-ledger transactional domain state, metadata,
 authorization, audit, outbox, and durable work. TigerBeetle is canonical for accepted
@@ -72,31 +75,31 @@ Vite
 + Kobalte
 ```
 
-Effect handles typed failures, dependency injection, lifecycle, concurrency,
-retry, streams, and telemetry. Drizzle handles typed schema and queries.
-PostgreSQL remains responsible for control-plane transactions and non-ledger
-business invariants. The FinancialLedgerPort sends accepted financial movements
-to TigerBeetle; the optional Stateful Entity Runtime may own active serialization
-and hot state for explicitly approved aggregates, but it does not become financial
+Effect handles typed failures, dependency injection, lifecycle, concurrency, retry, streams, and
+telemetry. Drizzle handles typed schema and queries. PostgreSQL remains responsible for
+control-plane transactions and non-ledger business invariants. The FinancialLedgerPort sends
+accepted financial movements to TigerBeetle; the optional Stateful Entity Runtime may own active
+serialization and hot state for explicitly approved aggregates, but it does not become financial
 authority.
 
 ## Boundaries
 
-Each domain owns its PostgreSQL schema and internal implementation. Cross-domain
-interaction occurs through typed Effect services, commands, queries, and events.
+Each domain owns its PostgreSQL schema and internal implementation. Cross-domain interaction occurs
+through typed Effect services, commands, queries, and events.
 
-A Sales operation may call `InventoryService.reserveStock` in the same
-transaction, but Sales must not import or mutate Inventory tables directly.
+A Sales operation may call `InventoryService.reserveStock` in the same transaction, but Sales must
+not import or mutate Inventory tables directly.
 
 ## Consistency
 
 - Direct PostgreSQL transaction: non-ledger invariant required before request success.
-- Financial ledger protocol: durable PostgreSQL intent, TigerBeetle acceptance, projection, and reconciliation.
+- Financial ledger protocol: durable PostgreSQL intent, TigerBeetle acceptance, projection, and
+  reconciliation.
 - Stateful Entity Runtime: optional active ownership and identity-local serialization.
 - PgQue: committed fact and fan-out.
 - Job table: single-consumer work with lease and lifecycle.
 - `pg_durable`: checkpointed multi-step workflow after compatibility approval.
-- ClickHouse, search indexes, and caches: rebuildable projections.
+- Analytic stores, search indexes, and caches: rebuildable projections.
 
 ## Non-Interference
 
@@ -112,37 +115,49 @@ WorkloadCells and optional tenant-aware shuffle sharding narrow deployment blast
 changing domain ownership, public identity, authorization, or PostgreSQL truth. See
 [`./workload-isolation.md`](./workload-isolation.md).
 
+## Analytics
+
+Source domains publish versioned Business Fact Contracts through public facts, committed events, or
+owner-approved rebuild exports. Versioned metric contracts define grain, dimensions, aggregation,
+time, exact arithmetic, authorization, and freshness without exposing provider topology.
+
+Analytic reads remain bounded query work; ingestion, rebuild, backfill, and export remain async
+work. PostgreSQL projections are the baseline. External OLAP or historical providers require
+measured need and conformance evidence. A hard-isolated analytic route has no primary credential or
+fallback; it serves declared stale data or typed unavailability when no eligible projection
+satisfies the contract.
+
+See [`./analytics-architecture.md`](./analytics-architecture.md).
+
 ## Search
 
 Exact and structured PostgreSQL queries remain the default. Domain-local search reads only owned
-data. Global search consumes published facts into a tenant-scoped, rebuildable projection and returns
-candidate references that are revalidated through the owning domain before sensitive use or action.
-PostgreSQL-native BM25 and vector search remain gated by PostgreSQL 19 compatibility and workload
-evidence; external search remains a later deployment optimization.
+data. Global search consumes published facts into a tenant-scoped, rebuildable projection and
+returns candidate references that are revalidated through the owning domain before sensitive use or
+action. PostgreSQL-native BM25 and vector search remain gated by PostgreSQL 19 compatibility and
+workload evidence; external search remains a later deployment optimization.
 
 See [`./search-architecture.md`](./search-architecture.md).
 
 ## External Integration Surface
 
-External integrations use a typed connector boundary. HTTPS + JSON + OpenAPI is
-the default action surface; CloudEvents over HTTPS and AsyncAPI describe external
-events; OAuth 2.0 and stable Problem Details protect and normalize the surface.
-Connector protocols such as Kafka, gRPC, SOAP, or OData remain adapters and do
-not enter domain contracts or Process IR.
+External integrations use a typed connector boundary. HTTPS + JSON + OpenAPI is the default action
+surface; CloudEvents over HTTPS and AsyncAPI describe external events; OAuth 2.0 and stable Problem
+Details protect and normalize the surface. Connector protocols such as Kafka, gRPC, SOAP, or OData
+remain adapters and do not enter domain contracts or Process IR.
 
 See [`./integration-architecture.md`](./integration-architecture.md).
 
 ## Process Composition
 
-The planned Process Studio composes versioned typed actions and events through a
-small deterministic Process IR. It is catalog-first and runtime-first: domain
-capability metadata, compensation, idempotency, correlation, and durable
-headless execution mature before the visual designer. Published definitions are
-immutable, running instances remain version-pinned, and every command executes
-through its owning public domain contract.
+The planned Process Studio composes versioned typed actions and events through a small deterministic
+Process IR. It is catalog-first and runtime-first: domain capability metadata, compensation,
+idempotency, correlation, and durable headless execution mature before the visual designer.
+Published definitions are immutable, running instances remain version-pinned, and every command
+executes through its owning public domain contract.
 
-See [`./process-studio.md`](./process-studio.md) for the canonical target and
-0.8–1.0 delivery gates.
+See [`./process-studio.md`](./process-studio.md) for the canonical target and 0.8–1.0 delivery
+gates.
 
 ## Extensions
 
@@ -155,6 +170,5 @@ Preferred order:
 
 ## Native Code
 
-Zig is limited to bounded calculation or reconciliation kernels backed by
-benchmarks. Native code never owns PostgreSQL transactions or authoritative
-state.
+Zig is limited to bounded calculation or reconciliation kernels backed by benchmarks. Native code
+never owns PostgreSQL transactions or authoritative state.

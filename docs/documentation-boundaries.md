@@ -2,61 +2,62 @@
 
 > **Status:** Canonical documentation policy
 >
-> **Owns:** Document purpose, source-of-truth boundaries, duplication rules, and
-> cross-document reference conventions.
+> **Owns:** Document purpose, source-of-truth boundaries, duplication rules, and cross-document
+> reference conventions.
 >
 > **Related documents**
 >
 > - Documentation index: [`./README.md`](./README.md)
 > - Agent rules: [`../AGENTS.md`](../AGENTS.md)
-> - Documentation workflow: [`./development/documentation-workflow.md`](./development/documentation-workflow.md)
+> - Documentation workflow:
+>   [`./development/documentation-workflow.md`](./development/documentation-workflow.md)
 > - ADR index: [`./decisions/README.md`](./decisions/README.md)
 
 ## Purpose
 
-Each architectural fact must have one canonical owning document. Other files may
-summarize it for navigation or explain why it was chosen, but they must not
-create a second independent definition.
+Each architectural fact must have one canonical owning document. Other files may summarize it for
+navigation or explain why it was chosen, but they must not create a second independent definition.
 
 ## Ownership Matrix
 
-| Document type | Owns | Must not own |
-|---|---|---|
-| Root `README.md` | Project entry point and active-stack summary | Detailed architecture rules |
-| `AGENTS.md` | Executable instructions for coding agents | Product rationale or full specifications |
-| `docs/README.md` | Curated documentation navigation | Architecture content |
-| `architecture/overview.md` | Short current-system map | Detailed subsystem policy |
-| `architecture-spec-v4.md` | System-wide runtime and boundary decisions | Full subsystem detail |
-| Subsystem architecture file | Detailed rules for exactly one subsystem | Historical decision rationale |
-| ADR | Context, alternatives, decision, and consequences | Complete current-state specification |
-| Reference document | Analysis and conceptual background | Binding implementation rules |
-| Development workflow | How documentation and implementation are maintained | Domain architecture |
+| Document type                 | Owns                                                | Must not own                                        |
+| ----------------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| Root `README.md`              | Project entry point and active-stack summary        | Detailed architecture rules                         |
+| `AGENTS.md`                   | Executable instructions for coding agents           | Product rationale or full specifications            |
+| `docs/README.md`              | Curated documentation navigation                    | Architecture content                                |
+| `architecture/overview.md`    | Short current-system map                            | Detailed subsystem policy                           |
+| `architecture-spec-v4.md`     | System-wide runtime and boundary decisions          | Full subsystem detail                               |
+| Subsystem architecture file   | Detailed rules for exactly one subsystem            | Historical decision rationale                       |
+| ADR                           | Context, alternatives, decision, and consequences   | Complete current-state specification                |
+| Reference document            | Analysis and conceptual background                  | Binding implementation rules                        |
+| Development workflow          | How documentation and implementation are maintained | Domain architecture                                 |
 | Roadmap index and subroadmaps | Sequencing, dependencies, readiness, and exit gates | Detailed architecture rules or historical rationale |
 
 ## Canonical Topic Owners
 
-| Topic | Canonical owner |
-|---|---|
-| Runtime and global module shape | [`./architecture/architecture-spec-v4.md`](./architecture/architecture-spec-v4.md) |
-| Stateful entity ownership, routing, lifecycle, and runtime observability | [`./architecture/runtime-architecture.md`](./architecture/runtime-architecture.md) |
-| Canonical/runtime state classification and consistency protocol | [`./architecture/state-and-consistency.md`](./architecture/state-and-consistency.md) |
-| Financial ledger authority, execution, and reconciliation | [`./architecture/financial-ledger.md`](./architecture/financial-ledger.md) |
-| Frontend SPA, SolidJS 2.0, routing, and TanStack UI infrastructure | [`./architecture/frontend.md`](./architecture/frontend.md) |
-| PostgreSQL ownership and integrity | [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md) |
-| Workload planes, non-interference, WorkloadCells, shuffle sharding, and resource admission | [`./architecture/workload-isolation.md`](./architecture/workload-isolation.md) |
-| Search authority, projections, providers, and search-specific workload safety | [`./architecture/search-architecture.md`](./architecture/search-architecture.md) |
-| Authorization | [`./architecture/authorization.md`](./architecture/authorization.md) |
-| Events and messaging | [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md) |
-| External integration surface and connector protocols | [`./architecture/integration-architecture.md`](./architecture/integration-architecture.md) |
-| Jobs and durable workflow engine selection | [`./architecture/durable-execution.md`](./architecture/durable-execution.md) |
-| Process Studio, catalogs, Process IR, definition governance, and static validation | [`./architecture/process-studio.md`](./architecture/process-studio.md) |
-| Plugin trust and extension model | [`./architecture/plugin-architecture.md`](./architecture/plugin-architecture.md) |
-| Hierarchy and graph selection | [`./architecture/hierarchy-and-graph-selection.md`](./architecture/hierarchy-and-graph-selection.md) |
-| Native Zig boundary | [`./architecture/native-zig-kernel.md`](./architecture/native-zig-kernel.md) |
-| Architecture enforcement | [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md) |
-| Testing strategy | [`./development/testing.md`](./development/testing.md) |
-| Database roles and privileges | [`./operations/database-roles.md`](./operations/database-roles.md) |
-| Roadmap sequencing and release gates | [`./roadmap/README.md`](./roadmap/README.md) |
+| Topic                                                                                                      | Canonical owner                                                                                      |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Runtime and global module shape                                                                            | [`./architecture/architecture-spec-v4.md`](./architecture/architecture-spec-v4.md)                   |
+| Stateful entity ownership, routing, lifecycle, and runtime observability                                   | [`./architecture/runtime-architecture.md`](./architecture/runtime-architecture.md)                   |
+| Canonical/runtime state classification and consistency protocol                                            | [`./architecture/state-and-consistency.md`](./architecture/state-and-consistency.md)                 |
+| Financial ledger authority, execution, and reconciliation                                                  | [`./architecture/financial-ledger.md`](./architecture/financial-ledger.md)                           |
+| Frontend SPA, SolidJS 2.0, routing, and TanStack UI infrastructure                                         | [`./architecture/frontend.md`](./architecture/frontend.md)                                           |
+| PostgreSQL ownership and integrity                                                                         | [`./architecture/postgresql-19-architecture.md`](./architecture/postgresql-19-architecture.md)       |
+| Workload planes, non-interference, WorkloadCells, shuffle sharding, and resource admission                 | [`./architecture/workload-isolation.md`](./architecture/workload-isolation.md)                       |
+| Analytic-plane authority, fact and metric contracts, freshness, projection providers, and activation gates | [`./architecture/analytics-architecture.md`](./architecture/analytics-architecture.md)               |
+| Search authority, projections, providers, and search-specific workload safety                              | [`./architecture/search-architecture.md`](./architecture/search-architecture.md)                     |
+| Authorization                                                                                              | [`./architecture/authorization.md`](./architecture/authorization.md)                                 |
+| Events and messaging                                                                                       | [`./architecture/pgque-messaging.md`](./architecture/pgque-messaging.md)                             |
+| External integration surface and connector protocols                                                       | [`./architecture/integration-architecture.md`](./architecture/integration-architecture.md)           |
+| Jobs and durable workflow engine selection                                                                 | [`./architecture/durable-execution.md`](./architecture/durable-execution.md)                         |
+| Process Studio, catalogs, Process IR, definition governance, and static validation                         | [`./architecture/process-studio.md`](./architecture/process-studio.md)                               |
+| Plugin trust and extension model                                                                           | [`./architecture/plugin-architecture.md`](./architecture/plugin-architecture.md)                     |
+| Hierarchy and graph selection                                                                              | [`./architecture/hierarchy-and-graph-selection.md`](./architecture/hierarchy-and-graph-selection.md) |
+| Native Zig boundary                                                                                        | [`./architecture/native-zig-kernel.md`](./architecture/native-zig-kernel.md)                         |
+| Architecture enforcement                                                                                   | [`./architecture/architecture-enforcement.md`](./architecture/architecture-enforcement.md)           |
+| Testing strategy                                                                                           | [`./development/testing.md`](./development/testing.md)                                               |
+| Database roles and privileges                                                                              | [`./operations/database-roles.md`](./operations/database-roles.md)                                   |
+| Roadmap sequencing and release gates                                                                       | [`./roadmap/README.md`](./roadmap/README.md)                                                         |
 
 ## Duplication Rules
 
@@ -85,8 +86,8 @@ When one document depends on another, add a note near the top:
 > - Frontend architecture: [`./architecture/frontend.md`](./architecture/frontend.md)
 ```
 
-Use a relative path from the current file. The visible link text should include
-the path or an unambiguous document title.
+Use a relative path from the current file. The visible link text should include the path or an
+unambiguous document title.
 
 ## Updating a Decision
 

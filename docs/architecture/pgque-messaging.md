@@ -7,12 +7,15 @@
 > - Durable execution: [`./durable-execution.md`](./durable-execution.md)
 > - Stateful runtime: [`./runtime-architecture.md`](./runtime-architecture.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
+> - Analytics architecture: [`./analytics-architecture.md`](./analytics-architecture.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
 > - Process Studio event catalog: [`./process-studio.md`](./process-studio.md)
 > - External integration surface: [`./integration-architecture.md`](./integration-architecture.md)
-> - Async ADR: [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
-> - Messaging ownership ADR: [`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md)
+> - Async ADR:
+>   [`../decisions/0004-separate-events-jobs-and-workflows.md`](../decisions/0004-separate-events-jobs-and-workflows.md)
+> - Messaging ownership ADR:
+>   [`../decisions/0038-move-internal-event-delivery-to-messaging.md`](../decisions/0038-move-internal-event-delivery-to-messaging.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 
 ## Position
@@ -63,7 +66,7 @@ PostgreSQL transaction commits the outcome receipt, financial projection/provena
 outbox record together through the public Messaging contract. If that transaction fails, the
 TigerBeetle transfer remains authoritative and the operation is unresolved until the same-ID
 reconciliation path completes; PostgreSQL rollback does not undo the transfer. No event is emitted
-befrBore Tigeeetle acceptance and a durable PostgreSQL receipt. A coordinator may publish only its
+before TigerBeetle acceptance and a durable PostgreSQL receipt. A coordinator may publish only its
 own Process-namespaced lifecycle facts; it must not impersonate another domain's event owner.
 
 ## Event Envelope
@@ -90,10 +93,12 @@ Event names use past tense. Exact contract identity is `(event_type, event_versi
 not duplicated in the event name. Command, correlation, causation, and idempotency identities remain
 distinct.
 
-Cross-domain search and embedding consumers may build tenant-scoped, rebuildable projections from
-these committed events. They must preserve source and event versions, tolerate replay, and never use
-projection delivery as the authorization or invariant boundary. Detailed rules are owned by
-[`search-architecture.md`](./search-architecture.md).
+Cross-domain search, embedding, and analytics consumers may build tenant-scoped, rebuildable
+projections from these committed events. They must preserve source and event versions, tolerate
+replay, and never use projection delivery as the authorization or invariant boundary. Events are not
+assumed to be a complete analytical rebuild source when retention or payload shape is insufficient.
+Detailed rules are owned by [`search-architecture.md`](./search-architecture.md) and
+[`analytics-architecture.md`](./analytics-architecture.md).
 
 Process triggers and waits discover versioned event schemas through the Typed Event Catalog defined
 by [`process-studio.md`](./process-studio.md). External CloudEvents are authenticated and normalized
@@ -114,11 +119,11 @@ Consumers must:
 - expose lag and failure metrics;
 - preserve correlation metadata.
 
-Consumer receipts retain the source event type, version, and idempotency identity alongside
-consumer identity, completion state, and timestamps for at least the replay horizon. A duplicate
-completion must validate that receipt snapshot against the current source event before suppressing
-the local effect. Receipts do not provide exactly-once external delivery; external effects still
-require provider idempotency and accepted/committed/unknown/reconciled operation state.
+Consumer receipts retain the source event type, version, and idempotency identity alongside consumer
+identity, completion state, and timestamps for at least the replay horizon. A duplicate completion
+must validate that receipt snapshot against the current source event before suppressing the local
+effect. Receipts do not provide exactly-once external delivery; external effects still require
+provider idempotency and accepted/committed/unknown/reconciled operation state.
 
 ## Publication and External Delivery
 

@@ -7,20 +7,34 @@ This file defines how coding agents must work in the RITSEI repository.
 > - Project overview: [`./README.md`](./README.md)
 > - Architecture entrypoint: [`./ARCHITECTURE.md`](./ARCHITECTURE.md)
 > - Documentation index: [`./docs/README.md`](./docs/README.md)
-> - Canonical architecture: [`./docs/architecture/architecture-spec-v4.md`](./docs/architecture/architecture-spec-v4.md)
+> - Canonical architecture:
+>   [`./docs/architecture/architecture-spec-v4.md`](./docs/architecture/architecture-spec-v4.md)
 > - Architecture decisions: [`./docs/decisions/README.md`](./docs/decisions/README.md)
-> - Documentation workflow: [`./docs/development/documentation-workflow.md`](./docs/development/documentation-workflow.md)
-> - Documentation ownership: [`./docs/documentation-boundaries.md`](./docs/documentation-boundaries.md)
+> - Documentation workflow:
+>   [`./docs/development/documentation-workflow.md`](./docs/development/documentation-workflow.md)
+> - Documentation ownership:
+>   [`./docs/documentation-boundaries.md`](./docs/documentation-boundaries.md)
 > - Frontend architecture: [`./docs/architecture/frontend.md`](./docs/architecture/frontend.md)
-> - Process Studio architecture: [`./docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
-> - External integration surface: [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
-> - Stateful runtime: [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
-> - State and consistency: [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
-> - Financial ledger: [`./docs/architecture/financial-ledger.md`](./docs/architecture/financial-ledger.md)
-> - Search architecture: [`./docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md)
-> - Workload isolation: [`./docs/architecture/workload-isolation.md`](./docs/architecture/workload-isolation.md)
-> - Frontend SPA decision: [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
-> - Architecture enforcement: [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
+> - Process Studio architecture:
+>   [`./docs/architecture/process-studio.md`](./docs/architecture/process-studio.md)
+> - External integration surface:
+>   [`./docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
+> - Stateful runtime:
+>   [`./docs/architecture/runtime-architecture.md`](./docs/architecture/runtime-architecture.md)
+> - State and consistency:
+>   [`./docs/architecture/state-and-consistency.md`](./docs/architecture/state-and-consistency.md)
+> - Financial ledger:
+>   [`./docs/architecture/financial-ledger.md`](./docs/architecture/financial-ledger.md)
+> - Search architecture:
+>   [`./docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md)
+> - Analytics architecture:
+>   [`./docs/architecture/analytics-architecture.md`](./docs/architecture/analytics-architecture.md)
+> - Workload isolation:
+>   [`./docs/architecture/workload-isolation.md`](./docs/architecture/workload-isolation.md)
+> - Frontend SPA decision:
+>   [`./docs/decisions/0010-use-vite-solidjs-spa.md`](./docs/decisions/0010-use-vite-solidjs-spa.md)
+> - Architecture enforcement:
+>   [`./docs/architecture/architecture-enforcement.md`](./docs/architecture/architecture-enforcement.md)
 > - Testing strategy: [`./docs/development/testing.md`](./docs/development/testing.md)
 > - Database roles: [`./docs/operations/database-roles.md`](./docs/operations/database-roles.md)
 
@@ -33,11 +47,10 @@ When documents conflict, use this order:
 3. Other canonical architecture documents.
 4. Reference and exploration documents.
 
-`ARCHITECTURE.md` is an architectural entrypoint and summary. It does not
-supersede the canonical specification or accepted ADRs.
+`ARCHITECTURE.md` is an architectural entrypoint and summary. It does not supersede the canonical
+specification or accepted ADRs.
 
-Do not silently resolve contradictions. Report them and update the relevant
-source of truth.
+Do not silently resolve contradictions. Report them and update the relevant source of truth.
 
 ## Working Rules
 
@@ -50,44 +63,44 @@ source of truth.
 - Do not convert all failures into generic `Error` values.
 - Do not assume an Effect fiber is durable.
 - Do not treat Drizzle as the domain model.
-- Do not encode a financial storage engine such as TigerBeetle in orthogonal
-  domain primitives; engine selection belongs in the current financial-ledger ADR.
+- Do not encode a financial storage engine such as TigerBeetle in orthogonal domain primitives;
+  engine selection belongs in the current financial-ledger ADR.
 - Do not activate Zig without benchmark evidence and a safe fallback.
-- Commits created by agents MUST follow the [commit-message standard](./docs/development/commit-message-guidelines.md); do not rewrite shared history without explicit approval.
+- Commits created by agents MUST follow the
+  [commit-message standard](./docs/development/commit-message-guidelines.md); do not rewrite shared
+  history without explicit approval.
 
 ## Repository-Native Skills
 
-Before implementing a matching workflow, read the relevant `SKILL.md` under
-`.agents/skills/`. Match ordinary developer intent to the descriptions below;
-do not require the user to name a skill. Compose skills when a change crosses
-several workflows.
+Before implementing a matching workflow, read the relevant `SKILL.md` under `.agents/skills/`. Match
+ordinary developer intent to the descriptions below; do not require the user to name a skill.
+Compose skills when a change crosses several workflows.
 
-| Developer intent | Skill |
-|---|---|
-| Add or implement a business capability from a terse ERP request | [`develop-enterprise-feature`](./.agents/skills/develop-enterprise-feature/SKILL.md) |
-| Design or explain an Effect success/error/requirements flow or call graph | [`design-effect-program`](./.agents/skills/design-effect-program/SKILL.md) |
-| Add a new domain or schema owner | [`create-domain-module`](./.agents/skills/create-domain-module/SKILL.md) |
-| Change tables, constraints, triggers, RLS, or migrations | [`change-owned-schema`](./.agents/skills/change-owned-schema/SKILL.md) |
-| Add or change a package's public service, DTO, or tagged errors | [`expose-public-contract`](./.agents/skills/expose-public-contract/SKILL.md) |
-| Let one domain consume another domain's behavior or facts | [`introduce-cross-domain-integration`](./.agents/skills/introduce-cross-domain-integration/SKILL.md) |
-| Expose domain behavior through the Effect HTTP API | [`add-api-endpoint`](./.agents/skills/add-api-endpoint/SKILL.md) |
-| Add a protected business action or permission | [`add-authorization-capability`](./.agents/skills/add-authorization-capability/SKILL.md) |
-| Implement stock, balance, journal, idempotent, or multi-write invariants | [`implement-transactional-workflow`](./.agents/skills/implement-transactional-workflow/SKILL.md) |
+| Developer intent                                                          | Skill                                                                                                |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Add or implement a business capability from a terse ERP request           | [`develop-enterprise-feature`](./.agents/skills/develop-enterprise-feature/SKILL.md)                 |
+| Design or explain an Effect success/error/requirements flow or call graph | [`design-effect-program`](./.agents/skills/design-effect-program/SKILL.md)                           |
+| Add a new domain or schema owner                                          | [`create-domain-module`](./.agents/skills/create-domain-module/SKILL.md)                             |
+| Change tables, constraints, triggers, RLS, or migrations                  | [`change-owned-schema`](./.agents/skills/change-owned-schema/SKILL.md)                               |
+| Add or change a package's public service, DTO, or tagged errors           | [`expose-public-contract`](./.agents/skills/expose-public-contract/SKILL.md)                         |
+| Let one domain consume another domain's behavior or facts                 | [`introduce-cross-domain-integration`](./.agents/skills/introduce-cross-domain-integration/SKILL.md) |
+| Expose domain behavior through the Effect HTTP API                        | [`add-api-endpoint`](./.agents/skills/add-api-endpoint/SKILL.md)                                     |
+| Add a protected business action or permission                             | [`add-authorization-capability`](./.agents/skills/add-authorization-capability/SKILL.md)             |
+| Implement stock, balance, journal, idempotent, or multi-write invariants  | [`implement-transactional-workflow`](./.agents/skills/implement-transactional-workflow/SKILL.md)     |
 
-Installed generic skills supplement these workflows; they do not replace
-repository ownership, tooling, or validation rules.
+Installed generic skills supplement these workflows; they do not replace repository ownership,
+tooling, or validation rules.
 
 ### Agent Authority Model
 
-- **Reasoning authority:** agents may inspect broadly, identify owners, choose a
-  documented workflow, and make bounded implementation decisions.
-- **Execution authority:** use repository tasks and generators for deterministic
-  mechanics; do not hand-simulate their output.
-- **Validation authority:** scripts, linters, type checking, tests, and CI decide
-  whether mechanical invariants hold.
-- **Deployment authority:** destructive migrations, production changes, secrets,
-  and break-glass operations remain subject to existing human review and runtime
-  permissions.
+- **Reasoning authority:** agents may inspect broadly, identify owners, choose a documented
+  workflow, and make bounded implementation decisions.
+- **Execution authority:** use repository tasks and generators for deterministic mechanics; do not
+  hand-simulate their output.
+- **Validation authority:** scripts, linters, type checking, tests, and CI decide whether mechanical
+  invariants hold.
+- **Deployment authority:** destructive migrations, production changes, secrets, and break-glass
+  operations remain subject to existing human review and runtime permissions.
 
 ## Dependency Ownership
 
@@ -126,23 +139,21 @@ Dependency and Deno configuration ownership is intentionally split:
 Rules:
 
 - Add npm, JSR, and development dependencies to the root `package.json`.
-- Keep dependency versions in one manifest; do not repeat versions in
-  `deno.json`, source imports, task commands, CI configuration, or Dockerfiles
-  unless a tool contract requires an explicit version.
+- Keep dependency versions in one manifest; do not repeat versions in `deno.json`, source imports,
+  task commands, CI configuration, or Dockerfiles unless a tool contract requires an explicit
+  version.
 - Commit `deno.lock` so dependency resolution remains reproducible.
 - Keep `nodeModulesDir: "auto"` and `preferPackageJson: true` in `deno.json`.
 - Use `deno install` after dependency-manifest changes.
-- Treat `vendor/` as reference material, not as the application dependency
-  source.
+- Treat `vendor/` as reference material, not as the application dependency source.
 
 ## Effect v4 Reference
 
-All TypeScript implementations that use Effect v4 MUST consult the vendored
-canonical source at `./vendor/effect-smol` before writing or changing Effect
-code. The legacy directory name is retained so the existing
-subtree history remains pullable. Use it as the primary local reference for v4
-APIs, module layout, examples, and migration behavior. Do not rely on Effect v3
-memory when the vendored reference can answer the question.
+All TypeScript implementations that use Effect v4 MUST consult the vendored canonical source at
+`./vendor/effect-smol` before writing or changing Effect code. The legacy directory name is retained
+so the existing subtree history remains pullable. Use it as the primary local reference for v4 APIs,
+module layout, examples, and migration behavior. Do not rely on Effect v3 memory when the vendored
+reference can answer the question.
 
 The subtree is maintained from the `effect` remote at
 `https://github.com/Effect-TS/effect/tree/main`:
@@ -153,9 +164,8 @@ git subtree pull --prefix=vendor/effect-smol effect main --squash
 
 ## Drizzle v1 Reference and Effect Integration
 
-The Drizzle v1 reference is vendored at `./vendor/drizzle-orm`, pinned to
-`v1.0.0-rc.4`. Use it as the local source reference for Drizzle v1 APIs and
-integration behavior.
+The Drizzle v1 reference is vendored at `./vendor/drizzle-orm`, pinned to `v1.0.0-rc.4`. Use it as
+the local source reference for Drizzle v1 APIs and integration behavior.
 
 The subtree is maintained from the `drizzle-orm` remote:
 
@@ -165,61 +175,54 @@ git subtree pull --prefix=vendor/drizzle-orm drizzle-orm v1.0.0-rc.4 --squash
 
 Integration rules:
 
-- Effect owns lifecycle, typed failures, dependency injection, and transaction
-  boundaries.
-- Drizzle owns SQL construction, dialect rendering, and typed persistence
-  schema; it is never the domain model.
-- Keep the PostgreSQL driver, Drizzle client lifecycle, transaction boundary,
-  and infrastructure-error mapping inside `packages/kernel/`.
-- `db/schema/index.ts` is the Drizzle Kit entry point. A domain implementation
-  may import only its owned tables; public package entry points must not
-  re-export persistence tables or Drizzle query types.
-- Use Drizzle query builders for application reads and writes. Raw SQL in a
-  domain implementation is forbidden; unsupported PostgreSQL DDL belongs in a
-  reviewed Drizzle custom migration.
-- Execute every invariant-sensitive mutation through the kernel's typed Drizzle
-  transaction service. Do not construct a driver client inside a domain.
-- Map constraint failures to tagged domain errors at the owning domain boundary;
-  never expose raw PostgreSQL or Drizzle errors to callers.
-- Do not copy integration examples verbatim. Adapt them to this repository's
-  `DatabaseLayer`, public module contracts, schema ownership, and test layers.
-- Application dependencies resolve from the root `package.json`; vendored
-  subtrees are reference-only and must not be used as runtime dependencies.
-- The root `package.json` is the canonical dependency manifest for npm, JSR, and
-  development dependencies. `deno.lock` owns the resolved dependency graph.
-- `deno.json` owns Deno runtime and toolchain behavior such as compiler options,
-  permissions, tasks, formatting, linting, and `nodeModulesDir`; do not duplicate
-  package-version ownership there.
-- Do not introduce raw GitHub, `raw.githubusercontent.com`, or other HTTPS source
-  imports as package substitutes unless an accepted ADR explicitly requires the
-  exception.
-- `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are
-  covered by the kernel import smoke test. Keep required peer dependencies in
-  the root `package.json`.
-- Generate every migration with pinned Drizzle Kit `1.0.0-rc.4`. Custom SQL must
-  start from `drizzle-kit generate --custom`; every migration directory must
-  contain `migration.sql` and `snapshot.json`.
+- Effect owns lifecycle, typed failures, dependency injection, and transaction boundaries.
+- Drizzle owns SQL construction, dialect rendering, and typed persistence schema; it is never the
+  domain model.
+- Keep the PostgreSQL driver, Drizzle client lifecycle, transaction boundary, and
+  infrastructure-error mapping inside `packages/kernel/`.
+- `db/schema/index.ts` is the Drizzle Kit entry point. A domain implementation may import only its
+  owned tables; public package entry points must not re-export persistence tables or Drizzle query
+  types.
+- Use Drizzle query builders for application reads and writes. Raw SQL in a domain implementation is
+  forbidden; unsupported PostgreSQL DDL belongs in a reviewed Drizzle custom migration.
+- Execute every invariant-sensitive mutation through the kernel's typed Drizzle transaction service.
+  Do not construct a driver client inside a domain.
+- Map constraint failures to tagged domain errors at the owning domain boundary; never expose raw
+  PostgreSQL or Drizzle errors to callers.
+- Do not copy integration examples verbatim. Adapt them to this repository's `DatabaseLayer`, public
+  module contracts, schema ownership, and test layers.
+- Application dependencies resolve from the root `package.json`; vendored subtrees are
+  reference-only and must not be used as runtime dependencies.
+- The root `package.json` is the canonical dependency manifest for npm, JSR, and development
+  dependencies. `deno.lock` owns the resolved dependency graph.
+- `deno.json` owns Deno runtime and toolchain behavior such as compiler options, permissions, tasks,
+  formatting, linting, and `nodeModulesDir`; do not duplicate package-version ownership there.
+- Do not introduce raw GitHub, `raw.githubusercontent.com`, or other HTTPS source imports as package
+  substitutes unless an accepted ADR explicitly requires the exception.
+- `drizzle-orm/effect-postgres` and its `effect` / `@effect/sql-pg` peer path are covered by the
+  kernel import smoke test. Keep required peer dependencies in the root `package.json`.
+- Generate every migration with pinned Drizzle Kit `1.0.0-rc.4`. Custom SQL must start from
+  `drizzle-kit generate --custom`; every migration directory must contain `migration.sql` and
+  `snapshot.json`.
 
 ## Documentation Boundaries
 
-Before editing documentation, read `docs/documentation-boundaries.md`.
-Do not duplicate canonical rules across several documents. Link to the owning
-document and summarize only what is necessary for navigation or context.
+Before editing documentation, read `docs/documentation-boundaries.md`. Do not duplicate canonical
+rules across several documents. Link to the owning document and summarize only what is necessary for
+navigation or context.
 
 ## HTTP Rules
 
-- HTTP contracts, routing, request decoding, error encoding, and OpenAPI use
-  Effect v4 `HttpApi`, `HttpApiGroup`, `HttpApiEndpoint`, `HttpApiBuilder`, and
-  `HttpRouter`.
-- Use the canonical `@effect/platform-deno` source as the server adapter and
-  runtime entrypoint on Deno.
-- Application code must not import `node:http` or call `Deno.serve` directly;
-  native serving is owned by the Effect Deno adapter.
+- HTTP contracts, routing, request decoding, error encoding, and OpenAPI use Effect v4 `HttpApi`,
+  `HttpApiGroup`, `HttpApiEndpoint`, `HttpApiBuilder`, and `HttpRouter`.
+- Use the canonical `@effect/platform-deno` source as the server adapter and runtime entrypoint on
+  Deno.
+- Application code must not import `node:http` or call `Deno.serve` directly; native serving is
+  owned by the Effect Deno adapter.
 - Never use Hono, Express, Fastify, or NestJS for application HTTP.
-- Use Effect HttpApi security middleware for bearer, cookie, or API-key
-  authentication boundaries.
-- Use v4 `Effect.catch`, `Effect.catchCause`, and `Effect.mapError`; never use
-  v3 `catchAll` or `catchAllCause` names.
+- Use Effect HttpApi security middleware for bearer, cookie, or API-key authentication boundaries.
+- Use v4 `Effect.catch`, `Effect.catchCause`, and `Effect.mapError`; never use v3 `catchAll` or
+  `catchAllCause` names.
 
 ## Frontend Rules
 
@@ -246,44 +249,37 @@ A domain module may expose:
 - DTOs through Effect Schema;
 - production and test `Layer` values.
 
-Table definitions, repositories, internal helpers, and implementation details
-must remain private.
+Table definitions, repositories, internal helpers, and implementation details must remain private.
 
-A module must not mutate another module's tables directly. Cross-module work must
-use a typed service contract, including when both modules participate in the
-same PostgreSQL transaction.
+A module must not mutate another module's tables directly. Cross-module work must use a typed
+service contract, including when both modules participate in the same PostgreSQL transaction.
 
-- The financial ledger domain must depend on an engine-independent port. Keep
-  PostgreSQL and the TigerBeetle adapter behind kernel/infrastructure boundaries;
-  do not import engine-specific account, transfer, or balance types into domain
-  modules.
+- The financial ledger domain must depend on an engine-independent port. Keep PostgreSQL and the
+  TigerBeetle adapter behind kernel/infrastructure boundaries; do not import engine-specific
+  account, transfer, or balance types into domain modules.
 
 ### Failure Ownership and Translation
 
 Keep failure types at the layer that owns and can act on them:
 
-- Domain packages own business-policy errors, authorization errors, and their
-  input-validation failures.
-- Kernel services own stable capability-level technical failures such as
-  `DatabaseFailure`.
-- Application composition roots own startup, configuration, deployment, and
-  compatibility failures such as `UnsupportedPostgresVersion`.
-- A domain may propagate a stable error from a public service contract, but must
-  not import PostgreSQL, Drizzle, driver, migration, pool, version-check, or
-  other infrastructure-specific error types.
-- Map known constraint violations to tagged errors in the owning domain. Map all
-  other database implementation failures once at the kernel boundary.
-- Adding an infrastructure failure must not widen every domain failure union.
-  Translate it into the existing stable service failure or handle it at the
-  composition root.
-- Keep startup probes and lifecycle methods out of domain-facing service
-  interfaces. Expose them as kernel or application bootstrap operations.
-- Preserve underlying causes for internal diagnostics, but never expose raw SQL,
-  SQLSTATE, credentials, driver objects, or stack traces through public DTOs or
-  API responses.
-- Before adding an error to a domain contract, ask whether a domain caller can
-  take a meaningful business action for it. If not, it belongs below or above
-  the domain boundary.
+- Domain packages own business-policy errors, authorization errors, and their input-validation
+  failures.
+- Kernel services own stable capability-level technical failures such as `DatabaseFailure`.
+- Application composition roots own startup, configuration, deployment, and compatibility failures
+  such as `UnsupportedPostgresVersion`.
+- A domain may propagate a stable error from a public service contract, but must not import
+  PostgreSQL, Drizzle, driver, migration, pool, version-check, or other infrastructure-specific
+  error types.
+- Map known constraint violations to tagged errors in the owning domain. Map all other database
+  implementation failures once at the kernel boundary.
+- Adding an infrastructure failure must not widen every domain failure union. Translate it into the
+  existing stable service failure or handle it at the composition root.
+- Keep startup probes and lifecycle methods out of domain-facing service interfaces. Expose them as
+  kernel or application bootstrap operations.
+- Preserve underlying causes for internal diagnostics, but never expose raw SQL, SQLSTATE,
+  credentials, driver objects, or stack traces through public DTOs or API responses.
+- Before adding an error to a domain contract, ask whether a domain caller can take a meaningful
+  business action for it. If not, it belongs below or above the domain boundary.
 
 Example:
 
@@ -293,8 +289,7 @@ UserAccountAlreadyExists | UnsupportedPostgresVersion          forbidden
 UserAccountAlreadyExists | PostgresError | DrizzleQueryError    forbidden
 ```
 
-Add a contract or boundary regression test whenever a new error translation is
-introduced.
+Add a contract or boundary regression test whenever a new error translation is introduced.
 
 ## Architecture Enforcement
 
@@ -307,19 +302,42 @@ introduced.
 
 ## Database Rules
 
-- PostgreSQL 19+ is the minimum supported database version; the kernel must
-  reject `server_version_num` values below `190000`.
-- PostgreSQL is the transactional source of truth for control-plane and non-ledger
-  business state; financial transfer, balance, and transfer-history authority follows
-  the current financial-ledger architecture.
+- PostgreSQL 19+ is the minimum supported database version; the kernel must reject
+  `server_version_num` values below `190000`.
+- PostgreSQL is the transactional source of truth for control-plane and non-ledger business state;
+  financial transfer, balance, and transfer-history authority follows the current financial-ledger
+  architecture.
 - Critical invariants require transactions and database constraints.
-- The pinned Drizzle Kit snapshot graph is authoritative for migration order and
-  schema history; generated SQL remains review-required.
-- Use `drizzle-kit generate --custom` for RLS, locking, deferred constraints,
-  partitioning, `ltree`, SQL/PGQ, triggers, and unsupported PostgreSQL features.
-- Every migration requires owner, review-date, generator headers, and a sibling
-  `snapshot.json`.
+- The pinned Drizzle Kit snapshot graph is authoritative for migration order and schema history;
+  generated SQL remains review-required.
+- Use `drizzle-kit generate --custom` for RLS, locking, deferred constraints, partitioning, `ltree`,
+  SQL/PGQ, triggers, and unsupported PostgreSQL features.
+- Every migration requires owner, review-date, generator headers, and a sibling `snapshot.json`.
 - Never rewrite an applied migration. Add a new Drizzle migration.
+
+## Analytics Rules
+
+Before implementing analytical facts, metrics, cubes, dashboards, reporting projections, semantic
+queries, OLAP providers, historical tables, or analytical exports, read
+[`docs/architecture/analytics-architecture.md`](./docs/architecture/analytics-architecture.md),
+ADR-0043, and the workload-isolation architecture.
+
+- Source domains own Business Fact Contracts, corrections, and compatibility; analytics owns only
+  derived metric and projection semantics.
+- Analytics reads run as bounded `query` work; ingestion, rebuild, backfill, and export run as
+  bounded `async` work. Do not add a fourth top-level workload class.
+- Start with a measured PostgreSQL projection. Do not add ClickHouse, Pinot, Iceberg, DuckDB, a
+  warehouse, or another provider before its activation gates pass.
+- Every projection declares a complete rebuild source: retained facts/events or an owner-approved
+  snapshot plus subsequent replay.
+- Metric contracts declare grain, dimensions, join cardinality, aggregation, exact arithmetic, time,
+  units/currency, authorization, and freshness.
+- Hard-isolated analytic routes must not possess a PostgreSQL-primary credential or hidden fallback.
+- Freshness never proves current authorization, read-your-writes, or authoritative state.
+- Provider topology, tables, partitions, files, snapshots, and credentials stay out of public
+  contracts.
+- Financial analytics consume Accounting-approved facts and preserve reconciliation status; they do
+  not establish independent balance authority.
 
 ## Search Rules
 
@@ -327,8 +345,8 @@ Before implementing exact, full-text, BM25, vector, hybrid, global, or external 
 [`docs/architecture/search-architecture.md`](./docs/architecture/search-architecture.md) and
 ADR-0027.
 
-- Start with exact and structured PostgreSQL queries; add ranked, vector, replica, or external search
-  only after measured need.
+- Start with exact and structured PostgreSQL queries; add ranked, vector, replica, or external
+  search only after measured need.
 - Domain-local search may query only owned tables. Cross-domain search consumes public facts or
   committed events into a tenant-scoped, rebuildable projection.
 - Search results are candidates, not authorization evidence or current business facts. Sensitive use
@@ -336,11 +354,12 @@ ADR-0027.
 - Embeddings are asynchronous, versioned, rebuildable, and never part of invariant enforcement.
 - Do not expose provider types, index names, model credentials, shards, replicas, or topology in
   public contracts.
-- Do not require `pg_textsearch`, `pgvector`, `pgvectorscale`, or an external engine until PostgreSQL
-  19 compatibility and the documented production gates pass.
-- Unsupported extension DDL and indexes use reviewed Drizzle custom migrations; provider-specific raw
-  SQL must not enter domain packages.
-- Bound search connections, concurrency, top-k, candidates, statement time, and OLTP resource impact.
+- Do not require `pg_textsearch`, `pgvector`, `pgvectorscale`, or an external engine until
+  PostgreSQL 19 compatibility and the documented production gates pass.
+- Unsupported extension DDL and indexes use reviewed Drizzle custom migrations; provider-specific
+  raw SQL must not enter domain packages.
+- Bound search connections, concurrency, top-k, candidates, statement time, and OLTP resource
+  impact.
 
 ## Workload Isolation and Non-Interference
 
@@ -352,9 +371,9 @@ control, deployment cells, or shuffle sharding, read
   topology, priority, pool, or cell names into capability IDs.
 - A ResourceLease is admission, not authorization, durable acceptance, a database lock, or business
   ownership.
-- Use a cheap pre-authorization ingress bound, then acquire the protected execution permit only after
-  scoped authorization and before executor slots, database connections, projection connections, or
-  expensive work.
+- Use a cheap pre-authorization ingress bound, then acquire the protected execution permit only
+  after scoped authorization and before executor slots, database connections, projection
+  connections, or expensive work.
 - Hard-isolated projection routes must not possess a PostgreSQL-primary credential or silently fall
   back to command resources.
 - Preserve a non-zero command reserve that query and async workloads cannot acquire.
@@ -369,18 +388,15 @@ control, deployment cells, or shuffle sharding, read
 
 ## Stateful Runtime and Asynchronous Rules
 
-- PostgreSQL remains canonical for control-plane and non-ledger business facts;
-  runtime-local durability does not transfer business authority. Financial transfer,
-  balance, and transfer-history authority follows the current financial-ledger
-  architecture.
-- Use the optional Stateful Entity Runtime only for an approved aggregate with a
-  documented address, state class, version, idempotency, recovery, reconciliation,
-  observability, and fallback path.
-- Domain packages must not import `celld`, Cloudflare Durable Object, fleet,
-  bucket, or ownership-protocol APIs; adapters stay behind RITSEI-owned
-  runtime contracts.
-- Do not activate `celld` for production until ADR-0026's maturity gates pass and
-  a later accepted ADR approves production use.
+- PostgreSQL remains canonical for control-plane and non-ledger business facts; runtime-local
+  durability does not transfer business authority. Financial transfer, balance, and transfer-history
+  authority follows the current financial-ledger architecture.
+- Use the optional Stateful Entity Runtime only for an approved aggregate with a documented address,
+  state class, version, idempotency, recovery, reconciliation, observability, and fallback path.
+- Domain packages must not import `celld`, Cloudflare Durable Object, fleet, bucket, or
+  ownership-protocol APIs; adapters stay behind RITSEI-owned runtime contracts.
+- Do not activate `celld` for production until ADR-0026's maturity gates pass and a later accepted
+  ADR approves production use.
 - Use a direct transaction for synchronous business invariants.
 - Use PgQue for committed facts and fan-out.
 - Use a job table for leased, scheduled, prioritized single-consumer work.
@@ -390,49 +406,46 @@ control, deployment cells, or shuffle sharding, read
 
 ## External Integration Rules
 
-Before implementing external actions, events, connectors, OpenAPI imports,
-CloudEvents ingestion, AsyncAPI contracts, OAuth integration, or provider
-adapters, read [`docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
+Before implementing external actions, events, connectors, OpenAPI imports, CloudEvents ingestion,
+AsyncAPI contracts, OAuth integration, or provider adapters, read
+[`docs/architecture/integration-architecture.md`](./docs/architecture/integration-architecture.md)
 and ADR-0019.
 
 - Use HTTPS + JSON + OpenAPI for the default external action surface.
-- Use CloudEvents over HTTPS for external events and AsyncAPI as the message
-  contract/catalog; do not make AsyncAPI a required broker.
+- Use CloudEvents over HTTPS for external events and AsyncAPI as the message contract/catalog; do
+  not make AsyncAPI a required broker.
 - Keep `DomainAction`/`DomainEvent` distinct from `ExternalAction`/`ExternalEvent`.
 - Keep protocols, credentials, provider retries, and transport failures inside
   `packages/integrations` or approved connector plugins.
-- Do not expose Kafka partitions, gRPC stubs, SOAP envelopes, raw OAuth tokens,
-  or provider storage identifiers to Process Studio or domain packages.
-- Use OAuth 2.0 with RFC 9700 security practices and RFC 9457 Problem Details;
-  do not silently turn OAuth scopes into domain capabilities.
-- External side effects require idempotency, timeout/retry policy, provider
-  status, and explicit compensation or manual recovery.
+- Do not expose Kafka partitions, gRPC stubs, SOAP envelopes, raw OAuth tokens, or provider storage
+  identifiers to Process Studio or domain packages.
+- Use OAuth 2.0 with RFC 9700 security practices and RFC 9457 Problem Details; do not silently turn
+  OAuth scopes into domain capabilities.
+- External side effects require idempotency, timeout/retry policy, provider status, and explicit
+  compensation or manual recovery.
 
 ## Process Studio Rules
 
-Before implementing process catalogs, Process IR, workflow definitions,
-compensation, static validation, designer, monitor, or inbox behavior, read
+Before implementing process catalogs, Process IR, workflow definitions, compensation, static
+validation, designer, monitor, or inbox behavior, read
 [`docs/architecture/process-studio.md`](./docs/architecture/process-studio.md),
 [`docs/roadmap/README.md`](./docs/roadmap/README.md), and ADR-0018.
 
 - Build Typed Action and Event Catalogs before the visual designer.
-- Invoke only authorized public domain contracts; never expose arbitrary SQL,
-  scripts, private repositories, or cross-domain table writes.
-- Treat compensation as a new idempotent business command, not as deletion or a
-  later rollback of committed facts.
+- Invoke only authorized public domain contracts; never expose arbitrary SQL, scripts, private
+  repositories, or cross-domain table writes.
+- Treat compensation as a new idempotent business command, not as deletion or a later rollback of
+  committed facts.
 - Keep decisions pure and Process IR small, typed, deterministic, and versioned.
-- Keep BPMN and DMN at interoperability boundaries unless a later ADR expands
-  their role.
-- Capability release states distinguish private, experimental, public,
-  deprecated, and retired contracts.
-- Released definitions are immutable; deployment is separate from release, and
-  running instances remain pinned to exact definition and catalog versions.
-- A ProcessPrincipal never bypasses domain authorization; preserve initiator,
-  actor, delegation, scope, SoD, correlation, and causation context.
-- Persist retry, unknown-outcome, compensation, manual-recovery, and business
-  observability state.
-- Do not activate `pg_durable` before the existing compatibility and production
-  gates pass.
+- Keep BPMN and DMN at interoperability boundaries unless a later ADR expands their role.
+- Capability release states distinguish private, experimental, public, deprecated, and retired
+  contracts.
+- Released definitions are immutable; deployment is separate from release, and running instances
+  remain pinned to exact definition and catalog versions.
+- A ProcessPrincipal never bypasses domain authorization; preserve initiator, actor, delegation,
+  scope, SoD, correlation, and causation context.
+- Persist retry, unknown-outcome, compensation, manual-recovery, and business observability state.
+- Do not activate `pg_durable` before the existing compatibility and production gates pass.
 
 ## Authorization and Security
 
@@ -446,11 +459,11 @@ compensation, static validation, designer, monitor, or inbox behavior, read
 
 ## Web Research
 
-For discovering information on the public web, ALWAYS prefer the
-provider-native web search capability when available.
+For discovering information on the public web, ALWAYS prefer the provider-native web search
+capability when available.
 
-Do NOT use `ax`, `curl`, `wget`, or shell commands to query search engines
-such as Google, Bing, Brave Search, or DuckDuckGo.
+Do NOT use `ax`, `curl`, `wget`, or shell commands to query search engines such as Google, Bing,
+Brave Search, or DuckDuckGo.
 
 Use `ax` only after an exact URL is already known.
 
@@ -488,39 +501,37 @@ Update documentation when changing:
 - deployment or configuration;
 - extension boundaries.
 
-Create a new ADR for significant decisions. Do not rewrite the history of an
-accepted ADR.
+Create a new ADR for significant decisions. Do not rewrite the history of an accepted ADR.
 
 ## Testing Rules
 
 All TypeScript tests MUST use `@effect/vitest`:
 
-- Import `assert`, `describe`, `it`, and other test APIs only from
-  `@effect/vitest`. Do not import test APIs directly from `vitest`.
-- Do not use `Deno.test` in TypeScript test files. Structural `ast-grep` YAML
-  rule tests remain on the `ast-grep` runner.
-- Use `it.effect` for tests returning an Effect, including scoped resources;
-  use `it.live` only when live test services are intentional, and regular `it`
-  only for pure synchronous tests.
-- Do not call `Effect.runPromise` or `Effect.runSync` inside tests. Return the
-  Effect to `@effect/vitest` instead.
-- Use `assert` from `@effect/vitest`; do not use `expect` or manual
-  `throw new Error` assertions when an `assert` method expresses the check.
-- Capture typed failures with Effect operators such as `Effect.flip` or
-  `Effect.result`; do not use `try` / `catch` around Effect execution.
-- Acquire external resources with scoped Effect constructors and release them
-  through finalizers. Never rely on test-process exit for cleanup.
-- Keep `@effect/vitest` on the exact same v4 release as `effect`, and declare
-  both it and `vitest` in the root `package.json`.
-- Run TypeScript tests through `deno task test` or the narrower documented Deno
-  tasks. Do not introduce a second test command path.
-- Test discovery MUST be allowlisted to `apps/**`, `packages/**`, and `tests/**`.
-  Exclude `vendor/**` and `node_modules/**` from tests, coverage, watch mode,
-  formatting, linting, type checking, and boundary scans. Vendored subtrees are
-  reference material and keep their own upstream validation workflows.
+- Import `assert`, `describe`, `it`, and other test APIs only from `@effect/vitest`. Do not import
+  test APIs directly from `vitest`.
+- Do not use `Deno.test` in TypeScript test files. Structural `ast-grep` YAML rule tests remain on
+  the `ast-grep` runner.
+- Use `it.effect` for tests returning an Effect, including scoped resources; use `it.live` only when
+  live test services are intentional, and regular `it` only for pure synchronous tests.
+- Do not call `Effect.runPromise` or `Effect.runSync` inside tests. Return the Effect to
+  `@effect/vitest` instead.
+- Use `assert` from `@effect/vitest`; do not use `expect` or manual `throw new Error` assertions
+  when an `assert` method expresses the check.
+- Capture typed failures with Effect operators such as `Effect.flip` or `Effect.result`; do not use
+  `try` / `catch` around Effect execution.
+- Acquire external resources with scoped Effect constructors and release them through finalizers.
+  Never rely on test-process exit for cleanup.
+- Keep `@effect/vitest` on the exact same v4 release as `effect`, and declare both it and `vitest`
+  in the root `package.json`.
+- Run TypeScript tests through `deno task test` or the narrower documented Deno tasks. Do not
+  introduce a second test command path.
+- Test discovery MUST be allowlisted to `apps/**`, `packages/**`, and `tests/**`. Exclude
+  `vendor/**` and `node_modules/**` from tests, coverage, watch mode, formatting, linting, type
+  checking, and boundary scans. Vendored subtrees are reference material and keep their own upstream
+  validation workflows.
 
-Add a boundary rule or repository scan when needed to prevent regression to
-`Deno.test`, direct `vitest` imports, or Effect runtime runners in tests.
+Add a boundary rule or repository scan when needed to prevent regression to `Deno.test`, direct
+`vitest` imports, or Effect runtime runners in tests.
 
 ## Validation
 
@@ -534,9 +545,8 @@ deno task boundary:lint
 deno task test:contract
 ```
 
-There is no build command yet because the application executables and frontend
-build are still being scaffolded. Report this as unverified until build targets
-exist.
+There is no build command yet because the application executables and frontend build are still being
+scaffolded. Report this as unverified until build targets exist.
 
 ## Completion Report
 

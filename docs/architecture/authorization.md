@@ -6,13 +6,18 @@
 >
 > - Active architecture: [`./architecture-spec-v4.md`](./architecture-spec-v4.md)
 > - Search architecture: [`./search-architecture.md`](./search-architecture.md)
+> - Analytics architecture: [`./analytics-architecture.md`](./analytics-architecture.md)
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
-> - Authorization ADR: [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
-> - User-account lifecycle and tenant membership: [`../decisions/0030-user-account-lifecycle-and-tenant-membership.md`](../decisions/0030-user-account-lifecycle-and-tenant-membership.md)
-> - Capability naming: [`../decisions/0031-capability-naming-and-business-verb-conventions.md`](../decisions/0031-capability-naming-and-business-verb-conventions.md)
+> - Authorization ADR:
+>   [`../decisions/0006-use-capability-based-authorization.md`](../decisions/0006-use-capability-based-authorization.md)
+> - User-account lifecycle and tenant membership:
+>   [`../decisions/0030-user-account-lifecycle-and-tenant-membership.md`](../decisions/0030-user-account-lifecycle-and-tenant-membership.md)
+> - Capability naming:
+>   [`../decisions/0031-capability-naming-and-business-verb-conventions.md`](../decisions/0031-capability-naming-and-business-verb-conventions.md)
 > - Plugin trust model: [`./plugin-architecture.md`](./plugin-architecture.md)
 > - Process Studio: [`./process-studio.md`](./process-studio.md)
-> - Process governance ADR: [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
+> - Process governance ADR:
+>   [`../decisions/0020-adopt-capability-release-and-runtime-governance.md`](../decisions/0020-adopt-capability-release-and-runtime-governance.md)
 
 ## Goals
 
@@ -27,12 +32,12 @@ The authorization system must be:
 - fast on normal request paths;
 - independent of Redis as a source of truth.
 
-Authentication integrations may include OIDC, SAML, SCIM, LDAP, Active
-Directory, MFA, and passkeys. Authentication does not replace authorization.
+Authentication integrations may include OIDC, SAML, SCIM, LDAP, Active Directory, MFA, and passkeys.
+Authentication does not replace authorization.
 
-Search rank, projection membership, cached results, embeddings, and external search ACLs do not grant
-RITSEI capabilities. Search returns candidates; current visibility and every business action are
-revalidated by the owning domain. Detailed search behavior is owned by
+Search rank, analytic metrics, projection membership, cached results, embeddings, and external
+provider ACLs do not grant RITSEI capabilities. Search returns candidates; current visibility and
+every business action are revalidated by the owning domain. Detailed search behavior is owned by
 [`search-architecture.md`](./search-architecture.md).
 
 ## Model
@@ -48,10 +53,9 @@ RBAC
 + static and dynamic Separation of Duties
 ```
 
-Tenant membership is separate from capability grants. A membership may be
-`active` or `suspended`; only an active membership can authorize a capability.
-Removing a membership removes its tenant-scoped grants but does not delete the
-global UserAccount.
+Tenant membership is separate from capability grants. A membership may be `active` or `suspended`;
+only an active membership can authorize a capability. Removing a membership removes its
+tenant-scoped grants but does not delete the global UserAccount.
 
 Roles bundle permissions but do not directly make the final decision.
 
@@ -74,8 +78,9 @@ authorization.role.assign
 ```
 
 Use explicit lifecycle or controlled verbs where the business effect differs. Ordinary `create`,
-`read`, or `update` remains acceptable when it accurately names one coherent owner-controlled action.
-Broad `manage`, `write`, `admin`, `full_access`, and `execute` capabilities are forbidden by ADR-0031.
+`read`, or `update` remains acceptable when it accurately names one coherent owner-controlled
+action. Broad `manage`, `write`, `admin`, `full_access`, and `execute` capabilities are forbidden by
+ADR-0031.
 
 ## Scope
 
@@ -94,8 +99,8 @@ A grant may be limited to:
 
 ## Policy Safety
 
-Tenant administrators must not provide arbitrary SQL, JavaScript, or other
-unrestricted code. Dynamic conditions use a typed, validated policy model.
+Tenant administrators must not provide arbitrary SQL, JavaScript, or other unrestricted code.
+Dynamic conditions use a typed, validated policy model.
 
 ## Admission Is Not Authorization
 
@@ -104,13 +109,13 @@ acquisition do not grant a business capability. They control where and whether w
 trusted routing metadata is resolved.
 
 A caller must still pass tenant membership, scoped capability, domain policy, and Separation of
-Duties checks. A query projection or isolated executor must fail closed when authorization context is
-missing, stale beyond its contract, or invalid. Sensitive isolated queries invoke a bounded
+Duties checks. A query projection or isolated executor must fail closed when authorization context
+is missing, stale beyond its contract, or invalid. Sensitive isolated queries invoke a bounded
 owner-controlled authorization-check contract with no access to the command reserve or use an
 owner-approved fail-closed authorization projection with explicit scope, relationship, SoD,
 revocation, and freshness behavior. If current owner state cannot be evaluated through that path,
-the query is authoritative and does not claim hard projection isolation. WorkloadCell or lease membership must
-never be accepted as proof of tenant visibility or mutation authority.
+the query is authoritative and does not claim hard projection isolation. WorkloadCell or lease
+membership must never be accepted as proof of tenant visibility or mutation authority.
 
 Capability IDs retain business ownership and verbs. They must not encode `command`, `query`,
 `priority`, pool, cell, region, or executor names.
@@ -130,8 +135,8 @@ PostgreSQL RLS
 
 ## Process Execution Authority and Separation of Duties
 
-A workflow runtime does not become an authorization superuser. Every process
-command is authorized by the owning domain using explicit execution context:
+A workflow runtime does not become an authorization superuser. Every process command is authorized
+by the owning domain using explicit execution context:
 
 ```text
 ProcessInstanceId
@@ -155,9 +160,8 @@ ProcessPrincipal
 DelegatedPrincipal
 ```
 
-A `ProcessPrincipal` identifies durable runtime execution; it does not grant
-capabilities by itself. A process definition cannot grant, widen, or substitute
-a business capability.
+A `ProcessPrincipal` identifies durable runtime execution; it does not grant capabilities by itself.
+A process definition cannot grant, widen, or substitute a business capability.
 
 Separation of Duties is a policy layer in addition to domain invariants:
 
@@ -170,9 +174,9 @@ Organization policy:
   amount > threshold requires designated approver
 ```
 
-High-risk workflows must preserve actor, initiator, delegation, capability,
-scope, and approval history. Approval completion must be conditional or
-otherwise protected against duplicate or unauthorized completion.
+High-risk workflows must preserve actor, initiator, delegation, capability, scope, and approval
+history. Approval completion must be conditional or otherwise protected against duplicate or
+unauthorized completion.
 
 ## Audit
 
@@ -188,5 +192,5 @@ Every high-risk decision should record:
 
 ## Performance
 
-Graph traversal may help build effective permissions, but the hot request path
-should use an optimized effective-grant projection or equivalent indexed model.
+Graph traversal may help build effective permissions, but the hot request path should use an
+optimized effective-grant projection or equivalent indexed model.

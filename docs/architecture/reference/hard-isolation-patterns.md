@@ -5,14 +5,17 @@
 > **Owns:** Comparative background for cell architecture, shuffle sharding, overload control,
 > concurrency partitioning, bounded queues, and their possible application to ERP workloads.
 >
-> **Must not own:** Binding RITSEI workload-isolation, routing, admission, projection, or
-> deployment rules.
+> **Must not own:** Binding RITSEI workload-isolation, routing, admission, projection, or deployment
+> rules.
 >
 > **Related documents**
 >
 > - Workload isolation: [`../workload-isolation.md`](../workload-isolation.md)
 > - Canonical architecture: [`../architecture-spec-v4.md`](../architecture-spec-v4.md)
 > - Search architecture: [`../search-architecture.md`](../search-architecture.md)
+> - Analytics architecture: [`../analytics-architecture.md`](../analytics-architecture.md)
+> - Analytical isolation reference:
+>   [`./analytical-isolation-and-semantic-projection-patterns.md`](./analytical-isolation-and-semantic-projection-patterns.md)
 > - State and consistency: [`../state-and-consistency.md`](../state-and-consistency.md)
 > - Non-interference ADR:
 >   [`../../decisions/0034-adopt-non-interference-overload-isolation.md`](../../decisions/0034-adopt-non-interference-overload-isolation.md)
@@ -27,8 +30,8 @@ RITSEI terminology:
 - Google SRE overload control and load shedding;
 - Netflix adaptive concurrency and traffic partitioning.
 
-The sources describe large distributed services, not ERP domain semantics. RITSEI adopts only
-the parts that preserve its modular monolith, PostgreSQL canonical truth, typed owner-controlled
+The sources describe large distributed services, not ERP domain semantics. RITSEI adopts only the
+parts that preserve its modular monolith, PostgreSQL canonical truth, typed owner-controlled
 contracts, rebuildable projections, and explicit authorization model.
 
 Sources were reviewed on 2026-08-10.
@@ -282,7 +285,7 @@ The tenant, principal, capability, and route are derived from authenticated RITS
 
 The patterns complement rather than replace one another:
 
-| Pattern                    | Primary contribution                                  | RITSEI use                                                         |
+| Pattern                    | Primary contribution                                  | RITSEI use                                                             |
 | -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
 | Cell/bulkhead architecture | Bounded fault domains and thin routing                | Tenant-group WorkloadCells with explicit shared dependencies           |
 | Shuffle sharding           | Limits one caller to a subset of contended resources  | Tenant-scoped user or service-principal executor subsets               |
@@ -304,8 +307,8 @@ thin router
 
 ## RITSEI-Specific Corrections
 
-A direct copy of hyperscale service patterns would violate current RITSEI decisions. The
-adaptation therefore preserves these constraints.
+A direct copy of hyperscale service patterns would violate current RITSEI decisions. The adaptation
+therefore preserves these constraints.
 
 ### PostgreSQL remains canonical
 
@@ -361,9 +364,10 @@ infrastructure resources for a workload subset. A `celld` cell is a named statef
 with private SQLite state and one active owner. They must not be conflated.
 
 `celld`'s bucket is durable authority for its own SQLite state; that is not automatically canonical
-business authority in RITSEI. Under ADR-0003, PostgreSQL remains canonical for business facts.
-Therefore `celld` supports entity-level coordination and recovery, while WorkloadCells, workload
-planes, and ResourceLeases protect command resources from degradable workload traffic.
+business authority in RITSEI. PostgreSQL remains canonical for control-plane and non-ledger business
+facts, while an activated financial profile follows ADR-0040. Therefore `celld` supports
+entity-level coordination and recovery, while WorkloadCells, workload planes, and ResourceLeases
+protect command resources from degradable workload traffic.
 
 ## Example ERP Flow
 
