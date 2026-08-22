@@ -25,6 +25,7 @@ export default defineConfig({
     "auth",
     "authorization",
     "sales",
+    "procurement",
     "inventory",
     "accounting",
     "process",

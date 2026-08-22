@@ -10,6 +10,7 @@ const ownerDeclarations = [
   ["identity", "packages/identity/src/capabilities.ts"],
   ["party", "packages/party/src/capabilities.ts"],
   ["sales", "packages/sales/src/capabilities.ts"],
+  ["procurement", "packages/procurement/src/capabilities.ts"],
   ["inventory", "packages/inventory/src/capabilities.ts"],
   ["accounting", "packages/accounting/src/capabilities.ts"],
   ["process", "packages/process/src/capabilities.ts"],

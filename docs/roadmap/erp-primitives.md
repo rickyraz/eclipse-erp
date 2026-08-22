@@ -226,6 +226,11 @@ of scope until their owners and lifecycles are decided. Financial execution migr
 separately by [`financial-ledger-execution.md`](./financial-ledger-execution.md); it does not expand
 this business scope.
 
+The first bounded Procurement document is decided by
+[`../decisions/0044-define-procurement-purchase-order-baseline.md`](../decisions/0044-define-procurement-purchase-order-baseline.md):
+creation atomically produces a private draft Purchase Order with owner-derived line totals and no
+stock, payable, accounting, external, event, or Process Studio effect.
+
 Resolve before cataloging purchase, sales, billing, payment, or close actions:
 
 ```text

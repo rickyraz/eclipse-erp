@@ -14,6 +14,7 @@ import {
   OrganizationRequired,
   PartyCapabilities,
   PartyRelationshipAlreadyExists,
+  PartyRelationshipNotFound,
   PartyRelationshipRoleNotAssigned,
   PartyRepresentationAlreadyExists,
   PartyRepresentationNotFound,
@@ -109,6 +110,10 @@ it.effect.skipIf(databaseUrl === undefined)(
           slug: `scope-${crypto.randomUUID()}`,
           timezone: "UTC",
         })
+        const otherTenant = yield* auth.createTenant({
+          slug: `scope-other-${crypto.randomUUID()}`,
+          timezone: "UTC",
+        })
         const authorizationLayer = makeAuthorizationTestLayer([
           {
             userAccountId: principal.userAccountId,
@@ -134,6 +139,16 @@ it.effect.skipIf(databaseUrl === undefined)(
             userAccountId: principal.userAccountId,
             tenantId: tenant.id,
             capability: "party.party_relationship.create",
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: tenant.id,
+            capability: PartyCapabilities.partyRelationshipRead,
+          },
+          {
+            userAccountId: principal.userAccountId,
+            tenantId: otherTenant.id,
+            capability: PartyCapabilities.partyRelationshipRead,
           },
           {
             userAccountId: principal.userAccountId,
@@ -228,6 +243,22 @@ it.effect.skipIf(databaseUrl === undefined)(
             kind: "customer",
           })
           assert.strictEqual(relationship.active, true)
+          assert.deepStrictEqual(
+            yield* party.getRelationship({
+              principal,
+              tenantId: tenant.id,
+              relationshipId: relationship.id,
+            }),
+            relationship,
+          )
+          assert.instanceOf(
+            yield* Effect.flip(party.getRelationship({
+              principal,
+              tenantId: otherTenant.id,
+              relationshipId: relationship.id,
+            })),
+            PartyRelationshipNotFound,
+          )
           assert.instanceOf(
             yield* Effect.flip(party.createRelationship({
               principal,

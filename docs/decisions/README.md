@@ -66,5 +66,6 @@ current system; ADRs preserve decision history.
 | [`0041`](./0041-separate-deployment-profile-and-financial-authority.md) | Separate deployment profile from financial authority          | Accepted   |
 | [`0042`](./0042-exact-financial-amount-boundary.md)                 | Set an exact financial amount boundary above the target       | Accepted   |
 | [`0043`](./0043-adopt-rebuildable-analytic-plane.md)                | Adopt a rebuildable Analytic Plane                            | Accepted   |
+| [`0044`](./0044-define-procurement-purchase-order-baseline.md)       | Define the Procurement Purchase Order baseline                | Accepted   |
 
 Accepted ADRs must not be rewritten to alter history. Create a new ADR and use `Supersedes`.

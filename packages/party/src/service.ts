@@ -116,6 +116,11 @@ export const CreatePartyRelationshipInput = Schema.Struct({
   kind: PartyRelationshipKind,
 })
 
+export const GetPartyRelationshipInput = Schema.Struct({
+  ...ScopedInput,
+  relationshipId: Schema.String,
+})
+
 export const AttachExternalIdentifierInput = Schema.Struct({
   ...ScopedInput,
   partyId: Schema.String,
@@ -185,6 +190,14 @@ export class PartyRelationshipRoleNotAssigned
       kind: PartyRelationshipKind,
     },
   ) {}
+
+export class PartyRelationshipNotFound extends Schema.TaggedErrorClass<PartyRelationshipNotFound>()(
+  "PartyRelationshipNotFound",
+  {
+    tenantId: Schema.String,
+    relationshipId: Schema.String,
+  },
+) {}
 
 export class ExternalIdentifierAlreadyAssigned
   extends Schema.TaggedErrorClass<ExternalIdentifierAlreadyAssigned>()(
@@ -297,6 +310,9 @@ export interface PartyService {
     | PartyRelationshipRoleNotAssigned
     | CommonFailure
   >
+  readonly getRelationship: (
+    input: unknown,
+  ) => Effect.Effect<PartyRelationship, PartyRelationshipNotFound | CommonFailure>
   readonly attachIdentifier: (
     input: unknown,
   ) => Effect.Effect<
@@ -683,6 +699,32 @@ export const makePartyService = Effect.gen(function* () {
         )
         return rows[0]!
       }),
+    getRelationship: (input) =>
+      Effect.gen(function* () {
+        const decoded = yield* Schema.decodeUnknownEffect(GetPartyRelationshipInput)(input)
+        yield* authorization.authorize({
+          principal: decoded.principal,
+          tenantId: decoded.tenantId,
+          capability: PartyCapabilities.partyRelationshipRead,
+        })
+        const rows = yield* database.query(
+          (db) =>
+            db.select(relationshipSelection)
+              .from(partyRelationships)
+              .where(
+                and(
+                  eq(partyRelationships.tenantId, decoded.tenantId),
+                  eq(partyRelationships.id, decoded.relationshipId),
+                ),
+              ),
+          "party.relationship.get",
+        )
+        const relationship = rows[0]
+        if (relationship === undefined) {
+          return yield* Effect.fail(new PartyRelationshipNotFound(decoded))
+        }
+        return relationship
+      }),
     attachIdentifier: (input) =>
       Effect.gen(function* () {
         const decoded = yield* Schema.decodeUnknownEffect(AttachExternalIdentifierInput)(input)
@@ -770,8 +812,7 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
       const relationships = new Map<string, PartyRelationship>()
       const identifiers = new Set<string>()
       const representations = new Map<string, PartyRepresentation>()
-      let sequence = 1
-      const nextId = () => `party-test-${sequence++}`
+      const nextId = () => crypto.randomUUID()
 
       const service: PartyService = {
         create: (input) =>
@@ -1031,6 +1072,23 @@ export const makePartyTestLayer = (validUserAccountIds?: ReadonlySet<string>) =>
               active: true,
             }
             relationships.set(key, relationship)
+            return relationship
+          }),
+        getRelationship: (input) =>
+          Effect.gen(function* () {
+            const decoded = yield* Schema.decodeUnknownEffect(GetPartyRelationshipInput)(input)
+            yield* authorization.authorize({
+              principal: decoded.principal,
+              tenantId: decoded.tenantId,
+              capability: PartyCapabilities.partyRelationshipRead,
+            })
+            const relationship = [...relationships.values()].find((relationship) =>
+              relationship.tenantId === decoded.tenantId &&
+              relationship.id === decoded.relationshipId
+            )
+            if (relationship === undefined) {
+              return yield* Effect.fail(new PartyRelationshipNotFound(decoded))
+            }
             return relationship
           }),
         attachIdentifier: (input) =>

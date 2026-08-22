@@ -76,3 +76,10 @@ export {
   workflowRuns,
   workflowRunStatus,
 } from "./process.ts"
+export {
+  procurementSchema,
+  purchaseOrderLines,
+  purchaseOrders,
+  purchaseOrderStatus,
+  supplierAccounts,
+} from "./procurement.ts"

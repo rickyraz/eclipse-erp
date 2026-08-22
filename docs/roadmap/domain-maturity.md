@@ -57,7 +57,7 @@ contract and database tests
 | `inventory`     | items, warehouses, balances, movements, reservations, transfers   |                                          `PARTIAL`; `inventory.stock.adjust` v1 is a Level 3 slice | Keep broader actions private until they have catalog metadata and owner-published events; traceability and valuation remain out of scope                                               |
 | `accounting`    | accounts, periods, revenue posting, and reversal                  | `PARTIAL`; `accounting.revenue.post` and `accounting.revenue.posted` v1 are bounded Level 3 slices | Keep generic journals, AP/AR, payment, tax, and settlement out of scope; migrate the bounded slice only after the financial-ledger activation gates pass |
 | `sales`         | customers, quotations, sales orders                               |                                             `PARTIAL`; `sales.order.confirm` v1 is a Level 3 slice | Sales owns draft/confirmed/cancelled order state and publishes confirmation; Process coordinates fulfillment through Inventory; invoicing, returns, and credit policy remain undecided |
-| `procurement`   | registered schema owner, package scaffold                         |                                                                                        `NOT READY` | implement supplier, sourcing, purchase, receipt, return, and invoice-match contracts                                                                                                   |
+| `procurement`   | supplier accounts and atomic draft purchase orders                 | `PARTIAL`; supplier-account and purchase-order creation are Level 1 | decide purchase-order commitment and correction semantics next; sourcing, receipt, return, and invoice match remain gated                                                              |
 | `billing`       | package scaffold                                                  |                                                                                        `NOT READY` | decide invoice, payment, receivable, settlement, and accounting integration ownership                                                                                                  |
 | `integrations`  | external adapter and connector boundary                           |                                                                                    `BOUNDARY ONLY` | implement versioned standards, OpenAPI/CloudEvents adapters, OAuth scopes, delivery reliability, and external action/event normalization; do not become an internal domain owner       |
 | `process`       | bounded order-lifecycle application coordinator                   |                                                                                          `PARTIAL` | keep orchestration behind public domain contracts; do not treat it as Process Studio or a new domain owner                                                                             |
@@ -161,6 +161,11 @@ Goals:
 
 Do not implement every subfeature in one phase. Each command must pass the primitive readiness test
 and have a narrow public contract.
+
+Procurement now owns `SupplierAccount` identity and atomic draft `PurchaseOrder` creation while Party
+retains supplier-role and Legal Entity relationship authority. Draft orders derive totals from line
+snapshots but have no stock, invoice, accounting, event, or Process Studio effect. Commitment,
+correction, and receipt semantics remain gated by ADR-0044.
 
 ### D2 — Publish Catalog Providers
 

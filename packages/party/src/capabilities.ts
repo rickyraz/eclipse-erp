@@ -4,6 +4,7 @@ export const PartyCapabilities = {
   branchCreate: "party.branch.create",
   partyRoleAssign: "party.party_role.assign",
   partyRelationshipCreate: "party.party_relationship.create",
+  partyRelationshipRead: "party.party_relationship.read",
   partyIdentifierAttach: "party.party_identifier.attach",
   partyRepresentationCreate: "party.party_representation.create",
   partyRepresentationActivate: "party.party_representation.activate",

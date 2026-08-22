@@ -12,6 +12,7 @@ import {
   OrganizationRequired,
   PartyCapabilities,
   PartyRelationshipAlreadyExists,
+  PartyRelationshipNotFound,
   PartyRelationshipRoleNotAssigned,
   PartyRepresentationAlreadyExists,
   PartyRepresentationNotFound,
@@ -28,6 +29,7 @@ const capabilities = [
   PartyCapabilities.branchCreate,
   PartyCapabilities.partyRoleAssign,
   PartyCapabilities.partyRelationshipCreate,
+  PartyCapabilities.partyRelationshipRead,
   PartyCapabilities.partyIdentifierAttach,
   PartyCapabilities.partyRepresentationCreate,
   PartyCapabilities.partyRepresentationActivate,
@@ -301,6 +303,68 @@ describe("party contract", () => {
         LegalEntityNotFound,
       )
     })))
+
+  it.effect("reads a tenant-scoped relationship and reports missing relationships", () =>
+    withParty(Effect.gen(function* () {
+      const service = yield* PartyService
+      const party = yield* service.create({
+        principal,
+        tenantId,
+        kind: "organization",
+        name: "Readable Supplier",
+      })
+      yield* service.assignRole({ principal, tenantId, partyId: party.id, role: "supplier" })
+      const legalEntity = yield* service.createLegalEntity({
+        principal,
+        tenantId,
+        organizationId: party.id,
+      })
+      const relationship = yield* service.createRelationship({
+        principal,
+        tenantId,
+        partyId: party.id,
+        legalEntityId: legalEntity.id,
+        kind: "supplier",
+      })
+
+      assert.deepStrictEqual(
+        yield* service.getRelationship({ principal, tenantId, relationshipId: relationship.id }),
+        relationship,
+      )
+      assert.instanceOf(
+        yield* Effect.flip(service.getRelationship({
+          principal,
+          tenantId,
+          relationshipId: "missing",
+        })),
+        PartyRelationshipNotFound,
+      )
+    })))
+
+  it.effect("denies relationship reads without their capability", () => {
+    const authorization = makeAuthorizationTestLayer([
+      ...capabilities.filter((capability) => capability !== PartyCapabilities.partyRelationshipRead)
+        .map((capability) => ({
+          userAccountId: principal.userAccountId,
+          tenantId,
+          capability,
+        })),
+    ])
+    return Effect.provide(
+      Effect.gen(function* () {
+        const service = yield* PartyService
+        assert.instanceOf(
+          yield* Effect.flip(service.getRelationship({
+            principal,
+            tenantId,
+            relationshipId: "missing",
+          })),
+          AuthorizationDenied,
+        )
+      }),
+      makePartyTestLayer().pipe(Layer.provide(authorization)),
+    )
+  })
 
   it.effect("requires an assigned role for a legal entity relationship", () =>
     withParty(Effect.gen(function* () {
