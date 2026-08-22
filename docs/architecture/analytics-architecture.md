@@ -12,6 +12,7 @@
 > - Workload isolation: [`./workload-isolation.md`](./workload-isolation.md)
 > - State and consistency: [`./state-and-consistency.md`](./state-and-consistency.md)
 > - Authorization: [`./authorization.md`](./authorization.md)
+> - Process Studio: [`./process-studio.md`](./process-studio.md)
 > - Messaging: [`./pgque-messaging.md`](./pgque-messaging.md)
 > - PostgreSQL architecture: [`./postgresql-19-architecture.md`](./postgresql-19-architecture.md)
 > - Financial ledger: [`./financial-ledger.md`](./financial-ledger.md)
@@ -479,6 +480,14 @@ canonical state or authorization changed after observation, the command rejects 
 recomputes; it never bypasses the owner. Human or policy review is the default. Closing any automatic
 action loop requires a separate accepted ADR with allowlisted bounded actions and safety evidence.
 
+### Fresh authorization across observation, review, and action
+
+Observation creation, recommendation review, and proposed action preserve the originating human or
+service principal, reviewer, execution principal, and any delegation, correlation, and causation
+provenance. Each stage independently revalidates current tenant-scoped visibility of its evidence and
+applicable separation of duties. Revocation after observation creation fails closed at review; a
+`ProcessPrincipal` cannot inherit or obscure the rights and actors used by either decision.
+
 This architecture does not activate a knowledge graph, vector store, process-mining engine, LLM,
 evaluator, finding/recommendation contract, or autonomous action runtime. Self-observation work, if
 later approved, remains bounded `query` and `async` work and cannot consume the command reserve.
@@ -603,6 +612,7 @@ Record, subject to redaction:
 | Semantics are portable            | Every activated provider passes one golden typed dataset                                              |
 | Pagination is stable              | Ties, nulls, text comparison, and a page split enumerate each fixed-frontier row exactly once; mismatched frontiers fail explicitly |
 | Recommendations are non-authoritative | Change state or revoke access after observation; no direct mutation occurs and any proposed action re-enters the current owning command |
+| Review authorization stays current | Revoke evidence access or delegation after observation; review fails closed and a `ProcessPrincipal` cannot bypass action denial or SoD |
 | Freshness is honest               | Inject asymmetric source lag, late facts, and incompleteness; `dataAsOf` never exceeds the oldest required source completeness frontier |
 | Authorization fails closed        | Revoke access while a projection lags; no sensitive result is disclosed                               |
 | Tenants are isolated              | Cross-tenant keys, filters, files, partitions, and caches cannot return data                          |
